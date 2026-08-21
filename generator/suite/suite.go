@@ -49,7 +49,7 @@ const Capability = "suite"
 
 // Version composes into the pipeline's plugin fingerprint. Bump it on any
 // change to what this plugin emits, the projection or the templates alike.
-const Version = "1.19.0"
+const Version = "1.20.0"
 
 // DirectiveName is the bare directive name — without the `//testkit:` prefix —
 // that opts an interface in.
@@ -442,6 +442,7 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 				// not run; [Proofs.SetOutputPackages] corrects this and
 				// every defect under it once the target resolves.
 				Pkg:          iface.Package,
+				SourcePkg:    iface.Package,
 				Token:        token,
 				Vocab:        Vocab,
 				Prove:        Prove,

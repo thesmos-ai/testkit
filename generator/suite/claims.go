@@ -542,57 +542,6 @@ func CountClaim(m subject.Method) string {
 	return m.Name + " equals the number of seeded entries"
 }
 
-// The leg-level wording policy. Per-law claims live beside their
-// identifiers in [lawid]; the two sentences here describe LEGS — the
-// linearize run and the observational bundle — which have segments
-// rather than law identifiers, so their wording is the suite's.
-
-// LinearizableClaim words the concurrent leg's row.
-func LinearizableClaim() string {
-	return "concurrent operation histories are linearizable"
-}
-
-// BundleClaim words the observational bundle: the chain-shaped
-// protocol speaks "chain law", everything else the plain form. The
-// corpus's one domain-specific bundle wording (pool's accounting
-// sentence) is a spelling this derivation cannot reach — recorded in
-// the design doc's frontier.
-func BundleClaim(chain bool) string {
-	if chain {
-		return "every bound chain law holds over random operation sequences"
-	}
-	return "every bound law holds over random operation sequences"
-}
-
-// The sequence nouns the differential wordings speak where no
-// protocol names its own pair.
-const (
-	seqOperation = "operation"
-	seqRead      = "read"
-)
-
-// DifferentialAgreeClaim words the reference-comparison row: the
-// sequence noun, the subject's token, and the reference's arms — a
-// reference seeded identically for read-only surfaces, agreement on
-// every outcome where the oracle speaks error semantics.
-func DifferentialAgreeClaim(sequence, token string, seeded, outcomes bool) string {
-	reference := "the reference"
-	if seeded {
-		reference = "a reference seeded identically"
-	}
-	claim := "every " + sequence + " sequence leaves the " + token + " agreeing with " + reference
-	if outcomes {
-		claim += " on every outcome"
-	}
-	return claim
-}
-
-// DifferentialDrainClaim words the produced-handle comparison: the
-// drain answers the same entries, in order.
-func DifferentialDrainClaim(sequence string) string {
-	return "every " + sequence + " sequence drains the same entries as the reference, in order"
-}
-
 // missNoun is the word the reader claims call their probed input.
 func missNoun(m subject.Method) string {
 	if draws := m.CallArgs(); len(draws) > 0 {

@@ -251,7 +251,7 @@ func checkEmitsOf(
 			view.ObserveMethod = pair.Observe.Method
 		}
 		if probe, ok := plan.Body.(projection.ReportsSentinel); ok {
-			view.Sentinel = sentinelRef(iface, string(probe.Sentinel))
+			view.Sentinel = sentinelRef(iface.Package, string(probe.Sentinel))
 		}
 		out = append(out, &CheckEmit{
 			BaseEmit: base,
@@ -435,8 +435,8 @@ func valueDiscardOf(m subject.Method) string {
 // the qualifier is split back off and handed to the backend, which is
 // what registers the import. A bare name means the interface's own
 // package, which is where the declaration wrote it.
-func sentinelRef(iface Iface, declared string) *sdk.Expr {
-	pkg, symbol := iface.Package, declared
+func sentinelRef(srcPkg, declared string) *sdk.Expr {
+	pkg, symbol := srcPkg, declared
 	if i := strings.LastIndex(declared, "."); i >= 0 {
 		pkg, symbol = declared[:i], declared[i+1:]
 	}

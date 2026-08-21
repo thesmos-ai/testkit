@@ -25,7 +25,7 @@ const Capability = "model"
 
 // Version composes into the pipeline's plugin fingerprint. Bump it on any
 // change to what this plugin emits, the projection or the templates alike.
-const Version = "0.65.0"
+const Version = "0.66.0"
 
 // DirectiveName is the bare directive name — without the `//testkit:` prefix —
 // that opts an interface in.
@@ -283,6 +283,16 @@ type Bindings struct {
 	// against.
 	Reference Reference
 
+	// Methods is the harness's projection of the interface, in
+	// declaration order.
+	//
+	// Kept rather than consumed, because a planted defect is spelled at
+	// the METHOD it overrides — its signature, its stamps, its name — and
+	// the rules that plant one run after the actions are composed. Not a
+	// second derivation: this is the input every other field here was
+	// derived FROM.
+	Methods []subject.Method
+
 	// Actions is one per driven method, in declaration order.
 	Actions []*Action
 
@@ -383,6 +393,22 @@ type Bindings struct {
 	// concAcquireName and concReleaseName are the lease leg's role methods,
 	// recorded by the derivation for the action lookup the leg wires.
 	concAcquireName, concReleaseName string
+
+	// overrides pairs each row that carries a planted defect with the
+	// method the defect is planted through.
+	//
+	// The rule that picked the defect picked the method too — a defect
+	// goes in through the double's per-method option — and the plan has
+	// nowhere to carry it. Held here rather than on the plan because it
+	// is a fact about how the evidence is SPELLED, which the plan is
+	// deliberately free of.
+	overrides []override
+}
+
+// override is one row's planted defect and the method it goes through.
+type override struct {
+	ID     projection.IDPlan
+	Method *subject.Method
 }
 
 // The lease contract's role spellings, as the directives stamp them, and

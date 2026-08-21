@@ -30,9 +30,17 @@ const (
 // prover's job, which runs against a surface this tier does not emit yet.
 // Claiming proof without the evidence is refused in both directions, so
 // the honest record is the argument.
-const unproven = "no defect is planted for it: the proofs beside this file break one " +
-	"method at a time, and a claim about sequences needs a subject that is wrong " +
-	"over a history"
+const unproven = "no mechanical rule plants a defect for this claim; the ones that " +
+	"would are domain composites, which no rule reaches from shape and stamps alone"
+
+// unspellable is the other refusal: a rule reached the row and this run
+// could not write the defect out.
+//
+// Told apart from [unproven] because they are fixed in different places.
+// "Nobody wrote a rule" sends a reader to the rule table; "your signature
+// yields no value to plant" sends them to their own declaration.
+const unspellable = "a defect for this claim was derived and this run could not spell it: " +
+	"the overridden method's types yield no value to plant"
 
 // PlanRows is the checks this tier owns for one interface.
 //
@@ -51,31 +59,56 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 	var out []projection.CheckPlan
 
 	if bundle := b.bundledLaws(); len(bundle) > 0 {
-		out = append(out, projection.CheckPlan{
-			ID:          projection.IDPlan{Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: vocab.SegLaws},
-			Class:       vocab.ClassLaws,
-			Claim:       lawsClaim,
-			Body:        projection.LawLeg{Laws: bundle},
-			Binds:       bundle,
-			Falsifiable: vocab.Argued(unproven),
-		})
+		out = append(out, proveOrArgue(projection.CheckPlan{
+			ID:    projection.IDPlan{Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: vocab.SegLaws},
+			Class: vocab.ClassLaws,
+			Claim: lawsClaim,
+			Body:  projection.LawLeg{Laws: bundle},
+			Binds: bundle,
+		}, b, nil, nil, false))
 	}
 
 	// The differential is the strongest oracle this tier has, and it runs
 	// with no law registered so nothing competes with it: a disagreement
 	// is what ends the run.
 	if b.Reference.Derived() || b.Reference.Supplied() {
-		out = append(out, projection.CheckPlan{
+		dropped, writer, drops := differentialDefect(b)
+		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
 				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: vocab.SegDifferential,
 			},
-			Class:       vocab.ClassDifferential,
-			Claim:       refClaim,
-			Body:        projection.DifferentialLeg{},
-			Falsifiable: vocab.Argued(unproven),
-		})
+			Class: vocab.ClassDifferential,
+			Claim: refClaim,
+			Body:  projection.DifferentialLeg{},
+		}, b, dropped, writer, drops))
 	}
 	return append(out, ownLegRows(b)...)
+}
+
+// proveOrArgue settles one plan's falsifiability from a rule's verdict:
+// a plan the rule reached is Proven and carries its defect, one it
+// declined stays Argued and says why.
+//
+// The two fields move together or not at all, which is why they are
+// settled here rather than at each call site. The parity gate refuses a
+// Proven row with no defect as firmly as an Argued row that plants one,
+// so a site setting one and forgetting the other fails in the generated
+// package rather than here.
+//
+// The overriding method rides along on the binding, because a defect is
+// planted THROUGH one and the plan alone does not say which.
+func proveOrArgue(
+	plan projection.CheckPlan, b *Bindings,
+	defect projection.Defect, over *subject.Method, proven bool,
+) projection.CheckPlan {
+	if !proven {
+		plan.Falsifiable = vocab.Argued(unproven)
+		return plan
+	}
+	plan.Falsifiable = vocab.Proven()
+	plan.Defect = defect
+	b.overrides = append(b.overrides, override{ID: plan.ID, Method: over})
+	return plan
 }
 
 // ownLegRows is one row per law the shared sequences cannot carry.
@@ -101,17 +134,17 @@ func ownLegRows(b *Bindings) []projection.CheckPlan {
 			continue
 		}
 		bind := []projection.Bind{{Law: l.ID}}
-		out = append(out, projection.CheckPlan{
+		defect, over, proven := defectFor(b, l)
+		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
 				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: l.ID,
 			},
-			Class:       class,
-			Claim:       claim,
-			Needs:       needsFor(class),
-			Body:        projection.LawLeg{Laws: bind},
-			Binds:       bind,
-			Falsifiable: vocab.Argued(unproven),
-		})
+			Class: class,
+			Claim: claim,
+			Needs: needsFor(class),
+			Body:  projection.LawLeg{Laws: bind},
+			Binds: bind,
+		}, b, defect, over, proven))
 	}
 	return out
 }

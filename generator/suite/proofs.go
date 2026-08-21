@@ -46,6 +46,14 @@ type Proofs struct {
 	// Token qualifies the identifiers this file declares for itself.
 	Token string
 
+	// SourcePkg is the declaration's own package, where a stamped
+	// sentinel is resolved from.
+	//
+	// Not [Proofs.Pkg]: that one is repointed at wherever Layout routed
+	// the harness, and a sentinel the source declares lives where the
+	// source does whatever the output moved to.
+	SourcePkg string
+
 	// Vocab and Prove are the packages the emitted calls come from,
 	// carried rather than spelled in the template because an import path
 	// built inside a template is one the backend cannot register.
@@ -146,7 +154,17 @@ func (p *ProofEmit) Kind() sdk.Kind { return sdk.Kind(p.Plan.Defect.DefectKind()
 
 // Group is the index member the check sits under, so the map key is
 // written through the same tree a consumer drops it through.
-func (p *ProofEmit) Group() string { return golang.ExportedName(p.Plan.ID.Method) }
+//
+// The method for a method-scoped check and the family for one scoped to
+// the interface as a whole, which is the same rule [projection.IndexOf]
+// groups by — a defect keyed through a member the index does not have
+// names nothing, and compiles nowhere.
+func (p *ProofEmit) Group() string {
+	if p.Plan.ID.Method != "" {
+		return golang.ExportedName(p.Plan.ID.Method)
+	}
+	return golang.ExportedName(p.Plan.ID.Family)
+}
 
 // Accessor is the check's entry point within that member.
 func (p *ProofEmit) Accessor() string { return p.accessor }
@@ -204,6 +222,12 @@ type defectView struct {
 	// the zero it was supposed to contradict.
 	Echo golang.Sample
 
+	// Sentinel is the error a healing defect reports before it heals —
+	// the same identity the declaration stamped, so the defect cannot
+	// break the claim by naming a different one. Nil for every other
+	// variant.
+	Sentinel *sdk.Expr
+
 	// ReasonConst is the identifier the substring the red must contain is
 	// declared under, empty where this run has none to quote.
 	//
@@ -255,6 +279,9 @@ func defectRendered() map[projection.DefectKind]bool {
 		projection.KindSecondCallErrs:   true,
 		projection.KindRefusesAlways:    true,
 		projection.KindEchoBesideError:  true,
+		projection.KindPartialOutlive:   true,
+		projection.KindSentinelOnce:     true,
+		projection.KindFreezeReturn:     true,
 	}
 }
 
@@ -314,7 +341,7 @@ func proofsOf(
 			unproven = append(unproven, m.Name+"/"+c.Plan.ID.Seg)
 			continue
 		}
-		view := defectViewOf(pkg, r, iface, m, c.Plan)
+		view := defectViewOf(pkg, iface.Package, r, iface.Name, m, c.Plan)
 		if !spellsDefect(c.Plan.Defect.DefectKind(), view) {
 			// The template exists and this METHOD defeats it: no live
 			// value of its result type could be derived, so the defect
@@ -339,24 +366,65 @@ func proofsOf(
 	return out, unproven
 }
 
+// Plant records one contributed row's planted defect in this file, false
+// where this run cannot write it out.
+//
+// The seam a tier that owns rows of its own reaches: it derived the row
+// and the rule that breaks it, and everything else — how a double is
+// named, what an override is spelled at, which variants have templates —
+// is this file's. A contributor building the defect itself would be a
+// second place that has to know all of that, and the first sign of a
+// disagreement would be a proofs map that does not compile.
+//
+// False rather than a silent drop, because the row's own stamp has to
+// move with it: the parity gate refuses a check claiming Proven with no
+// defect beside it as firmly as the reverse.
+func (p *Proofs) Plant(
+	r golang.Resolver, m subject.Method, plan projection.CheckPlan, accessor string,
+) bool {
+	if plan.Defect == nil {
+		return false
+	}
+	view := defectViewOf(p.Pkg, p.SourcePkg, r, p.IfaceName, m, plan)
+	if !spellsDefect(plan.Defect.DefectKind(), view) {
+		return false
+	}
+	p.Defects = append(p.Defects, &ProofEmit{
+		BaseEmit:   p.BaseEmit,
+		defectView: view,
+		Plan:       plan,
+		accessor:   accessor,
+	})
+	return true
+}
+
 // defectViewOf spells one planted defect against the method it overrides.
 func defectViewOf(
-	pkg string, r golang.Resolver, iface Iface, m subject.Method, plan projection.CheckPlan,
+	pkg, srcPkg string, r golang.Resolver,
+	ifaceName string, m subject.Method, plan projection.CheckPlan,
 ) defectView {
 	sig := m.Sig
 	reason, _ := vocab.RedConst(plan.ID.Seg)
 	echo, _ := echoSample(m, r)
+	var sentinel *sdk.Expr
+	if heals, ok := plan.Defect.(projection.SentinelOnce); ok {
+		// The declaration's own package, because the stamp names the
+		// sentinel as the source spells it: bare where the interface
+		// declares it, qualified where it does not.
+		sentinel = sentinelRef(srcPkg, string(heals.Sentinel))
+	}
 	return defectView{
+		Sentinel:      sentinel,
 		Echo:          echo,
 		ValueSlot:     valueSlot(sig),
 		Pkg:           pkg,
 		Prove:         Prove,
 		Vocab:         Vocab,
-		Subject:       iface.Name,
+		Subject:       ifaceName,
 		Method:        m.Name,
-		Ctor:          projection.StubCtorName(iface.Name, naming.StubSuffix),
-		Option:        string(projection.OptionName(iface.Name, m.Name)),
-		DefectName:    projection.DefectName(iface.Name, defectClause(m.Name, plan.Defect)),
+		Ctor:          projection.StubCtorName(ifaceName, naming.StubSuffix),
+		Option:        string(projection.OptionName(ifaceName, m.Name)),
+		DefectName:    projection.DefectName(ifaceName, defectClause(m.Name, plan.Defect)),
 		PanicMessage:  plantedPrefix + m.Name + " panics",
 		RepeatMessage: plantedPrefix + m.Name + " refuses its repeat",
 		EchoMessage:   plantedPrefix + m.Name + " refused with a believable value",

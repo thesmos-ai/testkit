@@ -1,0 +1,77 @@
+{{/*
+The defects that break a claim about STATE the subject entered.
+
+Each plants a subject that is right about the state once and wrong about
+it afterwards, which is what separates these from the answers family: a
+method that always succeeds breaks a claim about refusal, and these
+break a claim about what happens NEXT.
+*/}}
+
+{{- /*
+The after-close claim's defect: one stamped method keeps working past
+Close.
+
+Exactly one, not all of them. A double that ignored Close entirely would
+red a law probing any method, and would prove nothing about whether the
+probe set is wide enough — which is the claim's real content. Leaving
+one method alive is what forces a multi-probe law to stay plural: a law
+narrowed to any other method goes green against this.
+*/ -}}
+{{- define "suite.defect.partial-outlive" -}}
+{{ renderExpr (external $.Prove "One") }}({{ printf "%q" .DefectName }},
+	func(tb {{ renderExpr (external "testing" "TB") }}) {{ renderExpr (external .Pkg .Subject) }} {
+		return {{ renderExpr (external .Pkg .Ctor) }}(tb, {{ renderExpr (external .Pkg .Option) }}(
+			func{{ renderParams .AnonParams }} {{ renderReturns .NamedReturns }} {
+				// Answers whatever it is asked, whenever it is asked. The
+				// close that should have poisoned it is somewhere else in
+				// the double, doing its job on every other method.
+				return
+			}))
+	}){{ template "suite.frag.defect-reason" . }}
+{{- end -}}
+
+{{- /*
+The poison claim's defect: the sentinel arrives once and then heals.
+
+The un-sticky poison the law forbids, and the only shape that tests what
+the law is for. A subject that never reported the sentinel breaks a
+different claim — that the state is REACHED — and one that reports it
+forever is correct.
+*/ -}}
+{{- define "suite.defect.sentinel-once" -}}
+{{ renderExpr (external $.Prove "One") }}({{ printf "%q" .DefectName }},
+	func(tb {{ renderExpr (external "testing" "TB") }}) {{ renderExpr (external .Pkg .Subject) }} {
+		reported := false
+		return {{ renderExpr (external .Pkg .Ctor) }}(tb, {{ renderExpr (external .Pkg .Option) }}(
+			func{{ renderParams .AnonParams }} {{ renderReturns .NamedReturns }} {
+				if !reported {
+					reported = true
+					{{ .ErrSlot }} = {{ renderExpr .Sentinel }}
+					return
+				}
+				// Healed. The state the sentinel described is still the
+				// state it is in, and it has stopped saying so.
+				return
+			}))
+	}){{ template "suite.frag.defect-reason" . }}
+{{- end -}}
+
+{{- /*
+The monotonic claim's defect: the answered position stops moving.
+
+Frozen rather than decreasing, because frozen is the weaker violation
+and therefore the stronger proof: a law that catches a position going
+backwards may still miss one that repeats, and a repeat is what a real
+appender produces when it forgets to advance.
+*/ -}}
+{{- define "suite.defect.freeze-return" -}}
+{{ renderExpr (external $.Prove "One") }}({{ printf "%q" .DefectName }},
+	func(tb {{ renderExpr (external "testing" "TB") }}) {{ renderExpr (external .Pkg .Subject) }} {
+		return {{ renderExpr (external .Pkg .Ctor) }}(tb, {{ renderExpr (external .Pkg .Option) }}(
+			func{{ renderParams .AnonParams }} {{ renderReturns .NamedReturns }} {
+				// Every append lands and every one answers the same
+				// position. The writes are real; the accounting is not.
+				return
+			}))
+	}){{ template "suite.frag.defect-reason" . }}
+{{- end -}}

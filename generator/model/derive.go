@@ -9,6 +9,7 @@ import (
 
 	"go.thesmos.sh/eidos/sdk"
 
+	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
@@ -23,6 +24,10 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 	// derivation takes the projection the harness embeds, so a change to
 	// the harness's own shape reaches exactly one line of this tier.
 	harnesses := sdk.PendingByOrigin[*suite.Contract](ctx.Store.Emit())
+	// The falsification companion, queued beside each harness. A row this
+	// tier stamps Proven owes a defect there, and the parity gate holds
+	// the two to each other at run time.
+	proofs := sdk.PendingByOrigin[*suite.Proofs](ctx.Store.Emit())
 
 	for _, iface := range ctx.Reader.Interfaces().Slice() {
 		if !iface.HasPositiveDirective(DirectiveName) {
@@ -79,6 +84,10 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			}
 			continue
 		}
+		// Before the rows are shaped: this settles which of them carry
+		// evidence, and a row it downgrades must not render as Proven.
+		plantDefects(ctx, b, proofs[sdk.Node(iface)])
+
 		call := rowCallFor(c, iface, b, harness)
 		if call == nil {
 			continue
@@ -94,6 +103,50 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 		}
 	}
 	return nil
+}
+
+// plantDefects writes the evidence for every row this tier stamped
+// Proven into the falsification companion beside the harness.
+//
+// A row that stamped the claim and cannot spell the defect loses the
+// stamp here rather than shipping one: the parity gate refuses a Proven
+// check with nothing planted for it, and it reports that against the
+// generated package — where a reader would take it for a fault in their
+// own code rather than in this generator.
+//
+// A missing companion is not an error. It means the harness is generic,
+// where a Go test function cannot name the types a defect would be built
+// at; the rows for such an interface never reached this far anyway.
+func plantDefects(ctx *sdk.GeneratorContext, b *Bindings, proofs *suite.Proofs) {
+	if proofs == nil {
+		return
+	}
+	for _, o := range b.overrides {
+		if o.Method == nil {
+			continue
+		}
+		plan, at := planAt(b, o.ID)
+		if plan == nil {
+			continue
+		}
+		if proofs.Plant(ctx.Reader, *o.Method, *plan, rowAccessor(o.ID)) {
+			continue
+		}
+		// The rule reached it and this run cannot write it out. The row
+		// drops to Argued and says which of the two gaps it met.
+		b.Rows[at].Falsifiable = vocab.Argued(unspellable)
+		b.Rows[at].Defect = nil
+	}
+}
+
+// planAt is the planned row under this identity, and where it sits.
+func planAt(b *Bindings, id projection.IDPlan) (*projection.CheckPlan, int) {
+	for i := range b.Rows {
+		if b.Rows[i].ID == id {
+			return &b.Rows[i], i
+		}
+	}
+	return nil, 0
 }
 
 // declineReason is why this tier's rows cannot land on the harness it
@@ -204,6 +257,7 @@ func bindingsOf(
 	b := &Bindings{
 		BaseEmit:       sdk.EmitBase(c, iface),
 		Subject:        harness.Subject,
+		Methods:        harness.Methods,
 		OptionName:     harness.IfaceName + "Model",
 		PropertyName:   harness.IfaceName + "ModelProperty",
 		OptionTypeName: harness.IfaceName + "ModelOption",

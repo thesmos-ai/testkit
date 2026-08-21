@@ -118,26 +118,6 @@ func TestClaimWordingsMatchTheCorpus(t *testing.T) {
 		},
 		{"seeded hit", suite.HitClaim(lookup), "Lookup returns the seeded value for every seeded key"},
 		{"seeded count", suite.CountClaim(size), "Size equals the number of seeded entries"},
-		{
-			"differential agree",
-			suite.DifferentialAgreeClaim("operation", "store", false, false),
-			"every operation sequence leaves the store agreeing with the reference",
-		},
-		{
-			"differential seeded",
-			suite.DifferentialAgreeClaim("read", "catalog", true, false),
-			"every read sequence leaves the catalog agreeing with a reference seeded identically",
-		},
-		{
-			"differential outcomes",
-			suite.DifferentialAgreeClaim("acquire-release", "lease", false, true),
-			"every acquire-release sequence leaves the lease agreeing with the reference on every outcome",
-		},
-		{
-			"differential drain",
-			suite.DifferentialDrainClaim("append-scan"),
-			"every append-scan sequence drains the same entries as the reference, in order",
-		},
 	}, func(t *testing.T, tc claimCase) {
 		testkit.Equal(t, tc.got, tc.want, "the claim wording is the corpus manifests' spelling")
 	})

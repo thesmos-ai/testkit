@@ -106,7 +106,8 @@ func TestDefectViewOfSpellsTheOverride(t *testing.T) {
 	t.Parallel()
 
 	iface := provableIface()
-	got := defectViewOf("example.com/pkg", nil, iface, iface.Methods[0], panicPlan())
+	got := defectViewOf("example.com/pkg", iface.Package, nil,
+		iface.Name, iface.Methods[0], panicPlan())
 
 	t.Run("names the double it plants through", func(t *testing.T) {
 		t.Parallel()
@@ -279,4 +280,47 @@ func provableInventory() projection.Inventory {
 			},
 		},
 	}}
+}
+
+// A contributing tier plants through this file rather than building the
+// defect itself.
+//
+// How a double is named, what an override is spelled at and which
+// variants have templates are all this file's facts. A contributor that
+// knew them would be a second place holding them, and the first sign of
+// a disagreement would be a proofs map that does not compile.
+func TestPlantRecordsAContributedDefect(t *testing.T) {
+	t.Parallel()
+
+	iface := provableIface()
+	p := &Proofs{Pkg: "example.com/pkg", SourcePkg: iface.Package}
+	p.IfaceName = iface.Name
+
+	planted := p.Plant(nil, iface.Methods[0], panicPlan(), "Smoke")
+
+	testkit.True(t, planted, "a variant with a template is written out")
+	testkit.Len(t, p.Defects, 1, "and joins the map this file renders")
+	testkit.Equal(t, p.Defects[0].Accessor(), "Smoke",
+		"under the accessor the contributor named it by")
+}
+
+// A row with nothing planted for it is refused, so its stamp can move
+// with it.
+//
+// The parity gate refuses a check claiming Proven with no defect beside
+// it as firmly as the reverse, and it reports that against the generated
+// package — where a reader would take it for a fault in their own code.
+func TestPlantRefusesWhatItCannotWrite(t *testing.T) {
+	t.Parallel()
+
+	iface := provableIface()
+	p := &Proofs{Pkg: "example.com/pkg", SourcePkg: iface.Package}
+	p.IfaceName = iface.Name
+
+	bare := panicPlan()
+	bare.Defect = nil
+
+	testkit.False(t, p.Plant(nil, iface.Methods[0], bare, "Smoke"),
+		"a row carrying no defect plants nothing")
+	testkit.Len(t, p.Defects, 0, "and adds no entry the gate would then demand a claim for")
 }
