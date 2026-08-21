@@ -119,7 +119,6 @@ func lawRow(f Iface, class vocab.Class, claim string, bind projection.Bind) proj
 		ID:    projection.IDPlan{Family: vocab.FamilyModel, Qualifier: f.Qualifier, Seg: bind.Law},
 		Class: class,
 		Claim: claim,
-		Needs: capsFor(f, class),
 		Body:  projection.LawLeg{Laws: binds},
 		Binds: binds,
 	}

@@ -6,23 +6,19 @@ package projection
 import "go.thesmos.sh/testkit/engine/suite"
 
 // HarnessPlan is the generated harness type's surface for one
-// interface: the capability fields the emitted check set demands, and
-// the seed seam where the claims read a received corpus. A projection
-// of the inventory — A10's rule made structural: no OnClock without a
-// clocked check, no Induce without an induced sentinel, no Recover
-// without a sim row, no seed constructor without a seeded claim. The
-// harness surface cannot grow on speculation because there is nothing
-// here to set except from a check.
+// interface: the seed seam where the claims read a received corpus.
+//
+// It carries no capability. Every capability in testkit's table — a
+// clock a check advances, an induction that provokes a failure state, a
+// recovery across a crash — is demanded by a check the harness generator
+// does not write, and a field exists because some check needs it. So the
+// tier whose check needs one contributes the field, through the
+// harness's fields region, and this projects only what this tier's own
+// checks imply.
 type HarnessPlan struct {
 	// Iface is the subject interface's exported name; the emitted
 	// identifiers derive through the naming policy, never here.
 	Iface string
-
-	// Clock, Induce and Recover mirror the capability doors some
-	// check declared through its Needs.
-	Clock   bool
-	Induce  bool
-	Recover bool
 
 	// Seeded marks the seed-seam constructor pair: the harness
 	// receives the corpus the pools derive, because a reader-only
@@ -31,34 +27,15 @@ type HarnessPlan struct {
 }
 
 // HarnessOf projects the harness surface from the interface's check
-// plans. Reading the plans rather than the stamps is the point: a
-// capability nothing checks is a field nobody may demand, and the
-// derivation cannot disagree with the run that gates on it.
-func HarnessOf(iface string, checks []CheckPlan, doors []NeedPlan) HarnessPlan {
+// plans. Reading the plans rather than the stamps is the point: the
+// surface cannot grow on speculation because there is nothing here to
+// set except from a check.
+func HarnessOf(iface string, checks []CheckPlan) HarnessPlan {
 	p := HarnessPlan{Iface: iface}
 	for _, c := range checks {
-		p.demand(c.Needs)
 		if c.ID.Seg == suite.SegHit || c.ID.Seg == suite.SegCount {
 			p.Seeded = true
 		}
 	}
-	// Doors no check of this tier declared. The subject still needs
-	// them — a clocked law moves the clock — and a consumer with no
-	// field to supply one has no way to satisfy the check that will.
-	p.demand(doors)
 	return p
-}
-
-// demand opens each capability's door.
-func (p *HarnessPlan) demand(needs []NeedPlan) {
-	for _, n := range needs {
-		switch n.Capability {
-		case suite.CapClock:
-			p.Clock = true
-		case suite.CapInduce:
-			p.Induce = true
-		case suite.CapRecover:
-			p.Recover = true
-		}
-	}
 }

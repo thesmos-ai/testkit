@@ -48,15 +48,16 @@ func (*Door) Kind() sdk.Kind { return KindDoor }
 // real time, so the check would either take minutes or assert nothing.
 func clockDoor(clock sdk.Ref) *Door {
 	return &Door{
-		Name: "Clock",
+		Name: "OnClock",
 		Type: clock,
 		Why: []string{
-			"Clock is the time source your implementation reads. Checks about",
-			"expiry move it forward instead of waiting.",
+			"OnClock builds an instance reading the given clock. Checks that move",
+			"time need it, and fail naming this field when it is nil.",
 			"",
-			"Required, because those checks cannot state anything otherwise: an",
-			"implementation reading the real clock would have to be waited on in",
-			"real time, so the check would either take minutes or assert nothing.",
+			"A constructor rather than a clock handed to a built instance: an",
+			"implementation that reads the clock at construction cannot be told",
+			"about a different one afterwards, and a check that moved time would",
+			"be moving a clock the subject never looks at.",
 		},
 	}
 }

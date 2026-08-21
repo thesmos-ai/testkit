@@ -124,13 +124,6 @@ type mixedRunConfig struct {
 	rows MixedChecks
 }
 
-// Inductions says how to put your implementation into a failure state.
-//
-// A check that asks what happens after a particular error has to be able
-// to cause that error first. Map the error to a function that provokes
-// it, and the checks that need it can run.
-type Inductions[T any] = suite.Inductions[T]
-
 // MixedHarness describes one Mixed implementation to test.
 //
 // Name and one constructor are all that is required. Every other field
@@ -167,16 +160,6 @@ type MixedHarness[T Mixed] struct {
 	// a fixed port.
 	Serial bool
 
-	// Induce maps each error to a function that puts your implementation
-	// into the state that error describes.
-	//
-	// A map rather than a single function because the states are
-	// different: a check about a closed instance and one about a failed
-	// instance both need to get there first, and each names the state it
-	// wants by its error. With one function the harness could not tell
-	// which was being asked for.
-	Induce Inductions[T]
-
 	// Provide supplies anything a check needs that has no field of its
 	// own above. You will not need it unless a check fails asking for a
 	// named capability, and that failure tells you the name to use here.
@@ -197,7 +180,6 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  suite.ExcuseSet(h.Excuse),
-		Induces:  suite.LowerInductions[Mixed](h.Name, h.Induce),
 	}, nil
 }
 
@@ -713,4 +695,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance be9f0672ace9dde36aab3fed0ac6e5ae49354f872ee93cd065dcbb471e11e9bb
+// testkit:provenance fbafaaf2ba16ffeab6b194e85ef4b66e0255c31eab7ba669d6c6a14fbb8a0195

@@ -66,15 +66,6 @@ type {{ suite_runConfigName .Token }}{{ renderTypeParams .TypeParams }} struct {
 {{- end }}
 }
 
-{{- if .Harness.Induce }}
-// Inductions says how to put your implementation into a failure state.
-//
-// A check that asks what happens after a particular error has to be able
-// to cause that error first. Map the error to a function that provokes
-// it, and the checks that need it can run.
-type Inductions[T any] = {{ renderExpr (external $.Vocab "Inductions") }}[T]
-
-{{ end }}
 // {{ suite_harnessName .IfaceName }} describes one {{ .IfaceName }} implementation to test.
 //
 // Name and one constructor are all that is required. Every other field
@@ -126,43 +117,9 @@ type {{ suite_harnessName .IfaceName }}{{ suite_withParam (renderTypeParams .Typ
 	// cannot take being constructed many times at once — a real database,
 	// a fixed port.
 	Serial bool
-{{- if .Harness.Clock }}
-
-	// Clock is the time source your implementation reads. Checks about
-	// expiry move it forward instead of waiting.
-	//
-	// Required, because those checks cannot state anything otherwise: an
-	// implementation reading the real clock would have to be waited on in
-	// real time, so the check would either take minutes or assert nothing.
-	Clock {{ renderType $.ClockRef }}
-{{- end }}
 {{- range (slot $c $c.FieldsSlotName).Items }}
 
 	{{ render . }}
-{{- end }}
-{{- if .Harness.Induce }}
-
-	// Induce maps each error to a function that puts your implementation
-	// into the state that error describes.
-	//
-	// A map rather than a single function because the states are
-	// different: a check about a closed instance and one about a failed
-	// instance both need to get there first, and each names the state it
-	// wants by its error. With one function the harness could not tell
-	// which was being asked for.
-	Induce Inductions[T]
-{{- end }}
-{{- if .Harness.Recover }}
-
-	// Recover reopens whatever the previous instance left behind, without
-	// letting it shut down cleanly first — what a crash and restart
-	// would do.
-	//
-	// It takes the previous instance because the storage belongs to that
-	// instance: its directory, its file. A constructor with no handle on
-	// it could only reopen something shared, and then every check would be
-	// looking at the same state.
-	Recover func(tb {{ renderExpr (external "testing" "TB") }}, subject {{ suite_subjectType $c }}) {{ .IfaceName }}
 {{- end }}
 
 	// Provide supplies anything a check needs that has no field of its
@@ -211,9 +168,6 @@ func (h {{ suite_harnessName .IfaceName }}{{ suite_withParam .TypeArgs "T" }}) S
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  {{ renderExpr (external $.Vocab "ExcuseSet") }}(h.Excuse),
-{{- if .Harness.Induce }}
-		Induces:  {{ renderExpr (external $.Vocab "LowerInductions") }}[{{ suite_subjectType $c }}](h.Name, h.Induce),
-{{- end }}
 	}, nil
 }
 

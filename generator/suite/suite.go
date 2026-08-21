@@ -396,7 +396,7 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			Limit:        limit,
 			Corpus:       corpus,
 			Seeded:       seeded,
-			Harness:      projection.HarnessOf(iface.Name, inventory.Checks, doorsFor(derived)),
+			Harness:      projection.HarnessOf(iface.Name, inventory.Checks),
 			Checks:       checks,
 			Withheld:     withheldBodies(inventory),
 			EmittedIDs:   ids,
@@ -606,7 +606,7 @@ func subjectOf(iface *sdk.Interface) subject.Subject {
 		IfaceRef:       golang.RefFor(iface.Name, iface.Package),
 		Runtime:        Module,
 		IntegrationEnv: GoIntegrationEnv,
-		ClockRef:       golang.RefFor("Clock", Module+"/clock"),
+		ClockRef:       golang.RefFor("Clock", ClockPkg),
 		TypeParams:     golang.TypeParamDecls(iface.TypeParams),
 		TypeArgs:       golang.TypeParamNames(iface.TypeParams),
 	}

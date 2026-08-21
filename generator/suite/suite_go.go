@@ -64,6 +64,11 @@ const EngineModule = Module + "/engine"
 // generator and the runtime.
 const Vocab = EngineModule + "/suite"
 
+// ClockPkg is the controllable clock a clocked check advances. Named
+// beside the vocabulary because the harness spells its test clock in
+// type position, which `external` cannot build.
+const ClockPkg = Module + "/clock"
+
 // LawIDs is where a law's identifier is declared, for the index
 // accessors that name one.
 const LawIDs = Module + "/core/lawid"

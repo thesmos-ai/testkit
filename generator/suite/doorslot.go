@@ -57,3 +57,7 @@ var _ sdk.SlotHost = (*Contract)(nil)
 // region under the near-miss name and the harness comes out without the
 // fields, which compiles.
 func (*Contract) FieldsSlotName() string { return naming.SlotHarnessFields }
+
+// ClockPkg surfaces the clock package to the templates, whose harness
+// spells its test clock in type position.
+func (*Contract) ClockPkg() string { return ClockPkg }

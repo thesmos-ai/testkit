@@ -24,14 +24,6 @@ func (c harnessCase) Name() string { return c.name }
 func TestHarnessCarriesOnlyWhatChecksDemand(t *testing.T) {
 	t.Parallel()
 
-	clocked := projection.CheckPlan{
-		ID:    projection.IDPlan{Family: suite.FamilyModel, Qualifier: "store", Seg: suite.SegLaws},
-		Needs: []projection.NeedPlan{{Capability: suite.CapClock}},
-	}
-	induced := projection.CheckPlan{
-		ID:    projection.IDPlan{Family: suite.FamilyModel, Qualifier: "store", Seg: suite.SegPoison},
-		Needs: []projection.NeedPlan{{Capability: suite.CapInduce, Value: projection.Expr("kv.ErrClosed")}},
-	}
 	seededHit := projection.CheckPlan{ID: projection.IDPlan{Method: "Lookup", Seg: suite.SegHit}}
 	plainSmoke := projection.CheckPlan{ID: projection.IDPlan{Method: "Get", Seg: suite.SegSmoke}}
 
@@ -42,27 +34,22 @@ func TestHarnessCarriesOnlyWhatChecksDemand(t *testing.T) {
 			projection.HarnessPlan{Iface: "Store"},
 		},
 		{
-			"a clocked check opens the clock field",
-			[]projection.CheckPlan{plainSmoke, clocked},
-			projection.HarnessPlan{Iface: "Store", Clock: true},
-		},
-		{
-			"an induced check opens the induction map",
-			[]projection.CheckPlan{induced},
-			projection.HarnessPlan{Iface: "Store", Induce: true},
-		},
-		{
 			"a seeded claim opens the seed seam",
 			[]projection.CheckPlan{seededHit},
 			projection.HarnessPlan{Iface: "Store", Seeded: true},
 		},
 		{
-			"doors accumulate without duplicating",
-			[]projection.CheckPlan{clocked, clocked, induced, seededHit},
-			projection.HarnessPlan{Iface: "Store", Clock: true, Induce: true, Seeded: true},
+			// A capability declared by a check of another tier reaches
+			// the harness through its fields region, not through here.
+			"a capability a check declares opens no field",
+			[]projection.CheckPlan{{
+				ID:    projection.IDPlan{Family: suite.FamilyModel, Qualifier: "store", Seg: suite.SegLaws},
+				Needs: []projection.NeedPlan{{Capability: suite.CapClock}},
+			}},
+			projection.HarnessPlan{Iface: "Store"},
 		},
 	}, func(t *testing.T, tc harnessCase) {
-		testkit.Equal(t, projection.HarnessOf("Store", tc.checks, nil), tc.want,
-			"the harness surface is exactly the declared doors — A10, structurally")
+		testkit.Equal(t, projection.HarnessOf("Store", tc.checks), tc.want,
+			"the harness surface is exactly what this tier's own claims imply")
 	})
 }

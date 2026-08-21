@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"testing"
 
-	"go.thesmos.sh/testkit/clock"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/ttl"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
@@ -190,14 +189,6 @@ type MixedHarness[T Mixed] struct {
 	// cannot take being constructed many times at once — a real database,
 	// a fixed port.
 	Serial bool
-
-	// Clock is the time source your implementation reads. Checks about
-	// expiry move it forward instead of waiting.
-	//
-	// Required, because those checks cannot state anything otherwise: an
-	// implementation reading the real clock would have to be waited on in
-	// real time, so the check would either take minutes or assert nothing.
-	Clock clock.Clock
 
 	// Provide supplies anything a check needs that has no field of its
 	// own above. You will not need it unless a check fails asking for a
@@ -846,4 +837,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance df2e7db4b40708704170ac38a261f75fe9bcef37769aee28835dd28bc63d6544
+// testkit:provenance 3ac5d982110e8cc2d166a2ca03f7dfb7b747ba5ea79eb478a0140e8cf71a86af
