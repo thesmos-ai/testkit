@@ -16,6 +16,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
+	"go.thesmos.sh/testkit/generator/internal/naming"
 	"go.thesmos.sh/testkit/generator/internal/source"
 )
 
@@ -76,7 +77,7 @@ const WitnessKey = "witness"
 
 // DefaultSuffix is the trailer appended to the source interface's
 // name to form the stub type's identifier.
-const DefaultSuffix = "Stub"
+const DefaultSuffix = naming.StubSuffix
 
 // Mixin names this plugin reads, taken from the packages that declare them.
 //

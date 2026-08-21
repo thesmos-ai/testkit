@@ -11,6 +11,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
+	"go.thesmos.sh/testkit/generator/internal/naming"
 	"go.thesmos.sh/testkit/generator/internal/source"
 	"go.thesmos.sh/testkit/generator/internal/stamp"
 )
@@ -43,7 +44,7 @@ const CompanionKey = "defaults"
 // in the source package, so it is found by looking rather than by being told,
 // and a package holding several types gets one companion each — which is why
 // the name carries the type rather than being a bare `Defaults`.
-const CompanionSuffix = "Defaults"
+const CompanionSuffix = naming.CompanionSuffix
 
 // SkipTag is the struct-tag key excluding a field from the builder:
 //

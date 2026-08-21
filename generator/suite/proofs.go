@@ -12,8 +12,8 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/naming"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/stub"
 	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
@@ -354,7 +354,7 @@ func defectViewOf(
 		Vocab:         Vocab,
 		Subject:       iface.Name,
 		Method:        m.Name,
-		Ctor:          projection.StubCtorName(iface.Name, stub.DefaultSuffix),
+		Ctor:          projection.StubCtorName(iface.Name, naming.StubSuffix),
 		Option:        string(projection.OptionName(iface.Name, m.Name)),
 		DefectName:    projection.DefectName(iface.Name, defectClause(m.Name, plan.Defect)),
 		PanicMessage:  plantedPrefix + m.Name + " panics",

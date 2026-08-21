@@ -15,7 +15,7 @@ import (
 	"go.thesmos.sh/eidos/plugins/annotator/shape/mixins/causal"
 	"go.thesmos.sh/eidos/sdk"
 
-	"go.thesmos.sh/testkit/generator/builder"
+	"go.thesmos.sh/testkit/generator/internal/naming"
 	"go.thesmos.sh/testkit/generator/internal/source"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite/projection"
@@ -226,7 +226,7 @@ func partsFor(p golang.Param, r golang.Resolver, admissible bool) []subject.Fixt
 // correct implementation is a wall of failures that are the fixture's fault,
 // which is how a suite gets switched off.
 //
-// Found by looking rather than by being told, which is [builder.CompanionSuffix]'s
+// Found by looking rather than by being told, which is [naming.CompanionSuffix]'s
 // own rule — the function is an ordinary declaration and the convention is
 // shared, so a package that wrote one for its builder gets this for free.
 //
@@ -237,7 +237,7 @@ func companionFor(ctx *sdk.GeneratorContext, t *sdk.TypeRef) *sdk.Expr {
 	if t == nil || t.Name == "" {
 		return nil
 	}
-	return source.Companion(ctx, t.Package, t.Name, builder.CompanionSuffix)
+	return source.Companion(ctx, t.Package, t.Name, naming.CompanionSuffix)
 }
 
 // seedOf names the writer a harness populates its subject through, or nil when
