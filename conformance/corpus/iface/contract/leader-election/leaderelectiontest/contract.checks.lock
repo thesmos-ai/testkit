@@ -7,4 +7,4 @@ Resign/cancel	signature/cancel	Resign reports a cancelled context as cancelled
 Resign/nilcontext	signature/nilcontext	Resign returns an error rather than panicking on a nil context	
 Resign/smoke	signature/smoke	Resign survives a call	
 model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
-model/contract/laws	model/laws	every bound law holds over random operation sequences	
+model/contract/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT

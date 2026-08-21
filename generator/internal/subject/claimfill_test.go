@@ -41,7 +41,11 @@ func TestClaimOfTellsItsTwoRefusalsApart(t *testing.T) {
 
 	t.Run("a law the catalogue does not word", func(t *testing.T) {
 		t.Parallel()
-		_, err := subject.ClaimOf(lawid.WriteObservable, "store", nil)
+		// An identifier no catalogue will ever hold, rather than a real
+		// law that happens to be unworded today: wording one is a normal
+		// change, and a test pinned to a specific gap fails the day
+		// somebody closes it.
+		_, err := subject.ClaimOf("AUTO-NOT-A-LAW", "store", nil)
 		testkit.True(t, errors.Is(err, subject.ErrUnworded),
 			"the gap is in the catalogue, and the error says so")
 	})

@@ -134,6 +134,54 @@ func worded() map[string]law {
 			"an entry stops being readable once its lifetime has run out",
 			"Expiry", "TTLExpiry",
 		},
+		// The writer pair. Both are about what a write leaves behind,
+		// and both say so through the reader that observes it — neither
+		// claims anything about a write nothing reads back.
+		WriteObservable: {
+			"a written value is readable under the key it was written with",
+			"WriteObservable", "WriteObservable",
+		},
+		IdempotentWrite: {
+			"writing the same value twice leaves what writing it once left",
+			"IdempotentWrite", "IdempotentWrite",
+		},
+
+		// Worded for the cancelled context specifically, not for
+		// contexts generally: the law calls with one already cancelled
+		// and demands that error back, and says nothing about a
+		// deadline or about cancellation part-way through.
+		LifecycleRespectsContext: {
+			"a lifecycle call handed an already-cancelled context reports the cancellation",
+			"RespectsContext", "LifecycleRespectsContext",
+		},
+
+		// Within one iteration, which is the whole claim: a cache that
+		// forgets between iterations is not what this catches.
+		Cacheable: {
+			"repeated reads of one key answer the same value",
+			"Cacheable", "Cacheable",
+		},
+		AggregatorBounded: {
+			"the count stays inside the declared bound",
+			"Bounded", "AggregatorBounded",
+		},
+
+		// The chain trio. Grows and NoDrops sound alike and are not:
+		// one is about the order of what is there, the other about
+		// whether it is there at all.
+		AppendOnlyGrows: {
+			"every replay extends the last one rather than rewriting it",
+			"Grows", "AppendOnlyGrows",
+		},
+		AppendOnlyNoDrops: {
+			"every entry the chain acknowledged is in its replay",
+			"NoDrops", "AppendOnlyNoDrops",
+		},
+		ReplayDeterministic: {
+			"two replays of one chain answer the same entries",
+			"ReplayDeterministic", "ReplayDeterministic",
+		},
+
 		// The two comparison laws. Both word what they actually do —
 		// compare the subject against the reference — rather than the
 		// property a reader might assume from the name: ReadAfterWrite

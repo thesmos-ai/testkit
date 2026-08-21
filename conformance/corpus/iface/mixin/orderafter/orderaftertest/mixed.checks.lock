@@ -6,4 +6,4 @@ Commit/smoke	signature/smoke	Commit survives a call
 Prepare/cancel	signature/cancel	Prepare reports a cancelled context as cancelled	
 Prepare/nilcontext	signature/nilcontext	Prepare returns an error rather than panicking on a nil context	
 Prepare/smoke	signature/smoke	Prepare survives a call	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT

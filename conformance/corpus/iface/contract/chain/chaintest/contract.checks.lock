@@ -11,6 +11,10 @@ Replay/zero-on-error	signature/zero-on-error	Replay returns nothing alongside an
 Verify/cancel	signature/cancel	Verify reports a cancelled context as cancelled	
 Verify/nilcontext	signature/nilcontext	Verify returns an error rather than panicking on a nil context	
 Verify/smoke	signature/smoke	Verify survives a call	
+model/contract/AUTO-APPEND-ONLY-GROWS	model/laws	every replay extends the last one rather than rewriting it	AUTO-APPEND-ONLY-GROWS
+model/contract/AUTO-APPEND-ONLY-NO-DROPS	model/laws	every entry the chain acknowledged is in its replay	AUTO-APPEND-ONLY-NO-DROPS
 model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
+model/contract/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT
+model/contract/AUTO-REPLAY-DETERMINISTIC	model/laws	two replays of one chain answer the same entries	AUTO-REPLAY-DETERMINISTIC
 model/contract/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
 model/contract/laws	model/laws	every bound law holds over random operation sequences	

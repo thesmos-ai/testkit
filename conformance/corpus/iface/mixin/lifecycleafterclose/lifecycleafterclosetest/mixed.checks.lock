@@ -6,5 +6,5 @@ Work/cancel	signature/cancel	Work reports a cancelled context as cancelled
 Work/nilcontext	signature/nilcontext	Work returns an error rather than panicking on a nil context	
 Work/smoke	signature/smoke	Work survives a call	
 model/mixed/AUTO-LIFECYCLE-AFTER-CLOSE	model/lifecycle	once Close has run, every method reports the closed sentinel	AUTO-LIFECYCLE-AFTER-CLOSE
+model/mixed/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT
 model/mixed/AUTO-POISON-CONSISTENT	model/poison	once the mixed reports it is closed, it keeps reporting it	AUTO-POISON-CONSISTENT
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
