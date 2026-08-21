@@ -57,4 +57,14 @@ const (
 	// SlotHarnessFields is the harness struct's fields — the capability
 	// doors a contributing tier's checks need a consumer to supply.
 	SlotHarnessFields = "harness.fields"
+
+	// SlotHarnessLowering is the body of the harness's Subject method,
+	// after the runtime subject is built and before it is returned.
+	//
+	// A field and the line that carries it onto the runtime are one
+	// contribution in two places: a tier that adds a field nothing lowers
+	// has given the consumer somewhere to write a value that goes
+	// nowhere, which is the defect the region pair exists to make
+	// unrepresentable.
+	SlotHarnessLowering = "harness.lowering"
 )

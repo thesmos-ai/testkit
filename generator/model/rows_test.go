@@ -30,7 +30,7 @@ func TestModelRowsSelectsTheLegKinds(t *testing.T) {
 		{ID: projection.IDPlan{Seg: "recovery"}, Body: projection.SimLeg{}},
 	}}
 
-	got := model.ModelRows(inv)
+	got := model.Rows(inv)
 
 	testkit.Len(t, got, 3, "the three leg kinds, and none of the harness generator's own")
 	testkit.Equal(t, got[0].ID.Seg, "laws", "in the inventory's order")
@@ -50,7 +50,7 @@ func TestModelRowsSkipsABodylessPlan(t *testing.T) {
 		{ID: projection.IDPlan{Seg: "agrees"}, Body: projection.DifferentialLeg{}},
 	}}
 
-	got := model.ModelRows(inv)
+	got := model.Rows(inv)
 	testkit.Len(t, got, 1, "only the one with a body to render")
 }
 
@@ -63,9 +63,9 @@ func TestModelRowsOnASuiteOnlyInterface(t *testing.T) {
 		{ID: projection.IDPlan{Method: "Get", Seg: vocab.SegSmoke}, Body: projection.SmokeSurvives{}},
 	}}
 
-	testkit.Len(t, model.ModelRows(inv), 0,
+	testkit.Len(t, model.Rows(inv), 0,
 		"an interface carrying no model directive plans no model row")
-	testkit.Len(t, model.ModelRows(projection.Inventory{}), 0,
+	testkit.Len(t, model.Rows(projection.Inventory{}), 0,
 		"and an empty inventory is the same answer")
 }
 
@@ -76,7 +76,7 @@ func TestModelRowKindsAreDeclaredBodyKinds(t *testing.T) {
 	t.Parallel()
 
 	declared := projection.BodyKinds()
-	for _, k := range model.ModelRowKinds() {
+	for _, k := range model.RowKinds() {
 		testkit.Contains(t, declared, k,
 			"this tier claims to render "+string(k)+", which projection does not declare")
 	}

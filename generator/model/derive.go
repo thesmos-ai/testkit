@@ -38,49 +38,56 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 				Name, iface.Name, DirectiveName, suite.DirectiveName)
 			continue
 		}
-		witnesses, usable := modelWitnesses(ctx, iface)
-		if !usable {
-			continue
-		}
-
-		b, ok := bindingsOf(ctx, c, iface, &harness.Projection, harness.EntryName, harness.Inventory, witnesses)
+		b, ok := BindingsFor(ctx, c, iface, harness)
 		if !ok {
 			continue
 		}
-		// The doors this tier's checks need, contributed into the region
-		// the harness generator hands out. The harness renders them
-		// without reading them: it emits the surface, and which
-		// capabilities exist is a fact about the checks written here.
-		for _, d := range doorsOf(b) {
-			if err := harness.HarnessFields().Append(d, c.Provenance(Name+".door."+d.Name)); err != nil {
-				return fmt.Errorf("%s: contribute %s door for %q: %w", Name, d.Name, iface.Name, err)
+		// The field a clocked check needs, and the line that carries it
+		// onto the runtime subject: one contribution in two regions,
+		// because a field nothing lowers is somewhere for a consumer to
+		// write a value that goes nowhere.
+		//
+		// The harness generator renders both without reading them. It
+		// emits the surface; which capabilities exist is a fact about the
+		// checks written here.
+		if field, lowering := clockDoorFor(b, harness.IfaceRef); field != nil {
+			if err := harness.HarnessFields().Append(field, c.Provenance(Name+".door.clock")); err != nil {
+				return fmt.Errorf("%s: contribute the clock door for %q: %w", Name, iface.Name, err)
 			}
-		}
-
-		// Queued, and rendered by nothing. This tier declares its outputs
-		// but spells no template for the bindings any more: it
-		// contributes into the harness the other generator emits, so a
-		// consumer reads one generated file per interface and a claim's
-		// rows sit beside the rows they are compared against.
-		//
-		// The value stays in the emit graph because it IS this tier's
-		// derivation — which laws bound, which reference was chosen,
-		// which fields resolved — and every contribution above and still
-		// to come reads it.
-		//
-		// The companion rides with it for the reason it always did: an
-		// emission nothing proves is the hand-written probe this output
-		// replaced. The exceptions are the references this plugin did not
-		// derive.
-		queued := []sdk.EmitNode{b}
-		if b.Reference.Derived() {
-			queued = append(queued, companionOf(c, iface, b))
-		}
-		if err := sdk.QueueEmit(ctx.Store.Emit(), c, SlotName, iface, queued...); err != nil {
-			return fmt.Errorf("%s: queue interface %q: %w", Name, iface.Name, err)
+			if err := harness.HarnessLowering().Append(lowering, c.Provenance(Name+".lowering.clock")); err != nil {
+				return fmt.Errorf("%s: lower the clock door for %q: %w", Name, iface.Name, err)
+			}
 		}
 	}
 	return nil
+}
+
+// BindingsFor derives one interface's model tier, false where it
+// reported why it could not.
+//
+// Exported because the derivation is the tier's substance and nothing
+// queues it any more. This generator emits no file: it contributes into
+// the harness the other generator emits, so a consumer reads one
+// generated file per interface and a claim's rows sit beside the rows
+// they are compared against. A queued emit value renders into a file by
+// construction, so the way to emit none is to queue none — and then the
+// only way to reach the derivation, here or from a test, is to call it.
+// It resolves the witnesses too, so a caller reaches the derivation the
+// one way. A generic interface with no witness stamp, or a partial one,
+// is refused here with the diagnostic that names the gap.
+func BindingsFor(
+	ctx *sdk.GeneratorContext,
+	c *sdk.Provenance,
+	iface *sdk.Interface,
+	harness *suite.Contract,
+) (*Bindings, bool) {
+	witnesses, usable := modelWitnesses(ctx, iface)
+	if !usable {
+		return nil, false
+	}
+	return bindingsOf(
+		ctx, c, iface, &harness.Projection, harness.EntryName, harness.Inventory, witnesses,
+	)
 }
 
 func bindingsOf(
@@ -101,7 +108,7 @@ func bindingsOf(
 		OptionTypeName: harness.IfaceName + "ModelOption",
 		ConfigName:     strings.ToLower(harness.IfaceName[:1]) + harness.IfaceName[1:] + "ModelConfig",
 		EntryName:      entry,
-		Rows:           ModelRows(inv),
+		Rows:           Rows(inv),
 		FixtureCtor:    harness.Fixture.CtorName,
 		Witnesses:      witnesses,
 		witnessQ:       witnessQ,

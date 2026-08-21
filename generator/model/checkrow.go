@@ -55,7 +55,7 @@ type CheckRow struct {
 // harness generator queued for it.
 //
 // One row per plan, in plan order. Nothing is filtered here: a plan that
-// reached [ModelRows] is one this tier owns, and dropping it silently
+// reached [Rows] is one this tier owns, and dropping it silently
 // would leave the index naming a check nothing emits.
 func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 	out := make([]CheckRow, 0, len(plans))

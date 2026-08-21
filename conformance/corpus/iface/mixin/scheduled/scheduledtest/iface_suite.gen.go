@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"go.thesmos.sh/testkit/clock"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/scheduled"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
@@ -177,6 +178,18 @@ type MixedHarness[T Mixed] struct {
 	// a fixed port.
 	Serial bool
 
+	// OnClock builds an instance reading the given clock. Checks that move
+	// time need it, and fail naming this field when it is nil.
+	// StartOnClock is its Start-shaped sibling, for a clocked constructor
+	// that also needs the test's lifecycle; set at most one of the two.
+	//
+	// A constructor rather than a clock handed to a built instance: an
+	// implementation that reads the clock at construction cannot be told
+	// about a different one afterwards, and a check that moved time would
+	// be moving a clock the subject never looks at.
+	OnClock      func(clk clock.Clock) T
+	StartOnClock func(tb testing.TB, clk *clock.TestClock) T
+
 	// Provide supplies anything a check needs that has no field of its
 	// own above. You will not need it unless a check fails asking for a
 	// named capability, and that failure tells you the name to use here.
@@ -190,14 +203,29 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 	if err != nil {
 		return suite.Subject[Mixed]{}, err
 	}
-	return suite.Subject[Mixed]{
+	out := suite.Subject[Mixed]{
 		Name:     h.Name,
 		Provides: h.Provide,
 		New:      func(tb testing.TB) Mixed { return build(tb) },
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  suite.ExcuseSet(h.Excuse),
-	}, nil
+	}
+	if err := suite.ExclusivePair(h.Name, "OnClock", "StartOnClock",
+		h.OnClock != nil, h.StartOnClock != nil); err != nil {
+		return suite.Subject[scheduled.Mixed]{}, err
+	}
+	if h.OnClock != nil {
+		out.OnClock = func(_ testing.TB, clk *clock.TestClock) scheduled.Mixed {
+			return h.OnClock(clk)
+		}
+	}
+	if h.StartOnClock != nil {
+		out.OnClock = func(tb testing.TB, clk *clock.TestClock) scheduled.Mixed {
+			return h.StartOnClock(tb, clk)
+		}
+	}
+	return out, nil
 }
 
 func (h MixedHarness[T]) applyTo(rc *mixedRunConfig) {
@@ -794,4 +822,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 7786e4c2ecaa8a68a62b1fce4f2f6c256d666358d29cdb52529bdec8ee49442e
+// testkit:provenance 888d907f9a2419561b39020ae42919ff03e55d9dea258cedf892ef3992d450dd

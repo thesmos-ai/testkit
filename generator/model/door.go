@@ -4,76 +4,79 @@
 package model
 
 import (
-	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/sdk"
 )
 
-// KindDoor is the emit kind and the template name for a harness field
-// this tier asks the harness generator to carry.
-const KindDoor sdk.Kind = "model.door"
+// KindClockDoor is the emit kind and the template name for this tier's
+// clock contribution to the harness.
+const KindClockDoor sdk.Kind = "model.door.clock"
 
-// Door is one capability field contributed into the harness.
+// KindClockLowering is the emit kind and template for the line that
+// carries the clock constructors onto the runtime subject.
+const KindClockLowering sdk.Kind = "model.lowering.clock"
+
+// ClockDoor is what a clocked check needs a consumer to supply, rendered
+// into the harness the other generator emits.
 //
-// The harness is the other generator's output and it renders whatever
-// is in its doors region without reading it. That is the right way
-// round: the field exists because a check in THIS tier cannot state its
-// claim without it, so the sentence telling a consumer why they must
-// fill it is this tier's sentence to write. A harness generator
-// composing that prose would be explaining a check it did not emit.
-type Door struct {
+// A kind per capability, and the template renders the Go. The alternative
+// — one Door type carrying a name, a type and some prose — models a field
+// and this is not one field: the clock arrives as a pair of constructors
+// mirroring New and Start, and it needs a line in Subject to lower it. A
+// structure describing "a field" could express neither, which is how it
+// went in as a bare `OnClock clock.Clock` that nothing reads.
+//
+// So the type carries only what the template cannot work out: which
+// package spells the clock. Everything else — the two fields, their
+// prose, the exclusivity guard, the lowering — is Go, and Go belongs in
+// a template.
+type ClockDoor struct {
 	sdk.BaseEmit
 
-	// Name is the field's identifier on the harness.
-	Name string
+	// Pkg is the clock package's import path. Named rather than
+	// resolved in the template because `external` takes a path, and the
+	// path is this tier's to know: the harness generator has no clock.
+	Pkg string
 
-	// Type is the field's type, rendered through the backend so the
-	// harness file registers whatever import it needs. The import
-	// travels with the contribution: a package whose interfaces carry no
-	// model directive contributes no door and imports nothing.
-	Type sdk.Ref
-
-	// Why is the docblock, one line per element, without the comment
-	// marker — the template spells that.
-	Why []string
+	// Subject is the interface the harness is for, in type position, so
+	// the lowering's closures spell their return.
+	Subject sdk.Ref
 }
 
-// Kind returns the template this door renders through.
-func (*Door) Kind() sdk.Kind { return KindDoor }
+// Kind returns the template this contribution renders through.
+func (*ClockDoor) Kind() sdk.Kind { return KindClockDoor }
 
-// clockDoor is the field a clocked check needs.
-//
-// Every claim about time in this tier moves the clock rather than
-// waiting on it, which is the only way the claim is stateable at all: an
-// implementation reading the real clock would have to be waited on in
-// real time, so the check would either take minutes or assert nothing.
-func clockDoor(clock sdk.Ref) *Door {
-	return &Door{
-		Name: "OnClock",
-		Type: clock,
-		Why: []string{
-			"OnClock builds an instance reading the given clock. Checks that move",
-			"time need it, and fail naming this field when it is nil.",
-			"",
-			"A constructor rather than a clock handed to a built instance: an",
-			"implementation that reads the clock at construction cannot be told",
-			"about a different one afterwards, and a check that moved time would",
-			"be moving a clock the subject never looks at.",
-		},
-	}
+// ClockLowering carries the harness's clock constructors onto the
+// runtime subject. Its own kind because it renders into a different
+// region of the same file — the body of Subject rather than the struct.
+type ClockLowering struct {
+	sdk.BaseEmit
+
+	// Pkg and Subject are [ClockDoor]'s, for the same reasons.
+	Pkg     string
+	Subject sdk.Ref
+
+	// Vocab is the runtime suite package, whose Subject type the guard
+	// returns and whose ExclusivePair refuses a harness that set both
+	// constructors.
+	Vocab string
 }
 
-// doorsOf is every harness field this interface's bound laws need.
+// Kind returns the template this contribution renders through.
+func (*ClockLowering) Kind() sdk.Kind { return KindClockLowering }
+
+// clockDoorFor is the contribution for an interface whose bound laws
+// move time, nil where none do.
 //
-// Read off the bindings rather than off the classifications, because a
-// door is owed by a law that actually BOUND. A law selected and then
-// refused states nothing, so a field for it would be one a consumer
-// must fill for a check that never runs — which is the reading
-// [projection.HarnessOf] already takes of this generator's own rows.
-func doorsOf(b *Bindings) []*Door {
+// Read off the bindings rather than the classifications, because the
+// field is owed by a law that actually BOUND. A law selected and then
+// refused states nothing, so a field for it would be one a consumer must
+// fill for a check that never runs.
+func clockDoorFor(b *Bindings, subject sdk.Ref) (*ClockDoor, *ClockLowering) {
 	for _, l := range b.Laws {
 		if l.Clocked {
-			return []*Door{clockDoor(golang.RefFor("Clock", ClockPkg))}
+			return &ClockDoor{Pkg: ClockPkg, Subject: subject},
+				&ClockLowering{Pkg: ClockPkg, Subject: subject, Vocab: VocabPkg}
 		}
 	}
-	return nil
+	return nil, nil
 }

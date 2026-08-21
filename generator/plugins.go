@@ -140,17 +140,20 @@ func schemasOf(plugins ...sdk.Plugin) []sdk.DirectiveSchema {
 // must follow another says so through Requires rather than by being listed
 // later.
 //
-// The model tier is UNREGISTERED while the suite generator is rewritten. It
-// reads [suite.Contract] in forty-one places, and that node is being reshaped
-// — the fixture becomes accessors over drawn pools, the entry point changes,
-// the row table arrives — so keeping the model tier running would mean
-// rewriting it against a surface still moving under it. Its plugin source
-// stays; only the registration and its generated output are gone, so relinking
-// it is one line once the surface settles.
+// The model tier emits no file of its own. It contributes into the harness
+// the suite generator emits, through the regions that generator hands out, so
+// a consumer reads one generated file per interface and a claim's rows sit
+// beside the rows they are compared against.
+//
+// It is registered for what it contributes today, which is the capability a
+// clocked law needs. Its rows and their assertions are the contributions still
+// to come; until they land the tier derives everything and emits one field and
+// the line that carries it.
 func Generators() []sdk.Plugin {
 	return []sdk.Plugin{
 		builder.New(),
 		enum.New(),
+		model.New(),
 		sentinel.New(),
 		stub.New(),
 		suite.New(),

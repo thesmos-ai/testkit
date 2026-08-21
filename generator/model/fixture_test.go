@@ -12,6 +12,7 @@ import (
 	"go.thesmos.sh/eidos/eidostest/storefixture"
 	"go.thesmos.sh/eidos/plugins/annotator/shape"
 	"go.thesmos.sh/eidos/sdk"
+	"go.thesmos.sh/eidos/store"
 
 	"go.thesmos.sh/testkit/generator/internal/gentest"
 	"go.thesmos.sh/testkit/generator/model"
@@ -228,17 +229,47 @@ func typeOf(q string) *sdk.TypeRef {
 	return storefixture.Named(q)
 }
 
-// bindingsOf runs suite then model over the store and returns what model
-// queued, failing where it queued nothing.
+// bindingsOf runs the harness generator over the store, then derives one
+// interface's model tier from what it queued.
+//
+// Called rather than read out of the emit graph, because this tier
+// queues nothing: it contributes into the harness generator's output and
+// emits no file of its own, and a queued emit value would render into
+// one. So the derivation is reached the way the plugin reaches it.
 func bindingsOf(t *testing.T, s *sdk.Store) *model.Bindings {
 	t.Helper()
-	generateBoth(t, s)
-	for _, p := range s.Emit().PendingOriginSlots() {
-		if b, ok := p.Item.(*model.Bindings); ok {
+	plugintest.Generate(t, suite.New(), s)
+
+	ctx := &sdk.GeneratorContext{Store: s, Reader: store.NewReader(s), Diag: diag.New()}
+	c := sdk.NewProvenance(model.Name)
+	harnesses := sdk.PendingByOrigin[*suite.Contract](s.Emit())
+
+	for _, iface := range ctx.Reader.Interfaces().Slice() {
+		if !iface.HasPositiveDirective(model.DirectiveName) {
+			continue
+		}
+		harness, hosted := harnesses[sdk.Node(iface)]
+		if !hosted {
+			continue
+		}
+		if b, ok := model.BindingsFor(ctx, c, iface, harness); ok {
 			return b
 		}
 	}
-	t.Fatal("the run queued no bindings")
+	t.Fatal("no interface in the store derived a model tier")
+	return nil
+}
+
+// ifaceIn returns the store's first model-annotated interface, for a test
+// that needs the declaration as well as the derivation.
+func ifaceIn(t *testing.T, s *sdk.Store) *sdk.Interface {
+	t.Helper()
+	for _, iface := range s.Nodes().Interfaces().Items() {
+		if iface.HasPositiveDirective(model.DirectiveName) {
+			return iface
+		}
+	}
+	t.Fatal("no interface in the store carries the model directive")
 	return nil
 }
 

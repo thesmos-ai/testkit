@@ -238,6 +238,10 @@ type Contract struct {
 	// doors is the region another tier contributes harness fields into.
 	// See [Contract.Doors].
 	doors *sdk.Slot
+
+	// lowering is the region a contributed field's assignment lands in.
+	// See [Contract.HarnessLowering].
+	lowering *sdk.Slot
 }
 
 // Gaps words each refusal as the header states it: what was not

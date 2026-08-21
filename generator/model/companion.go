@@ -82,8 +82,14 @@ type Mutant struct {
 	Sig    *golang.Sig
 }
 
-// companionOf derives the companion from the bindings it proves.
-func companionOf(c *sdk.Provenance, iface *sdk.Interface, b *Bindings) *Companion {
+// CompanionFor derives the companion from the bindings it proves.
+//
+// Exported for the reason [BindingsFor] is: nothing queues it now, so a
+// call is the only way to reach it. It has no output to render into
+// either — the proofs for this tier's rows belong in the companion the
+// harness generator emits, beside the proofs for the rows they sit with,
+// and that is a contribution this tier does not make yet.
+func CompanionFor(c *sdk.Provenance, iface *sdk.Interface, b *Bindings) *Companion {
 	comp := &Companion{
 		BaseEmit:            sdk.EmitBaseTagged(sdk.EmitBase(c, iface), GoTestOutputTag),
 		Subject:             b.Subject,

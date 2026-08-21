@@ -46,6 +46,10 @@ const (
 	// ModelPkg is the runner: Property, Check, SampledFrom, the options.
 	ModelPkg = EngineModule + "/model"
 
+	// VocabPkg is the runtime suite vocabulary, whose Subject this tier
+	// lowers a contributed harness field onto.
+	VocabPkg = EngineModule + "/suite"
+
 	actionPkg = ModelPkg + "/action"
 
 	// RefPkg holds the reference implementations the derived adapter wraps,

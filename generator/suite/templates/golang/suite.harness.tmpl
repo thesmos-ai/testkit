@@ -161,14 +161,20 @@ func (h {{ suite_harnessName .IfaceName }}{{ suite_withParam .TypeArgs "T" }}) S
 	if err != nil {
 		return {{ renderExpr (external $.Vocab "Subject") }}[{{ suite_subjectType $c }}]{}, err
 	}
-	return {{ renderExpr (external $.Vocab "Subject") }}[{{ suite_subjectType $c }}]{
+	{{ if (slot $c $c.LoweringSlotName).Len }}out :={{ else }}return{{ end }} {{ renderExpr (external $.Vocab "Subject") }}[{{ suite_subjectType $c }}]{
 		Name:     h.Name,
 		Provides: h.Provide,
 		New:      func(tb {{ renderExpr (external "testing" "TB") }}) {{ suite_subjectType $c }} { return build(tb) },
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  {{ renderExpr (external $.Vocab "ExcuseSet") }}(h.Excuse),
-	}, nil
+	}{{ if not (slot $c $c.LoweringSlotName).Len }}, nil{{ end }}
+{{- range (slot $c $c.LoweringSlotName).Items }}
+	{{ render . }}
+{{- end }}
+{{- if (slot $c $c.LoweringSlotName).Len }}
+	return out, nil
+{{- end }}
 }
 
 func (h {{ suite_harnessName .IfaceName }}{{ suite_withParam .TypeArgs "T" }}) applyTo(rc *{{ suite_runConfigName .Token }}{{ .TypeArgs }}) {

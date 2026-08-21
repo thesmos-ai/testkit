@@ -6,6 +6,8 @@ package model_test
 import (
 	"testing"
 
+	"go.thesmos.sh/eidos/sdk"
+
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/generator/model"
 )
@@ -15,14 +17,11 @@ func TestCompanionSurface(t *testing.T) {
 	t.Parallel()
 
 	s := mixed(t)
-	generateBoth(t, s)
-	var comp *model.Companion
-	for _, p := range s.Emit().PendingOriginSlots() {
-		if c, ok := p.Item.(*model.Companion); ok {
-			comp = c
-		}
-	}
-	testkit.True(t, comp != nil, "the proof rides with the bindings")
+	// Derived rather than read out of the emit graph: this tier queues
+	// nothing, because a queued value renders into a file and it emits
+	// none. See [model.CompanionFor].
+	comp := model.CompanionFor(sdk.NewProvenance(model.Name), ifaceIn(t, s), bindingsOf(t, s))
+	testkit.True(t, comp != nil, "the proof derives from the bindings")
 	testkit.Equal(t, comp.Kind(), model.KindCompanion, "and renders as itself")
 	testkit.Equal(t, comp.ModelPkg(), model.ModelPkg, "reaching the runner's package")
 	comp.SetOutputPackages(map[string]string{"": "example.com/validates/validatestest"})

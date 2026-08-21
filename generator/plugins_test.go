@@ -166,7 +166,7 @@ func TestEveryBodyKindRendersInExactlyOneTier(t *testing.T) {
 
 	bySuite := suite.RenderedBodyKinds()
 	byModel := map[projection.BodyKind]bool{}
-	for _, k := range model.ModelRowKinds() {
+	for _, k := range model.RowKinds() {
 		byModel[k] = true
 	}
 
@@ -188,7 +188,7 @@ func TestTheTwoTiersAccountForTheWholeSet(t *testing.T) {
 	t.Parallel()
 
 	testkit.Equal(t,
-		len(suite.RenderedBodyKinds())+len(model.ModelRowKinds()),
+		len(suite.RenderedBodyKinds())+len(model.RowKinds()),
 		len(projection.BodyKinds()),
 		"a tier claiming a kind the projection does not declare renders against nothing, "+
 			"and a kind neither claims is planned and dropped")

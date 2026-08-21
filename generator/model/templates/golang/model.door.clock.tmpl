@@ -1,0 +1,20 @@
+{{- /*
+model.door.clock — the clock a check advances, as the harness carries it.
+
+Rendered into the harness generator's fields region. It spells two
+constructors rather than a clock, because an implementation reading the
+clock at construction cannot be told about a different one afterwards.
+*/ -}}
+{{- define "model.door.clock" -}}
+	// OnClock builds an instance reading the given clock. Checks that move
+	// time need it, and fail naming this field when it is nil.
+	// StartOnClock is its Start-shaped sibling, for a clocked constructor
+	// that also needs the test's lifecycle; set at most one of the two.
+	//
+	// A constructor rather than a clock handed to a built instance: an
+	// implementation that reads the clock at construction cannot be told
+	// about a different one afterwards, and a check that moved time would
+	// be moving a clock the subject never looks at.
+	OnClock      func(clk {{ renderExpr (external .Pkg "Clock") }}) T
+	StartOnClock func(tb {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Pkg "TestClock") }}) T
+{{- end -}}
