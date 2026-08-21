@@ -91,3 +91,15 @@ func newEscapesTheOpener() escapesTheOpener { return escapesTheOpener{} }
 func (escapesTheOpener) Render(_ context.Context, in string) (string, error) {
 	return strings.ReplaceAll(in, ">", "&gt;"), nil
 }
+
+// TestMixedLawsCanSaturate drives each bound law against defects worn on
+// its own methods, with that law as the run's only oracle.
+//
+// Binding a law is necessary; this is what makes it sufficient. A law
+// every worn defect survives is bound and unsaturatable, which reads as
+// coverage in the report and is not.
+func TestMixedLawsCanSaturate(t *testing.T) {
+	t.Parallel()
+
+	xsssafetest.MixedModelSaturation(t, func() xsssafetest.Mixed { return xsssafetest.NewInMemory() })
+}

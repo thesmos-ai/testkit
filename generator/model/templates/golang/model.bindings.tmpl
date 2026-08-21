@@ -268,6 +268,9 @@ func {{ .LawsFuncName }}({{ template "model.lawparams" . }}) []{{ renderExpr (ex
 {{- range .Legs }}
 {{ render . }}
 {{ end }}
+{{- if and .SatLaws .LegLaws }}
+{{ template "model.saturation" . }}
+{{- end }}
 {{- end -}}
 
 {{- /*

@@ -172,3 +172,15 @@ func (p *plantedStore) Read(_ context.Context, key string) (validates.Payload, e
 	}
 	return v, nil
 }
+
+// TestMixedLawsCanSaturate drives each bound law against defects worn on
+// its own methods, with that law as the run's only oracle.
+//
+// Binding a law is necessary; this is what makes it sufficient. A law
+// every worn defect survives is bound and unsaturatable, which reads as
+// coverage in the report and is not.
+func TestMixedLawsCanSaturate(t *testing.T) {
+	t.Parallel()
+
+	validatestest.MixedModelSaturation(t, func() validatestest.Mixed { return validatestest.NewInMemory() })
+}

@@ -101,3 +101,15 @@ func (r *reopensOnSecondClose) Close(context.Context) error {
 }
 
 func (r *reopensOnSecondClose) Stats(context.Context) (int, error) { return r.open, nil }
+
+// TestCloserLawsCanSaturate drives each bound law against defects worn on
+// its own methods, with that law as the run's only oracle.
+//
+// Binding a law is necessary; this is what makes it sufficient. A law
+// every worn defect survives is bound and unsaturatable, which reads as
+// coverage in the report and is not.
+func TestCloserLawsCanSaturate(t *testing.T) {
+	t.Parallel()
+
+	idempotentclosetest.CloserModelSaturation(t, func() idempotentclosetest.Closer { return idempotentclosetest.NewInMemory() })
+}

@@ -103,3 +103,13 @@ func (a *alwaysVerifies) Replay(context.Context) ([]chain.Entry, error) {
 }
 
 func (*alwaysVerifies) Verify(context.Context) error { return nil }
+
+// The saturation prover is not wired here, and AUTO-APPEND-ONLY-NO-DROPS is why.
+//
+// It is bound, and every defect the wardrobe wears on its own methods
+// leaves it green — measured, not assumed. Which of the three that is
+// has not been settled: a law too weak to catch what it is named for, a
+// defect class assigned to it wrongly, or a wear that cannot reach it.
+// Each has a different owner and a different fix, so the row stays out
+// until one of them is chosen rather than shipping a gate nobody can
+// read.

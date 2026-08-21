@@ -6,7 +6,7 @@ identifier — with the clean factory standing as reference, so the twin
 floor has real teeth against every mutant.
 */ -}}
 {{- define "model.saturation" -}}
-{{- if .SatLaws }}
+{{- if and .SatLaws .LegLaws }}
 {{ $b := . }}
 // {{ .IfaceName }}SatWear is one wearable defect: a kind, and the wrap that
 // dresses a subject in it.
@@ -107,17 +107,38 @@ func init() { //nolint:staticcheck // an empty wardrobe leaves dress unused by d
 }
 {{- end }}
 
-// {{ .IfaceName }}ModelSaturation proves the bound laws can fail: per law, a
-// defect is worn on each method the law's closures reach — zeros, the
-// fixture pair alternated, a waning count — and at least one worn run must
-// fail naming the law's own identifier, with the clean factory standing as
-// reference. A law every defect survives is bound but unsaturatable, and
-// fails here by name. Pass the same options that arm the tier: a law behind
-// an unarmed door or the clocked factory is skipped visibly, never counted.
-func {{ .IfaceName }}ModelSaturation(t *{{ renderExpr (external "testing" "T") }}, factory func() {{ renderType .IfaceRef }}, opts ...{{ .OptionTypeName }}) {
+// {{ lower .IfaceName }}SatOnly narrows the bound set to one law.
+//
+// The prover's instrument, not a knob. A conformance run asserts every
+// law the classifications earned; dropping all but one is only ever
+// right when the question is "can THIS law fail", which is the one
+// question asked here.
+func {{ lower .IfaceName }}SatOnly(laws []{{ renderExpr (external .LawPath "Law") }}[{{ .SubjectSpelling }}], id string) ({{ renderExpr (external .LawPath "Law") }}[{{ .SubjectSpelling }}], bool) {
+	for _, l := range laws {
+		if l.ID() == id {
+			return l, true
+		}
+	}
+	return nil, false
+}
+
+// {{ .IfaceName }}ModelSaturation proves the bound laws can fail.
+//
+// Binding a law is necessary; this is what makes it sufficient. Per law,
+// a defect is worn on each method the law's closures reach — zeros, the
+// fixture pair alternated, a waning count — and at least one worn run
+// must fail naming the law's own identifier. A law every defect survives
+// is bound but unsaturatable, and fails here by name.
+//
+// It takes YOUR implementation, because that is the only correct subject
+// there is to break: a defect worn over the generated double proves
+// nothing, since the double answers zeros before anything is worn on it.
+//
+//	func TestMyLawsCanFail(t *testing.T) {
+//		{{ .IfaceName }}ModelSaturation(t, func() {{ .SubjectSpelling }} { return NewMine() })
+//	}
+func {{ .IfaceName }}ModelSaturation(t *{{ renderExpr (external "testing" "T") }}, factory func() {{ .SubjectSpelling }}) {
 	t.Helper()
-	cfg := new{{ .IfaceName }}ModelConfig(opts...)
-	_ = cfg
 	fx := {{ .FixtureCtor }}()
 	_ = fx
 {{- range .SatLaws }}
@@ -140,11 +161,10 @@ func {{ .IfaceName }}ModelSaturation(t *{{ renderExpr (external "testing" "T") }
 		// it is argued and counted.
 		t.Skip("no wear produces the defect {{ .ID }} is named for; the wardrobe owes it one")
 {{- else }}
-{{- range .Guards }}
-		if cfg.{{ . }} == nil {
-			t.Skip("the {{ . }} door is not armed here, and the law registers only armed")
+		one, bound := {{ lower $b.IfaceName }}SatOnly({{ $b.LawsFuncName }}({{ template "model.satlawargs" $b }}), {{ printf "%q" .ID }})
+		if !bound {
+			t.Skip("the law was selected and this build did not register it; the header says what it is waiting on")
 		}
-{{- end }}
 		proving := map[string]bool{ {{ range $i, $k := .Proves }}{{ if $i }}, {{ end }}{{ printf "%q" $k }}: true{{ end }} }
 		killed := func() bool {
 			for _, method := range []string{ {{ range $i, $m := .Methods }}{{ if $i }}, {{ end }}{{ printf "%q" $m }}{{ end }} } {
@@ -174,15 +194,20 @@ func {{ .IfaceName }}ModelSaturation(t *{{ renderExpr (external "testing" "T") }
 					})
 					reference := factory
 					if blind {
-						reference = func() {{ renderType $b.IfaceRef }} { return wear.wrap(fx, factory()) }
+						reference = func() {{ $b.SubjectSpelling }} { return wear.wrap(fx, factory()) }
 					}
 					f := {{ renderExpr (external $b.RootPkg "NewFailableTB") }}().WithName(surrogate)
-					worn := append({{ renderExpr (external "slices" "Clone") }}(opts),
-						{{ $b.IfaceName }}ModelReference(reference),
-						{{ lower $b.IfaceName }}ModelOnlyLaw({{ printf "%q" .ID }}))
-					{{ renderExpr (external $b.ModelPkg "Check") }}(f, {{ $b.PropertyName }}(func() {{ renderType $b.IfaceRef }} {
-						return wear.wrap(fx, factory())
-					}, worn...))
+					// One law and no differential: with siblings registered the
+					// first to catch a defect ends the iteration, and every
+					// other law bound on the same methods reads as
+					// unsaturatable. Isolating it is what leaves this law as
+					// the only witness.
+					{{ renderExpr (external $b.ModelPkg "Assert") }}(f,
+						func() {{ $b.SubjectSpelling }} { return wear.wrap(fx, factory()) },
+						{{ renderExpr (external $b.ModelPkg "WithReference") }}(reference),
+						{{ renderExpr (external $b.ModelPkg "WithActions") }}({{ $b.ActionsFuncName }}({{ template "model.satargs" $b }})...),
+						{{ renderExpr (external $b.ModelPkg "WithLawsOnly") }}[{{ $b.SubjectSpelling }}](true),
+						{{ renderExpr (external $b.ModelPkg "WithLaw") }}(one))
 					// The reporter's own rendering, not the bare identifier.
 					// rapid echoes the TB's name into its final message and the
 					// surrogate above is named for this law, so matching the
@@ -579,4 +604,28 @@ func (m *{{ lower $b.IfaceName }}SatEcho{{ .Method }}) {{ .Method }}({{ range $i
 {{- end }}
 {{- end }}
 {{ end }}
+{{- end -}}
+
+{{- /*
+model.satargs is what the prover hands the shared declarations — the same
+list a leg hands them, spelled once so a call and a signature cannot
+disagree. The append log is fresh per prover run: nothing here reads what
+a previous wear recorded.
+*/ -}}
+{{- define "model.satargs" -}}
+{{- $sep := "" -}}
+{{- if .NeedsFixture }}fx{{ $sep = ", " }}{{ end }}
+{{- if .RecordsHistory }}{{ $sep }}{{ renderExpr (external .HistoryPkg "New") }}[string, {{ renderType .HistoryElem }}](){{ end -}}
+{{- end -}}
+
+{{- /*
+model.satlawargs is model.satargs and the subject factory, for the laws
+that build instances of their own. The prover has one in hand — it is
+what every wear is worn over.
+*/ -}}
+{{- define "model.satlawargs" -}}
+{{- $sep := "" -}}
+{{- if .NeedsFixture }}fx{{ $sep = ", " }}{{ end }}
+{{- if .RecordsHistory }}{{ $sep }}{{ renderExpr (external .HistoryPkg "New") }}[string, {{ renderType .HistoryElem }}](){{ $sep = ", " }}{{ end }}
+{{- if .LawsNeedFactory }}{{ $sep }}factory{{ end -}}
 {{- end -}}
