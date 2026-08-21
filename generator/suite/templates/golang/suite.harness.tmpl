@@ -136,6 +136,10 @@ type {{ suite_harnessName .IfaceName }}{{ suite_withParam (renderTypeParams .Typ
 	// real time, so the check would either take minutes or assert nothing.
 	Clock {{ renderType $.ClockRef }}
 {{- end }}
+{{- range (slot $c $c.FieldsSlotName).Items }}
+
+	{{ render . }}
+{{- end }}
 {{- if .Harness.Induce }}
 
 	// Induce maps each error to a function that puts your implementation

@@ -234,6 +234,10 @@ type Contract struct {
 	// They render into the header: a claim the reader cannot see
 	// refused reads as a claim this file checks.
 	Refusals []Refusal
+
+	// doors is the region another tier contributes harness fields into.
+	// See [Contract.Doors].
+	doors *sdk.Slot
 }
 
 // Gaps words each refusal as the header states it: what was not

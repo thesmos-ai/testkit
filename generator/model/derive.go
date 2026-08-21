@@ -47,12 +47,31 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 		if !ok {
 			continue
 		}
-		// The companion rides with the bindings rather than being optional:
-		// an emission nothing proves is the hand-written probe this output
-		// replaced, owed again by every armed package. The exceptions are the
-		// references this plugin did not derive — a supplied constructor is
-		// the consumer's to prove, and the twin floor is the subject's own
-		// factory, which the contract run itself drives.
+		// The doors this tier's checks need, contributed into the region
+		// the harness generator hands out. The harness renders them
+		// without reading them: it emits the surface, and which
+		// capabilities exist is a fact about the checks written here.
+		for _, d := range doorsOf(b) {
+			if err := harness.HarnessFields().Append(d, c.Provenance(Name+".door."+d.Name)); err != nil {
+				return fmt.Errorf("%s: contribute %s door for %q: %w", Name, d.Name, iface.Name, err)
+			}
+		}
+
+		// Queued, and rendered by nothing. This tier declares its outputs
+		// but spells no template for the bindings any more: it
+		// contributes into the harness the other generator emits, so a
+		// consumer reads one generated file per interface and a claim's
+		// rows sit beside the rows they are compared against.
+		//
+		// The value stays in the emit graph because it IS this tier's
+		// derivation — which laws bound, which reference was chosen,
+		// which fields resolved — and every contribution above and still
+		// to come reads it.
+		//
+		// The companion rides with it for the reason it always did: an
+		// emission nothing proves is the hand-written probe this output
+		// replaced. The exceptions are the references this plugin did not
+		// derive.
 		queued := []sdk.EmitNode{b}
 		if b.Reference.Derived() {
 			queued = append(queued, companionOf(c, iface, b))

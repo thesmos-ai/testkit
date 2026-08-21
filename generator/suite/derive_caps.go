@@ -42,6 +42,10 @@ func capsFor(f Iface, class vocab.Class) []projection.NeedPlan {
 
 // clockDoor: a clocked row moves time, so the subject must be
 // constructible on a controlled clock.
+//
+// Derived here while the model tier's emit layer is being replaced. The
+// field is that tier's to contribute — see the harness's fields region —
+// and this goes when it does.
 func clockDoor(Iface) []projection.NeedPlan {
 	return []projection.NeedPlan{{Capability: vocab.CapClock}}
 }

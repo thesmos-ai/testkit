@@ -38,3 +38,23 @@ const StubSuffix = "Stub"
 // it and the harness generator draws a fixture value through it, so it
 // belongs to neither.
 const CompanionSuffix = "Defaults"
+
+// The regions the harness generator hands out for another tier to
+// contribute into, named for what each holds.
+//
+// A slot is reached by name, so the generator that hands the region out
+// and the generator that fills it both have to spell it. Here rather
+// than exported from the host for the reason the suffixes are: reaching
+// a plugin for one string also puts its constructor in scope, and a
+// misspelling on either side mints a second, unconstrained region under
+// a near-miss name rather than failing.
+//
+// Named for the content and not for the mechanism. Every one of these is
+// an injection point, so "the slot" distinguishes nothing; what a reader
+// needs to know is which part of the generated file a contribution lands
+// in and what shape it has to be.
+const (
+	// SlotHarnessFields is the harness struct's fields — the capability
+	// doors a contributing tier's checks need a consumer to supply.
+	SlotHarnessFields = "harness.fields"
+)

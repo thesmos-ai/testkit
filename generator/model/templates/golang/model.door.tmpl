@@ -1,0 +1,18 @@
+{{- /*
+model.door — one capability field, contributed into the harness
+generator's doors region.
+
+The harness renders this without reading it, so everything the field
+needs is here: its prose, its name, and its type through renderType,
+which registers the import on the harness's file.
+*/ -}}
+{{- define "model.door" -}}
+{{- range .Why }}
+{{- if . }}
+	// {{ . }}
+{{- else }}
+	//
+{{- end }}
+{{- end }}
+	{{ .Name }} {{ renderType .Type }}
+{{- end -}}
