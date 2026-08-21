@@ -158,6 +158,14 @@ type MixedHarness[T Mixed] struct {
 	// a fixed port.
 	Serial bool
 
+	// Induce maps each error to a function that puts your implementation
+	// into the state that error describes.
+	//
+	// A check that asks what happens after a particular error has to be
+	// able to cause that error first. Map the error to a function that
+	// provokes it, and the checks that need it can run.
+	Induce suite.Inductions[T]
+
 	// Provide supplies anything a check needs that has no field of its
 	// own above. You will not need it unless a check fails asking for a
 	// named capability, and that failure tells you the name to use here.
@@ -171,14 +179,16 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 	if err != nil {
 		return suite.Subject[Mixed]{}, err
 	}
-	return suite.Subject[Mixed]{
+	out := suite.Subject[Mixed]{
 		Name:     h.Name,
 		Provides: h.Provide,
 		New:      func(tb testing.TB) Mixed { return build(tb) },
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  suite.ExcuseSet(h.Excuse),
-	}, nil
+	}
+	out.Induces = suite.LowerInductions[Mixed](h.Name, h.Induce)
+	return out, nil
 }
 
 func (h MixedHarness[T]) applyTo(rc *mixedRunConfig) {
@@ -649,4 +659,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9f89a8f1224d8705d17f92d38915cfdbdd48d96a2e30a5b212c82fadebc4cd0b
+// testkit:provenance 4a376025e83f5bc4c87171b1b5b0df71ec8ba5a934f8eaf6ccace2a3d8f91878

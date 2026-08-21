@@ -1,0 +1,6 @@
+{{- /*
+model.lowering.induce — carry the induction map onto the runtime subject.
+*/ -}}
+{{- define "model.lowering.induce" -}}
+out.Induces = {{ renderExpr (external .Vocab "LowerInductions") }}[{{ .Subject }}](h.Name, h.Induce)
+{{- end -}}

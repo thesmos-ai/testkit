@@ -1,0 +1,17 @@
+{{- /*
+model.door.induce — the map a check about a failure state needs.
+
+Rendered into the harness generator's fields region. A map rather than a
+single function because the states differ: a check about a closed
+instance and one about a failed instance both have to get there first,
+and each names the state it wants by its error.
+*/ -}}
+{{- define "model.door.induce" -}}
+	// Induce maps each error to a function that puts your implementation
+	// into the state that error describes.
+	//
+	// A check that asks what happens after a particular error has to be
+	// able to cause that error first. Map the error to a function that
+	// provokes it, and the checks that need it can run.
+	Induce {{ renderExpr (external .Vocab "Inductions") }}[T]
+{{- end -}}

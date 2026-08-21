@@ -50,12 +50,15 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 		// The harness generator renders both without reading them. It
 		// emits the surface; which capabilities exist is a fact about the
 		// checks written here.
-		if field, lowering := clockDoorFor(b, harness.IfaceRef); field != nil {
-			if err := harness.HarnessFields().Append(field, c.Provenance(Name+".door.clock")); err != nil {
-				return fmt.Errorf("%s: contribute the clock door for %q: %w", Name, iface.Name, err)
+		fields, lowerings := doorsFor(b, harness.SubjectType())
+		for _, f := range fields {
+			if err := harness.HarnessFields().Append(f, c.Provenance(Name+".door")); err != nil {
+				return fmt.Errorf("%s: contribute a door for %q: %w", Name, iface.Name, err)
 			}
-			if err := harness.HarnessLowering().Append(lowering, c.Provenance(Name+".lowering.clock")); err != nil {
-				return fmt.Errorf("%s: lower the clock door for %q: %w", Name, iface.Name, err)
+		}
+		for _, l := range lowerings {
+			if err := harness.HarnessLowering().Append(l, c.Provenance(Name+".lowering")); err != nil {
+				return fmt.Errorf("%s: lower a door for %q: %w", Name, iface.Name, err)
 			}
 		}
 	}

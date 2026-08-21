@@ -288,6 +288,16 @@ func subjectType(c *Contract) string {
 	return c.IfaceName + c.TypeArgs
 }
 
+// SubjectType is [subjectType] for a tier contributing into this
+// generator's output.
+//
+// Published rather than left to the contributor, because it is a rule
+// about how THIS file spells the interface and a second derivation of it
+// would differ where it matters least and confuse most: the qualified
+// form compiles beside the local one, so two spellings of one type sit in
+// one file and nothing complains.
+func (c *Contract) SubjectType() string { return subjectType(c) }
+
 // withParam appends one parameter to a rendered type-parameter list.
 //
 // The harness declares the subject's own parameters ahead of T, because

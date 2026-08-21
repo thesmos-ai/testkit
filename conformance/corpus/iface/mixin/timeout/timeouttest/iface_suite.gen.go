@@ -207,15 +207,15 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 	}
 	if err := suite.ExclusivePair(h.Name, "OnClock", "StartOnClock",
 		h.OnClock != nil, h.StartOnClock != nil); err != nil {
-		return suite.Subject[timeout.Mixed]{}, err
+		return suite.Subject[Mixed]{}, err
 	}
 	if h.OnClock != nil {
-		out.OnClock = func(_ testing.TB, clk *clock.TestClock) timeout.Mixed {
+		out.OnClock = func(_ testing.TB, clk *clock.TestClock) Mixed {
 			return h.OnClock(clk)
 		}
 	}
 	if h.StartOnClock != nil {
-		out.OnClock = func(tb testing.TB, clk *clock.TestClock) timeout.Mixed {
+		out.OnClock = func(tb testing.TB, clk *clock.TestClock) Mixed {
 			return h.StartOnClock(tb, clk)
 		}
 	}
@@ -683,4 +683,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance d05994292f43ce28ca7fcdae07ce246ff32a8d7a52abd31477a576718df98076
+// testkit:provenance 32ac1bbc14dcfa789602d177e384376fc747f657ddd0ebe27d62bb173c1c9b80

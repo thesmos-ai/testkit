@@ -4,20 +4,20 @@ runtime subject.
 
 Rendered inside the harness's Subject method, after the subject is built.
 Both fields lower to the runtime's one OnClock, so the guard refuses a
-harness that set two constructors rather than silently taking the second.
+harness that set two rather than silently taking the second.
 */ -}}
 {{- define "model.lowering.clock" -}}
 if err := {{ renderExpr (external .Vocab "ExclusivePair") }}(h.Name, "OnClock", "StartOnClock",
 		h.OnClock != nil, h.StartOnClock != nil); err != nil {
-		return {{ renderExpr (external .Vocab "Subject") }}[{{ renderType .Subject }}]{}, err
+		return {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}]{}, err
 	}
 	if h.OnClock != nil {
-		out.OnClock = func(_ {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Pkg "TestClock") }}) {{ renderType .Subject }} {
+		out.OnClock = func(_ {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Clock "TestClock") }}) {{ .Subject }} {
 			return h.OnClock(clk)
 		}
 	}
 	if h.StartOnClock != nil {
-		out.OnClock = func(tb {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Pkg "TestClock") }}) {{ renderType .Subject }} {
+		out.OnClock = func(tb {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Clock "TestClock") }}) {{ .Subject }} {
 			return h.StartOnClock(tb, clk)
 		}
 	}

@@ -3,7 +3,12 @@
 
 package model
 
-import "go.thesmos.sh/eidos/sdk"
+import (
+	"go.thesmos.sh/eidos/sdk"
+
+	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/core/tiers"
+)
 
 // LawBinding is one law, instantiated and filled, in the generated registry.
 type LawBinding struct {
@@ -42,6 +47,23 @@ type LawBinding struct {
 
 // Kind returns the one template every binding renders through.
 func (*LawBinding) Kind() sdk.Kind { return "model.law" }
+
+// Induces reports that some bound law asks the subject to be put into a
+// failure state before it can state its claim.
+//
+// Read off the leg each law reports under rather than off the stamps: a
+// law that binds is one that will run, and the harness field exists for
+// the checks that run. A classification could select a law this build
+// then refused, and a field for a refused law is one a consumer fills
+// for a check that never comes.
+func (b *Bindings) Induces() bool {
+	for _, l := range b.Laws {
+		if class, own := tiers.LegOf(l.ID); own && class == vocab.ClassPoison {
+			return true
+		}
+	}
+	return false
+}
 
 // LawField is one filled field of a law struct.
 type LawField struct {

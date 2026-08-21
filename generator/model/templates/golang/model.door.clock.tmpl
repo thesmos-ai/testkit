@@ -1,9 +1,9 @@
 {{- /*
 model.door.clock — the clock a check advances, as the harness carries it.
 
-Rendered into the harness generator's fields region. It spells two
-constructors rather than a clock, because an implementation reading the
-clock at construction cannot be told about a different one afterwards.
+Rendered into the harness generator's fields region. Two constructors
+rather than a clock, because an implementation reading the clock at
+construction cannot be told about a different one afterwards.
 */ -}}
 {{- define "model.door.clock" -}}
 	// OnClock builds an instance reading the given clock. Checks that move
@@ -15,6 +15,6 @@ clock at construction cannot be told about a different one afterwards.
 	// implementation that reads the clock at construction cannot be told
 	// about a different one afterwards, and a check that moved time would
 	// be moving a clock the subject never looks at.
-	OnClock      func(clk {{ renderExpr (external .Pkg "Clock") }}) T
-	StartOnClock func(tb {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Pkg "TestClock") }}) T
+	OnClock      func(clk {{ renderExpr (external .Clock "Clock") }}) T
+	StartOnClock func(tb {{ renderExpr (external "testing" "TB") }}, clk *{{ renderExpr (external .Clock "TestClock") }}) T
 {{- end -}}
