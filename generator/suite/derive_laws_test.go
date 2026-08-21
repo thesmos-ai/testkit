@@ -20,8 +20,8 @@ import (
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // lawMethod builds one law-bearing method: mixins attached, their

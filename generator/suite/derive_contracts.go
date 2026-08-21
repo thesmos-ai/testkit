@@ -8,8 +8,8 @@ import (
 	"go.thesmos.sh/eidos/node"
 
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // The contract arm of derivation. Two jobs, and they are different

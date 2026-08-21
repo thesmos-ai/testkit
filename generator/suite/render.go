@@ -9,7 +9,7 @@ import (
 
 	"go.thesmos.sh/eidos/sdk"
 
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // renderFuncs is the rewrite's template function map, contributed to

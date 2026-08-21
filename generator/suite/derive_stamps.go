@@ -15,8 +15,8 @@ import (
 	"go.thesmos.sh/eidos/plugins/annotator/shape/detectors/readerwithbool"
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // stampRule derives one stamp's checks. The tables below key rules by

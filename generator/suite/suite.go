@@ -35,9 +35,9 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/source"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // Name is the plugin's stable identifier.

@@ -13,8 +13,8 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // CheckEmit is one derived check as its template renders it.
@@ -129,7 +129,14 @@ func (c *CheckEmit) Kind() sdk.Kind { return sdk.Kind(c.Plan.Body.BodyKind()) }
 // is the guard working — so the rows carry only what can be rendered,
 // and [WithheldBodies] names the rest in the generated file rather than
 // letting a reader infer coverage from silence.
-func rendered() map[projection.BodyKind]bool {
+// RenderedBodyKinds is the set of body shapes THIS tier spells a
+// template for.
+//
+// Exported so the composition root can hold the two tiers' answers to
+// the whole declared set: a kind no tier renders is a row planned and
+// emitted nowhere, and a kind both render is one check emitted twice
+// under one identity. Neither is visible from inside either generator.
+func RenderedBodyKinds() map[projection.BodyKind]bool {
 	return map[projection.BodyKind]bool{
 		projection.KindSmokeSurvives:   true,
 		projection.KindGuardedCall:     true,
@@ -190,7 +197,7 @@ func checkEmitsOf(
 		if !found {
 			continue
 		}
-		if !rendered()[plan.Body.BodyKind()] {
+		if !RenderedBodyKinds()[plan.Body.BodyKind()] {
 			continue
 		}
 		if !seeded && seedsCorpusBody(plan.Body) {
@@ -333,7 +340,7 @@ func withheldBodies(inv projection.Inventory) []string {
 			continue
 		}
 		kind := c.Body.BodyKind()
-		if rendered()[kind] || seen[kind] {
+		if RenderedBodyKinds()[kind] || seen[kind] {
 			continue
 		}
 		seen[kind] = true

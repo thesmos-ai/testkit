@@ -10,6 +10,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
 )
@@ -42,7 +43,7 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			continue
 		}
 
-		b, ok := bindingsOf(ctx, c, iface, &harness.Projection, harness.EntryName, witnesses)
+		b, ok := bindingsOf(ctx, c, iface, &harness.Projection, harness.EntryName, harness.Inventory, witnesses)
 		if !ok {
 			continue
 		}
@@ -69,6 +70,7 @@ func bindingsOf(
 	iface *sdk.Interface,
 	harness *subject.Projection,
 	entry string,
+	inv projection.Inventory,
 	witnesses []sdk.Ref,
 ) (*Bindings, bool) {
 	harness, witnessQ := witnessedHarness(harness, iface, witnesses)
@@ -80,6 +82,7 @@ func bindingsOf(
 		OptionTypeName: harness.IfaceName + "ModelOption",
 		ConfigName:     strings.ToLower(harness.IfaceName[:1]) + harness.IfaceName[1:] + "ModelConfig",
 		EntryName:      entry,
+		Rows:           ModelRows(inv),
 		FixtureCtor:    harness.Fixture.CtorName,
 		Witnesses:      witnesses,
 		witnessQ:       witnessQ,

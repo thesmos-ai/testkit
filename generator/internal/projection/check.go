@@ -1,17 +1,35 @@
 // Copyright Thesmos 2026
 // SPDX-License-Identifier: MIT
 
-// Package projection is the suite plugin's data model: the blueprint a
-// generation run computes and the templates render. Everything here is
-// build-time — a CheckPlan lives for milliseconds inside `testkit run`
-// and is never seen by a consumer; the generated file it describes
-// constructs the runtime's own [suite.Check] values instead.
+// Package projection is the build-time plan both tiers compute into and
+// render from: the blueprint a generation run produces and the templates
+// read. Everything here is build-time — a CheckPlan lives for
+// milliseconds inside `testkit run` and is never seen by a consumer; the
+// generated file it describes constructs the runtime's own [suite.Check]
+// values instead.
 //
 // One inventory sources every artifact. Claim text, probe sets, lock
 // rows, the typed index, the proofs table and the selfcheck census are
 // all projections of the same nodes, which is what makes "a claim is
 // exactly as wide as its assertion" a property of the data flow rather
 // than a rule enforced by review.
+//
+// # One derivation, many renderers
+//
+// Both tiers plan into this, and the harness generator computes it,
+// because the harness is derived from the plans rather than from the
+// stamps — see [HarnessOf]. A capability nothing checks is a field
+// nobody may demand, so a clocked law's row and the Clock field it needs
+// have to be worked out together. Splitting the planning by tier would
+// give the model tier's clocked check a harness with no clock on it.
+//
+// What differs per tier is who RENDERS a row. A plan whose body kind no
+// template in the computing tier spells is listed under Withheld, which
+// is the honest state for a row planned here and emitted elsewhere.
+//
+// It lives under internal/ rather than inside the harness generator for
+// the reason [go.thesmos.sh/testkit/generator/internal/subject] gives:
+// the biggest consumer of a shared derivation is not its owner.
 package projection
 
 import (

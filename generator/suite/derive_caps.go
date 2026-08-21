@@ -5,7 +5,7 @@ package suite
 
 import (
 	vocab "go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // The capability-door rules — A10's first half: a check declares what

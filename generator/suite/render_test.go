@@ -15,7 +15,7 @@ import (
 	langgo "go.thesmos.sh/eidos/lang/golang"
 
 	"go.thesmos.sh/testkit"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // bodyTemplates parses the body subtree exactly as the backend will:

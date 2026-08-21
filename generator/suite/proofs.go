@@ -13,8 +13,8 @@ import (
 
 	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/internal/naming"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // KindProofs is the emit kind for the falsification companion, which is
@@ -244,7 +244,7 @@ const errLocal = "err"
 
 // defectRendered is the defect variants whose templates exist today.
 //
-// The mirror of [rendered]: a check whose body renders and whose defect
+// The mirror of [RenderedBodyKinds]: a check whose body renders and whose defect
 // does not is emitted Argued, so the two censuses decide together what a
 // row claims about itself.
 func defectRendered() map[projection.DefectKind]bool {

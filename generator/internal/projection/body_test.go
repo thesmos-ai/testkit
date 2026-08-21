@@ -8,7 +8,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 func TestBodyKinds(t *testing.T) {
@@ -76,6 +76,8 @@ func (c strengthCase) Name() string { return c.name }
 // subtest is what stops the table going stale — a variant added to
 // BodyKinds without a row here fails, which is the moment the
 // decision is cheapest to make.
+//
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestBodyStrength(t *testing.T) {
 	t.Parallel()
 
@@ -122,6 +124,7 @@ func bodyStrengths() []strengthCase {
 	}
 }
 
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestSimKindsAreTheRuntimeVocabulary(t *testing.T) {
 	t.Parallel()
 

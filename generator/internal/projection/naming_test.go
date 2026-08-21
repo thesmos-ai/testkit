@@ -8,7 +8,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 func TestOptionNamePolicy(t *testing.T) {
@@ -39,6 +39,7 @@ func TestEmittedSurfaceNames(t *testing.T) {
 		"the run-config type")
 }
 
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestFixtureCallPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +59,8 @@ func TestFixtureCallPolicy(t *testing.T) {
 // Lower camel is the whole rule, and the multiword case is why: a
 // plain lower-casing produces kvstorecheckindex, which compiles and
 // which nobody wants to meet in a stack trace.
+//
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestTokenIsLowerCamel(t *testing.T) {
 	t.Parallel()
 

@@ -17,8 +17,8 @@ import (
 	"go.thesmos.sh/eidos/node"
 
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // idempotentRule probes the repeat: two clean calls, the second

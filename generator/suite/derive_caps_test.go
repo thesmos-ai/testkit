@@ -11,7 +11,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	vocab "go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 func TestCapabilityDoorsFollowTheClass(t *testing.T) {

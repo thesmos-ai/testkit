@@ -9,8 +9,8 @@ import (
 	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // Laws plans the model tier's law rows for the inventory: which laws

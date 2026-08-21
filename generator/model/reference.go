@@ -634,7 +634,9 @@ func keyFieldOf(ctx *sdk.GeneratorContext, valueQ, keyQ string) (string, string)
 // names. Both walks, because a protocol splits its directives — the chain
 // stamps append on one method and verify on another, and reading only the
 // carrier's would leave a role the interface plainly fills unresolved.
-func contractRoleMethods(harness *subject.Projection, carrier *subject.Method, contract string) map[string]*subject.Method {
+func contractRoleMethods(
+	harness *subject.Projection, carrier *subject.Method, contract string,
+) map[string]*subject.Method {
 	out := map[string]*subject.Method{}
 	for i := range harness.Methods {
 		m := &harness.Methods[i]

@@ -8,7 +8,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // harnessCase is one check set and the harness surface it demands.
@@ -20,6 +20,7 @@ type harnessCase struct {
 
 func (c harnessCase) Name() string { return c.name }
 
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestHarnessCarriesOnlyWhatChecksDemand(t *testing.T) {
 	t.Parallel()
 

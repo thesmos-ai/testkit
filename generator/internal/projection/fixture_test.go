@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // memberCase is one stamp and the member a transform derives from it;
@@ -22,6 +22,7 @@ type memberCase struct {
 
 func (c memberCase) Name() string { return c.name }
 
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestPoolMemberTransforms(t *testing.T) {
 	t.Parallel()
 

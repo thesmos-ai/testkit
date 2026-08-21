@@ -10,6 +10,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
 )
@@ -289,6 +290,18 @@ type Bindings struct {
 	// claim the run checks.
 	Laws    []*LawBinding
 	Unbound []Skip
+
+	// Rows are the check plans this tier renders — the ones the harness
+	// generator planned and listed under Withheld because no template of
+	// its own spells them.
+	//
+	// Read rather than re-derived, which is the rule RFC-0002 and
+	// RFC-0003 state: two derivations of one row disagree silently, and
+	// the generated file is where that turns up. It also cannot be
+	// re-derived correctly here — the row's Needs is what put the
+	// capability field on the harness, and the harness was projected
+	// before this generator ran.
+	Rows []projection.CheckPlan
 
 	// LawPools are the pools the laws declare beyond the shared pair: a wide
 	// input domain for a stateless claim, the adversarial strings a safety

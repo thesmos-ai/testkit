@@ -8,7 +8,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // scanAppendSmoke is the design document's populated sample, as data.
@@ -34,6 +34,7 @@ type parityCase struct {
 
 func (c parityCase) Name() string { return c.name }
 
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestInventoryVerifyHoldsTheParityRules(t *testing.T) {
 	t.Parallel()
 

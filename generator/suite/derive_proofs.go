@@ -6,7 +6,7 @@ package suite
 import (
 	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // The planted-defect rules for the model-family rows — the corpus's

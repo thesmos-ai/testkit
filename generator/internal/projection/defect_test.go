@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 func TestDefectKinds(t *testing.T) {

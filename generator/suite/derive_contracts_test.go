@@ -16,8 +16,8 @@ import (
 
 	"go.thesmos.sh/testkit"
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // openerMethod is the scan Log's producing shape: Scan(ctx) answers a

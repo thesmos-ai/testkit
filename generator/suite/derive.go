@@ -7,8 +7,8 @@ import (
 	"slices"
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // DeriverName identifies a deriver in the registry and in refusal

@@ -9,7 +9,7 @@ import (
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // plan is one check's identity, which is all the index reads.
@@ -76,6 +76,8 @@ func TestIndexGroupsByScope(t *testing.T) {
 // Derived rather than tabulated: the segment vocabulary grows upstream,
 // and a closed table would refuse a new segment instead of spelling the
 // obvious identifier for it.
+//
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestSegmentAccessorsAreDerived(t *testing.T) {
 	t.Parallel()
 

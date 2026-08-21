@@ -10,9 +10,9 @@ import (
 	"go.thesmos.sh/eidos/node"
 	"go.thesmos.sh/eidos/sdk"
 
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/stamp"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 // DeriverPools attributes pool refusals. Not in the deriver registry:

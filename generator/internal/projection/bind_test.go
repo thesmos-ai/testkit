@@ -8,7 +8,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/core/lawid"
-	"go.thesmos.sh/testkit/generator/suite/projection"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // bindCase is one lock-column rendering.
@@ -20,6 +20,7 @@ type bindCase struct {
 
 func (c bindCase) Name() string { return c.name }
 
+//nolint:thelper // the case body is the test, not a helper; see core/lawid
 func TestBindRendersTheLockColumnForm(t *testing.T) {
 	t.Parallel()
 

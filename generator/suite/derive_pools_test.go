@@ -17,9 +17,9 @@ import (
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/generator/defaults"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/roles"
-	"go.thesmos.sh/testkit/generator/suite/projection"
 )
 
 const poolFixtureFile = "kv/kv.go"

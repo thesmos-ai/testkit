@@ -12,7 +12,11 @@ import (
 	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/sdk"
 
+	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/generator"
+	"go.thesmos.sh/testkit/generator/internal/projection"
+	"go.thesmos.sh/testkit/generator/model"
+	"go.thesmos.sh/testkit/generator/suite"
 )
 
 // The set is what a binary registers, and every structural fault in it is one
@@ -142,4 +146,50 @@ func TestAnnotatorIsConfigured(t *testing.T) {
 		t.Fatal("no annotator is configured")
 	}
 	var _ sdk.Annotator = a
+}
+
+// Every declared check-body shape is rendered by exactly one tier.
+//
+// The closed set is the projection's; who spells a template for each
+// member is the tiers'. Neither generator can state this — each knows
+// only its own answer — so it is stated here, where the plugin set is
+// composed.
+//
+// Both directions are failures and they fail differently. A kind NO tier
+// renders is a row the harness generator plans, files under Withheld and
+// nothing ever emits: the capability it declared still reaches the
+// harness, so a consumer gets a field to fill for a check that does not
+// exist. A kind BOTH render is one identity emitted twice, which the
+// manifest catches only if the two spellings differ.
+func TestEveryBodyKindRendersInExactlyOneTier(t *testing.T) {
+	t.Parallel()
+
+	bySuite := suite.RenderedBodyKinds()
+	byModel := map[projection.BodyKind]bool{}
+	for _, k := range model.ModelRowKinds() {
+		byModel[k] = true
+	}
+
+	for _, k := range projection.BodyKinds() {
+		switch {
+		case bySuite[k] && byModel[k]:
+			t.Errorf("both tiers render %s, so one plan emits two checks under one identity", k)
+		case !bySuite[k] && !byModel[k]:
+			t.Errorf("no tier renders %s, so the rows planned for it are emitted nowhere", k)
+		}
+	}
+}
+
+// The two sets together are the whole declared set and nothing more.
+//
+// The count is what catches a kind a tier claims and the projection does
+// not declare — which reads as coverage and renders against nothing.
+func TestTheTwoTiersAccountForTheWholeSet(t *testing.T) {
+	t.Parallel()
+
+	testkit.Equal(t,
+		len(suite.RenderedBodyKinds())+len(model.ModelRowKinds()),
+		len(projection.BodyKinds()),
+		"a tier claiming a kind the projection does not declare renders against nothing, "+
+			"and a kind neither claims is planned and dropped")
 }
