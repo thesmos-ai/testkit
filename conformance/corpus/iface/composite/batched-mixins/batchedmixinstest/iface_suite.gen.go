@@ -76,7 +76,6 @@ import (
 // tells you what you have, and this tells you what you do not.
 //
 //	Put's side-effect check — the mixin names no partner to observe the effect through. To close it: name a readable partner with //testkit:mixin sideeffect observe=…, on a line of its own — a directive naming several mixins takes no parameters, because the owner of one would be a guess.
-//	the differential leg for Batched — the bounded claim clamps what the reader answers, and a derived collection clamps nothing. To close it: name the implementation to compare against with ref=, since comparing this one against a copy of itself would agree about any bug the two share.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -1036,4 +1035,4 @@ func ProveBatched(
 }
 
 // testkit: end of generated content.
-// testkit:provenance faa6f33dff40942538de2c598a83098f578af55adc65f111f65a363e59c343cc
+// testkit:provenance d048f1a5b6afd1e0985b0f4b4dd1633f8c9e90d62c7d3d98e1f0426a6936d513

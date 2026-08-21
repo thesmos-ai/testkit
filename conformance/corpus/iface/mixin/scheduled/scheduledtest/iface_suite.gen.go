@@ -60,13 +60,6 @@ import (
 //
 //	scheduled on At — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
-// Claims this file does NOT make. Each was worked out from your
-// declaration and then declined, because something needed to state it
-// is missing. The reason and the fix are given for each: the list above
-// tells you what you have, and this tells you what you do not.
-//
-//	AUTO-SCHEDULED-FIRES-AFTER-ADVANCE for Mixed — the law rides its own leg but its claim is unworded. To close it: word it in lawid's claim table.
-//
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
 // building with, this line fails to compile and names the mismatch —
@@ -801,4 +794,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 10c04665e75cdbb14d4e0017097ba7c2fdc7e1097e036e8f663e88b7c1b07db1
+// testkit:provenance 7786e4c2ecaa8a68a62b1fce4f2f6c256d666358d29cdb52529bdec8ee49442e

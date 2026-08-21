@@ -62,7 +62,7 @@ func TestHarnessCarriesOnlyWhatChecksDemand(t *testing.T) {
 			projection.HarnessPlan{Iface: "Store", Clock: true, Induce: true, Seeded: true},
 		},
 	}, func(t *testing.T, tc harnessCase) {
-		testkit.Equal(t, projection.HarnessOf("Store", tc.checks), tc.want,
+		testkit.Equal(t, projection.HarnessOf("Store", tc.checks, nil), tc.want,
 			"the harness surface is exactly the declared doors — A10, structurally")
 	})
 }

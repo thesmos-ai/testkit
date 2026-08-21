@@ -116,8 +116,6 @@ func Registry() []Deriver {
 		Signature{},
 		Stamps{},
 		Contracts{},
-		Laws{},
-		Differential{},
 	}
 }
 

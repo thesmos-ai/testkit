@@ -392,7 +392,7 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			Limit:        limit,
 			Corpus:       corpus,
 			Seeded:       seeded,
-			Harness:      projection.HarnessOf(iface.Name, inventory.Checks),
+			Harness:      projection.HarnessOf(iface.Name, inventory.Checks, doorsFor(derived)),
 			Checks:       checks,
 			Withheld:     withheldBodies(inventory),
 			EmittedIDs:   ids,

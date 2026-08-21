@@ -62,13 +62,6 @@ import (
 //
 //	causal on Get — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
-// Claims this file does NOT make. Each was worked out from your
-// declaration and then declined, because something needed to state it
-// is missing. The reason and the fix are given for each: the list above
-// tells you what you have, and this tells you what you do not.
-//
-//	the differential leg for Mixed — the causal claim is an admission policy, and a derived store admits everything. To close it: name the implementation to compare against with ref=, since comparing this one against a copy of itself would agree about any bug the two share.
-//
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
 // building with, this line fails to compile and names the mismatch —
@@ -914,4 +907,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance e84cb6b20078059cc9a4dce760a110344da8f6d3e7e93d8f6c2822cba7181352
+// testkit:provenance 95f011f34bdf974487c4b59a7f6271814b1af875c46b13d5db1d1fa4d053fcae

@@ -54,13 +54,6 @@ import (
 //
 //	timeout on Slow — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
-// Claims this file does NOT make. Each was worked out from your
-// declaration and then declined, because something needed to state it
-// is missing. The reason and the fix are given for each: the list above
-// tells you what you have, and this tells you what you do not.
-//
-//	AUTO-DEADLINE-RESPECTING for Mixed — the law rides its own leg but its claim is unworded. To close it: word it in lawid's claim table.
-//
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
 // building with, this line fails to compile and names the mismatch —
@@ -662,4 +655,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 50a2693549ce28c42ab6a1a9288f99315dbb2cbb779fa8248b5f2b8c86fe336b
+// testkit:provenance f2c48ecd1c6b0525409d4668116e4d668fbcda3b200619edeb764770188bd85a

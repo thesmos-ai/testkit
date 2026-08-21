@@ -60,13 +60,6 @@ import (
 //
 //	atomic on Write — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
-// Claims this file does NOT make. Each was worked out from your
-// declaration and then declined, because something needed to state it
-// is missing. The reason and the fix are given for each: the list above
-// tells you what you have, and this tells you what you do not.
-//
-//	the differential leg for Mixed — the atomic claim is about refused writes, and a derived store refuses nothing. To close it: name the implementation to compare against with ref=, since comparing this one against a copy of itself would agree about any bug the two share.
-//
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
 // building with, this line fails to compile and names the mismatch —
@@ -847,4 +840,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance a907a19aa3f83603d96efe01a068f3497c349d8baf8180971908448a041c0e51
+// testkit:provenance f56625ef3875a506a4e6d7de8742935fae79c4dc29751d8648a22b8ab903e495

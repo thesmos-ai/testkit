@@ -59,13 +59,6 @@ import (
 //
 //	causal on Append — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
-// Claims this file does NOT make. Each was worked out from your
-// declaration and then declined, because something needed to state it
-// is missing. The reason and the fix are given for each: the list above
-// tells you what you have, and this tells you what you do not.
-//
-//	the differential leg for Log — the causal claim is an admission policy, and a derived store admits everything. To close it: name the implementation to compare against with ref=, since comparing this one against a copy of itself would agree about any bug the two share.
-//
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
 // building with, this line fails to compile and names the mismatch —
@@ -798,4 +791,4 @@ func ProveLog(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 84d6276f8b2a6db7a4c0b8892115cdb064fb753802a33438c98e35c189fb9e93
+// testkit:provenance b9df8c03f95ff2b274adb78ed8a0f0f6b551c1df65ce65d3353e3fe5a1157b50

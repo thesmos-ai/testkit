@@ -70,7 +70,6 @@ import (
 //
 //	Sync's judging signature checks — its Mixed argument needs a value which no literal can be written for. To close it: stamp the type with //testkit:role and //testkit:default so MixedConfig can supply one, or write the check yourself as a MixedChecks entry.
 //	Sync's stamp checks — its Mixed argument needs a value which no literal can be written for. To close it: stamp the type with //testkit:role and //testkit:default so MixedConfig can supply one, or write the check yourself as a MixedChecks entry.
-//	the differential leg for Mixed — the eventually claim lets reads lag writes, which no immediate store models. To close it: name the implementation to compare against with ref=, since comparing this one against a copy of itself would agree about any bug the two share.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -925,4 +924,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 44be1d475df32bac1ff9e3eec9372555b1a5af0cf5c2cec551a1ed35358da0ce
+// testkit:provenance 3589276b488c9c194b817956707e434723f5247534cf29ed5009a66533cb0279

@@ -34,22 +34,31 @@ type HarnessPlan struct {
 // plans. Reading the plans rather than the stamps is the point: a
 // capability nothing checks is a field nobody may demand, and the
 // derivation cannot disagree with the run that gates on it.
-func HarnessOf(iface string, checks []CheckPlan) HarnessPlan {
+func HarnessOf(iface string, checks []CheckPlan, doors []NeedPlan) HarnessPlan {
 	p := HarnessPlan{Iface: iface}
 	for _, c := range checks {
-		for _, n := range c.Needs {
-			switch n.Capability {
-			case suite.CapClock:
-				p.Clock = true
-			case suite.CapInduce:
-				p.Induce = true
-			case suite.CapRecover:
-				p.Recover = true
-			}
-		}
+		p.demand(c.Needs)
 		if c.ID.Seg == suite.SegHit || c.ID.Seg == suite.SegCount {
 			p.Seeded = true
 		}
 	}
+	// Doors no check of this tier declared. The subject still needs
+	// them — a clocked law moves the clock — and a consumer with no
+	// field to supply one has no way to satisfy the check that will.
+	p.demand(doors)
 	return p
+}
+
+// demand opens each capability's door.
+func (p *HarnessPlan) demand(needs []NeedPlan) {
+	for _, n := range needs {
+		switch n.Capability {
+		case suite.CapClock:
+			p.Clock = true
+		case suite.CapInduce:
+			p.Induce = true
+		case suite.CapRecover:
+			p.Recover = true
+		}
+	}
 }

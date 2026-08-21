@@ -123,7 +123,7 @@ func (c *CheckEmit) StrengthConst() string {
 // Kind returns the plan's body variant, which is its template's name.
 func (c *CheckEmit) Kind() sdk.Kind { return sdk.Kind(c.Plan.Body.BodyKind()) }
 
-// rendered is the body variants whose templates exist today.
+// RenderedBodyKinds is the body variants whose templates exist today.
 //
 // A body with no template fails the backend's dispatch by name, which
 // is the guard working — so the rows carry only what can be rendered,

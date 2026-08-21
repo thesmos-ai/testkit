@@ -57,7 +57,7 @@ func TestCapabilityDoorsFollowTheClass(t *testing.T) {
 	t.Run("the harness projects exactly the declared doors", func(t *testing.T) {
 		t.Parallel()
 		plans, _ := Laws{}.Derive(store)
-		h := projection.HarnessOf(store.Name, plans)
+		h := projection.HarnessOf(store.Name, plans, nil)
 		testkit.True(t, h.Clock, "a clocked row opened the clock field")
 		testkit.True(t, h.Induce, "a poison row opened the induction map")
 		testkit.False(t, h.Recover, "no sim row, no recover seam — the family waits on its license")

@@ -59,13 +59,6 @@ import (
 //
 //	bounded on List — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
-// Claims this file does NOT make. Each was worked out from your
-// declaration and then declined, because something needed to state it
-// is missing. The reason and the fix are given for each: the list above
-// tells you what you have, and this tells you what you do not.
-//
-//	the differential leg for Mixed — the bounded claim clamps what the reader answers, and a derived collection clamps nothing. To close it: name the implementation to compare against with ref=, since comparing this one against a copy of itself would agree about any bug the two share.
-//
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
 // building with, this line fails to compile and names the mismatch —
@@ -817,4 +810,4 @@ func ProveMixed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 5dbdc980d612a699925c830f86c058ab506ee32c75b44df81ff64c028a546d8b
+// testkit:provenance 0e439098188228597712a24d675cb0fa3a7bd3c8ec583005af74286e4697ca7c
