@@ -134,6 +134,29 @@ func worded() map[string]law {
 			"an entry stops being readable once its lifetime has run out",
 			"Expiry", "TTLExpiry",
 		},
+		// The two comparison laws. Both word what they actually do —
+		// compare the subject against the reference — rather than the
+		// property a reader might assume from the name: ReadAfterWrite
+		// never writes, and neither says anything about a subject taken
+		// on its own.
+		ReadAfterWrite: {
+			"every key reads the same on the subject as on the reference",
+			"ReadsAgree", "ReadAfterWrite",
+		},
+		CountEqualsReference: {
+			"the subject counts what the reference counts",
+			"Counts", "CountEqualsReference",
+		},
+		// The publisher pair, worded as the proof-of-concept corpus
+		// spelled them.
+		PublisherDelivers: {
+			"a message published after subscribers registered reaches every one of them",
+			"Delivers", "PublisherDelivers",
+		},
+		PublisherAtLeastOnce: {
+			"every subscriber's delivery count for a published message is one or more",
+			"AtLeastOnce", "PublisherAtLeastOnce",
+		},
 		DeadlineRespecting: {
 			"an operation given a deadline returns once that deadline fires",
 			"Deadline", "DeadlineRespecting",

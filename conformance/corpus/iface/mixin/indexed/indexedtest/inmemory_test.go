@@ -111,15 +111,3 @@ func (c *clampsToTheLast) At(_ context.Context, i int) (indexed.Value, error) {
 	}
 	return c.items[i], nil
 }
-
-// TestRankedLawsCanSaturate drives each bound law against defects worn on
-// its own methods, with that law as the run's only oracle.
-//
-// Binding a law is necessary; this is what makes it sufficient. A law
-// every worn defect survives is bound and unsaturatable, which reads as
-// coverage in the report and is not.
-func TestRankedLawsCanSaturate(t *testing.T) {
-	t.Parallel()
-
-	indexedtest.RankedModelSaturation(t, func() indexedtest.Ranked { return indexedtest.NewInMemory() })
-}

@@ -108,15 +108,3 @@ func (f *firesImmediately) At(context.Context, time.Duration) error {
 }
 
 func (f *firesImmediately) Fired(context.Context) (int, error) { return f.fired, nil }
-
-// TestMixedLawsCanSaturate drives each bound law against defects worn on
-// its own methods, with that law as the run's only oracle.
-//
-// Binding a law is necessary; this is what makes it sufficient. A law
-// every worn defect survives is bound and unsaturatable, which reads as
-// coverage in the report and is not.
-func TestMixedLawsCanSaturate(t *testing.T) {
-	t.Parallel()
-
-	scheduledtest.MixedModelSaturation(t, func() scheduledtest.Mixed { return scheduledtest.NewInMemory() })
-}

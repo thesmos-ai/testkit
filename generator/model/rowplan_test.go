@@ -35,13 +35,14 @@ func TestPlanRowsFollowsWhatBound(t *testing.T) {
 	}
 }
 
-// A law the shared sequences cannot carry gets a row of its own, under
-// its own identity and its own claim.
+// A law the catalogue words gets a row of its own, under its own
+// identity and its own claim.
 //
-// One row per leg, not one row for every law: what a reader wants from a
-// red is which claim broke, and every law on the bundled leg failed the
-// same way. These did not, so each reports for itself.
-func TestPlanRowsGiveEachOwnLegLawItsRow(t *testing.T) {
+// The wording is the criterion, because a row exists to say one thing a
+// reader can disagree with. A law with no sentence of its own has
+// nothing to put in the Claim column but the bundle's, and N laws under
+// one sentence cannot tell a reader which of them broke.
+func TestPlanRowsGiveEachWordedLawItsRow(t *testing.T) {
 	t.Parallel()
 
 	b := bindingsOf(t, mixed(t))
@@ -51,7 +52,7 @@ func TestPlanRowsGiveEachOwnLegLawItsRow(t *testing.T) {
 	for _, r := range rows {
 		byLaw[r.ID.Seg] = r
 	}
-	for _, l := range b.OwnLegLaws() {
+	for _, l := range b.RowedLaws() {
 		row, planned := byLaw[l.ID]
 		if !planned {
 			// Refused, and the header says why — the alternative is a row

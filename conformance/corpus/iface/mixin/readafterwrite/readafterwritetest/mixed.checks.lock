@@ -9,5 +9,5 @@ Write/cancel	signature/cancel	Write reports a cancelled context as cancelled
 Write/deadline	signature/deadline	Write reports an expired deadline as exceeded	
 Write/nilcontext	signature/nilcontext	Write returns an error rather than panicking on a nil context	
 Write/smoke	signature/smoke	Write survives a call with derived inputs	
+model/mixed/AUTO-READ-AFTER-WRITE	model/laws	every key reads the same on the subject as on the reference	AUTO-READ-AFTER-WRITE
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	

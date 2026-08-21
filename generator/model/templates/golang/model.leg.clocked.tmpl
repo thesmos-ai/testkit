@@ -8,7 +8,7 @@ a setter on a built instance: an implementation that reads the clock when
 it is constructed cannot be told about a different one afterwards.
 */ -}}
 {{- define "model.leg.clocked" -}}
-// {{ .Assert }} binds {{ .Law.ID }} over the shared sequences, on a clock
+// {{ .Assert }} binds {{ (index .Laws 0).ID }} over the shared sequences, on a clock
 // the run controls.
 //
 // The guard is here as well as in the runner because a check that
@@ -28,6 +28,9 @@ func {{ .Assert }}(
 	}
 {{- template "model.leg.history" . }}
 {{- template "model.leg.pools" . }}
+{{- if .Drain }}
+	drainSub := {{ .Drain }}
+{{- end }}
 
 	// One clock per iteration, from a fixed origin: the factory builds the
 	// subject on it and the law's Advance moves exactly it, so the two
@@ -43,7 +46,9 @@ func {{ .Assert }}(
 		}, buildRef,
 		{{ template "model.leg.actions" . }},
 		[]{{ renderExpr (external .LawPath "Law") }}[{{ .Subject }}]{
-			{{ render .Law }},
+{{- range .Laws }}
+			{{ render . }},
+{{- end }}
 		}{{ if .History }},
 		{{ template "model.leg.reset" . }}{{ end }})
 }

@@ -8,4 +8,5 @@ Replay/deadline	signature/deadline	Replay reports an expired deadline as exceede
 Replay/nilcontext	signature/nilcontext	Replay returns an error rather than panicking on a nil context	
 Replay/smoke	signature/smoke	Replay survives a call	
 Replay/zero-on-error	signature/zero-on-error	Replay returns nothing alongside any error	
+model/log/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/log/laws	model/laws	every bound law holds over random operation sequences	

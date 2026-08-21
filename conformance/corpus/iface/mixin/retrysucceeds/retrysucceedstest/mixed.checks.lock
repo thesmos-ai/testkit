@@ -8,4 +8,4 @@ Call/cancel	signature/cancel	Call reports a cancelled context as cancelled
 Call/deadline	signature/deadline	Call reports an expired deadline as exceeded	
 Call/nilcontext	signature/nilcontext	Call returns an error rather than panicking on a nil context	
 Call/smoke	signature/smoke	Call survives a call with a derived key	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE

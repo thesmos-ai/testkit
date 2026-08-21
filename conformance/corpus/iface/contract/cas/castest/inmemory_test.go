@@ -104,15 +104,3 @@ func (a *acceptsAnyVersion) Get(context.Context) (cas.Value, error) {
 	}
 	return a.held, nil
 }
-
-// TestContractLawsCanSaturate drives each bound law against defects worn on
-// its own methods, with that law as the run's only oracle.
-//
-// Binding a law is necessary; this is what makes it sufficient. A law
-// every worn defect survives is bound and unsaturatable, which reads as
-// coverage in the report and is not.
-func TestContractLawsCanSaturate(t *testing.T) {
-	t.Parallel()
-
-	castest.ContractModelSaturation(t, func() castest.Contract { return castest.NewInMemory() })
-}

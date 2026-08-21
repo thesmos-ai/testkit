@@ -8,4 +8,5 @@ Total/deadline	signature/deadline	Total reports an expired deadline as exceeded
 Total/nilcontext	signature/nilcontext	Total returns an error rather than panicking on a nil context	
 Total/smoke	signature/smoke	Total survives a call	
 Total/zero-on-error	signature/zero-on-error	Total returns zero alongside any error	
+model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/mixed/laws	model/laws	every bound law holds over random operation sequences	

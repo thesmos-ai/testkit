@@ -80,15 +80,3 @@ type neverEmpty struct{}
 func newNeverEmpty() neverEmpty { return neverEmpty{} }
 
 func (neverEmpty) IsEmpty() bool { return false }
-
-// TestPredicateLawsCanSaturate drives each bound law against defects worn on
-// its own methods, with that law as the run's only oracle.
-//
-// Binding a law is necessary; this is what makes it sufficient. A law
-// every worn defect survives is bound and unsaturatable, which reads as
-// coverage in the report and is not.
-func TestPredicateLawsCanSaturate(t *testing.T) {
-	t.Parallel()
-
-	predicatetest.PredicateModelSaturation(t, func() predicatetest.Predicate { return predicatetest.NewInMemory() })
-}

@@ -4,4 +4,4 @@ Count/deadline	signature/deadline	Count reports an expired deadline as exceeded
 Count/nilcontext	signature/nilcontext	Count returns an error rather than panicking on a nil context	
 Count/smoke	signature/smoke	Count survives a call	
 Count/zero-on-error	signature/zero-on-error	Count returns zero alongside any error	
-model/aggregator/laws	model/laws	every bound law holds over random operation sequences	
+model/aggregator/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE

@@ -117,7 +117,7 @@ func TestClaimCensus(t *testing.T) {
 				worded++
 			}
 		}
-		testkit.Equal(t, worded, 10, "the corpus-pinned wordings, each keyed by a live identifier")
+		testkit.Equal(t, worded, 14, "the corpus-pinned wordings, each keyed by a live identifier")
 	})
 
 	t.Run("every claim speaks only the placeholder vocabulary", func(t *testing.T) {

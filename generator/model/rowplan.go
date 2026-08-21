@@ -126,8 +126,14 @@ func proveOrArgue(
 func ownLegRows(b *Bindings) []projection.CheckPlan {
 	token := projection.Token(b.IfaceName)
 	var out []projection.CheckPlan
-	for _, l := range b.OwnLegLaws() {
-		class, _ := tiers.LegOf(l.ID)
+	for _, l := range b.RowedLaws() {
+		// The leg's class where the law rides one of its own, and the
+		// plain laws class otherwise: a worded law with no special leg
+		// still states its own sentence over the shared sequences.
+		class, own := tiers.LegOf(l.ID)
+		if !own {
+			class = vocab.ClassLaws
+		}
 		claim, err := subject.ClaimOf(l.ID, token, l.Carriers())
 		if err != nil {
 			b.Unbound = append(b.Unbound, Skip{Method: l.ID, Reason: err.Error()})

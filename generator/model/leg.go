@@ -96,11 +96,17 @@ func (*LawsLeg) Kind() sdk.Kind { return KindLawsLeg }
 type OwnLeg struct {
 	leg
 
-	// Law is the one law this leg registers, rendered inline rather than
-	// through the bundle's function. Inline because a clocked law's
-	// Advance reads a local the leg declares, and a law literal spelled
-	// outside the function that declares it names nothing.
-	Law *LawBinding
+	// Laws are the bindings this leg registers — every binding of the
+	// one law its row claims. Rendered inline rather than through the
+	// bundle's function, because a clocked law's Advance reads a local
+	// the leg declares and a literal spelled outside that function names
+	// nothing.
+	Laws []*LawBinding
+
+	// Drain is the publisher sweep a delivery law reads, empty for every
+	// other law. Declared by whichever body registers the law, which is
+	// this one now that a worded law has a leg of its own.
+	Drain string
 
 	// Keys and Values say which shared pools the law draws, and Pools the
 	// ones it brings of its own. A local for a pool this law does not
@@ -212,7 +218,7 @@ func legsFor(b *Bindings, harness *suite.Contract) []sdk.EmitNode {
 	// segment of its own ID — which is how a body finds the law it is the
 	// body of without re-running the selection.
 	own := map[string]*LawBinding{}
-	for _, l := range b.OwnLegLaws() {
+	for _, l := range b.RowedLaws() {
 		own[l.ID] = l
 	}
 
@@ -236,15 +242,18 @@ func legsFor(b *Bindings, harness *suite.Contract) []sdk.EmitNode {
 // ownLegFor is the body of a row carrying one law: the clocked shape
 // where the law moves time, the plain one otherwise.
 func ownLegFor(b *Bindings, base leg, law *LawBinding) sdk.EmitNode {
-	one := []*LawBinding{law}
+	one := b.BindingsOf(law.ID)
 	body := OwnLeg{
 		leg:        base,
-		Law:        law,
+		Laws:       one,
 		Keys:       LawsDraw(one, poolKeys),
 		Values:     LawsDraw(one, poolValues),
 		Pools:      b.PoolsFor(one),
 		KeysFunc:   b.KeysFuncName(),
 		ValuesFunc: b.ValuesFuncName(),
+	}
+	if b.Publisher != nil && LawsDrawDrain(one) {
+		body.Drain = b.Publisher.DrainName
 	}
 	if law.Clocked {
 		return &ClockedLeg{OwnLeg: body, Clock: ClockPkg}

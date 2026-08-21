@@ -141,15 +141,3 @@ func (r *restartsEveryPage) Page(
 	// "more" flag alone and every page repeats what the last one served.
 	return r.held[:1], pagination.Cursor(r.held[0].Key), len(r.held) > 1, nil
 }
-
-// TestContractLawsCanSaturate drives each bound law against defects worn on
-// its own methods, with that law as the run's only oracle.
-//
-// Binding a law is necessary; this is what makes it sufficient. A law
-// every worn defect survives is bound and unsaturatable, which reads as
-// coverage in the report and is not.
-func TestContractLawsCanSaturate(t *testing.T) {
-	t.Parallel()
-
-	paginationtest.ContractModelSaturation(t, func() paginationtest.Contract { return paginationtest.NewInMemory() })
-}

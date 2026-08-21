@@ -8,7 +8,7 @@ identity is the other half — a red here names the claim that broke rather
 than "one of the laws".
 */ -}}
 {{- define "model.leg.own" -}}
-// {{ .Assert }} binds {{ .Law.ID }} over the shared sequences.
+// {{ .Assert }} binds {{ (index .Laws 0).ID }} over the shared sequences.
 //
 // One law, and the run's only oracle. The differential is off here, as
 // on every law leg: with it armed a subject broken anywhere disagrees at
@@ -23,6 +23,9 @@ func {{ .Assert }}(
 	tb.Helper()
 {{- template "model.leg.history" . }}
 {{- template "model.leg.pools" . }}
+{{- if .Drain }}
+	drainSub := {{ .Drain }}
+{{- end }}
 
 	buildRef, tier := {{ renderExpr (external .LegsPkg "Reference") }}(tb, sub, {{ template "model.leg.ref" . }})
 	sub.NoteTier(tier)
@@ -30,7 +33,9 @@ func {{ .Assert }}(
 		func() {{ .Subject }} { return sub.New(tb) }, buildRef,
 		{{ template "model.leg.actions" . }},
 		[]{{ renderExpr (external .LawPath "Law") }}[{{ .Subject }}]{
-			{{ render .Law }},
+{{- range .Laws }}
+			{{ render . }},
+{{- end }}
 		}{{ if .History }},
 		{{ template "model.leg.reset" . }}{{ end }})
 }

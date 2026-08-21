@@ -11,7 +11,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
-	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
@@ -25,7 +25,7 @@ const Capability = "model"
 
 // Version composes into the pipeline's plugin fingerprint. Bump it on any
 // change to what this plugin emits, the projection or the templates alike.
-const Version = "0.67.0"
+const Version = "0.68.0"
 
 // DirectiveName is the bare directive name — without the `//testkit:` prefix —
 // that opts an interface in.
@@ -622,6 +622,20 @@ func LawsDraw(laws []*LawBinding, pool string) bool {
 	return false
 }
 
+// LawsDrawDrain reports whether any of these laws reads the publisher's
+// subscription sweep — the one extra local a worded law's own leg has to
+// declare, since the bundle that used to declare it no longer carries it.
+func LawsDrawDrain(laws []*LawBinding) bool {
+	for _, l := range laws {
+		for _, f := range l.Fields {
+			if f.KindName == sdk.Kind(LawFieldKindPrefix+"DrainSub") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // PoolsFor are the law-declared pools the given laws actually name, in
 // the order the derivation found them.
 //
@@ -644,17 +658,46 @@ func (b *Bindings) PoolsFor(laws []*LawBinding) []LawPool {
 	return out
 }
 
-// OwnLegLaws are the laws that ride a leg of their own — the ones the
-// bundled observational run cannot carry, because each needs something
-// it does not provide: a clock to move, a subject in a failure state,
-// writes of its own.
-func (b *Bindings) OwnLegLaws() []*LawBinding {
+// RowedLaws are the laws that state a claim of their own, and so get a
+// row of their own.
+//
+// The criterion is the wording, not the leg. A row exists to say one
+// thing a reader can disagree with, and a law the catalogue words has
+// exactly that sentence. A law it does not word has nothing to put in
+// the Claim column but the bundle's own — "every bound law holds over
+// random operation sequences" — and N laws under one sentence is a row
+// that cannot tell a reader which of them broke.
+//
+// So wording a law promotes it out of the bundle, which is the accretion
+// path [lawid] documents: the corpus surfaces every unworded law the day
+// a fixture stamps its classification, and each one worded is one more
+// claim the report can name.
+func (b *Bindings) RowedLaws() []*LawBinding {
 	var out []*LawBinding
+	seen := map[string]bool{}
 	for _, l := range b.Laws {
 		if len(l.Supplied) > 0 {
 			continue
 		}
-		if _, own := tiers.LegOf(l.ID); own {
+		if _, worded := lawid.ClaimOf(l.ID); !worded || seen[l.ID] {
+			continue
+		}
+		seen[l.ID] = true
+		out = append(out, l)
+	}
+	return out
+}
+
+// BindingsOf are every binding of one law, in derivation order.
+//
+// A law can bind more than once — a count claim over two different
+// observations, one per method that carries it — and those are one
+// claim with several witnesses rather than several claims. The row is
+// the claim, so there is one of it, and its leg registers all of them.
+func (b *Bindings) BindingsOf(id string) []*LawBinding {
+	var out []*LawBinding
+	for _, l := range b.Laws {
+		if l.ID == id && len(l.Supplied) == 0 {
 			out = append(out, l)
 		}
 	}
@@ -720,7 +763,7 @@ func (b *Bindings) LegLaws() []*LawBinding {
 		if l.Clocked || len(l.Supplied) > 0 {
 			continue
 		}
-		if _, own := tiers.LegOf(l.ID); own {
+		if _, worded := lawid.ClaimOf(l.ID); worded {
 			continue
 		}
 		out = append(out, l)
