@@ -275,7 +275,7 @@ const (
 // seeded() is vacuously true and no run seeds anything. "Nothing has
 // seeded" is not what a transform's miss would mean.
 func missWording(f Iface, m subject.Method) (sentinel, verb string) {
-	sentinel, _ = MissSentinel(m)
+	sentinel, _ = subject.MissSentinel(m)
 	switch {
 	case f.Corpus:
 		verb = supplySeeded

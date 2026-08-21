@@ -15,7 +15,6 @@ import (
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite"
 )
 
 // firstResultType is a method's first non-error result — the instantiation
@@ -283,7 +282,7 @@ func methodOf(harness *subject.Projection, name string) *subject.Method {
 func missSentinelOf(harness *subject.Projection) *sdk.Expr {
 	for i := range harness.Methods {
 		m := &harness.Methods[i]
-		v, declared := suite.MissSentinel(*m)
+		v, declared := subject.MissSentinel(*m)
 		if !declared {
 			continue
 		}

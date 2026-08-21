@@ -142,7 +142,7 @@ func (Signature) Derive(f Iface) ([]projection.CheckPlan, []Refusal) {
 // declares no miss, so an unsubscribed topic answers normally and a
 // check drawing one would skip every run.
 func zeroBody(f Iface, m subject.Method, call projection.CallPlan) projection.Body {
-	if _, declared := MissSentinel(m); declared && m.HasInput() {
+	if _, declared := subject.MissSentinel(m); declared && m.HasInput() {
 		return projection.ZeroOnMiss{
 			Call:    missCall(f, m),
 			Pool:    missPool(f, m),

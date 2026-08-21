@@ -6,10 +6,6 @@ package suite
 import (
 	"slices"
 
-	"go.thesmos.sh/eidos/plugins/annotator/shape"
-	"go.thesmos.sh/eidos/plugins/annotator/shape/contracts"
-	"go.thesmos.sh/eidos/plugins/annotator/shape/mixins"
-
 	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/core/tiers"
@@ -171,7 +167,7 @@ func selectLaws(f Iface) []lawSelection {
 		if len(classifications) == 0 {
 			continue
 		}
-		params := LawParams(f.Methods, m)
+		params := subject.LawParams(f.Methods, m)
 		for _, r := range tiers.Select(classifications, params) {
 			if suiteTabled(r) {
 				continue
@@ -263,60 +259,4 @@ func chainShaped(f Iface) bool {
 	return slices.ContainsFunc(f.Methods, func(m subject.Method) bool {
 		return slices.Contains(m.Contracts, ContractChain)
 	})
-}
-
-// LawParams collects the stamp parameters tiers' When clauses read,
-// keyed as [tiers.Condition.Param] spells them — through the eidos
-// keys' own Name method, so the spelling has one home. Mixin params
-// come off the method; contract params off every carrier of the
-// contract, because a protocol's parameter lives on the directive
-// host and a rule selected from another role conditions on it all
-// the same. Shared with the model generator for the same reason
-// [subject.Method.Classifications] is.
-func LawParams(methods []subject.Method, m subject.Method) map[string]string {
-	if m.Source == nil {
-		return nil
-	}
-	out := map[string]string{}
-	for _, name := range m.Mixins {
-		for _, p := range mixinParamKeys(name) {
-			if v, ok := shape.MixinParamKey(name, p).Get(m.Source.Meta()); ok {
-				out[shape.MixinParamKey(name, p).Name()] = v
-			}
-		}
-	}
-	for _, name := range m.Contracts {
-		for _, p := range contractParamKeys(name) {
-			for _, carrier := range methods {
-				if carrier.Source == nil || !slices.Contains(carrier.Contracts, name) {
-					continue
-				}
-				if v, ok := shape.ContractParamKey(name, p).Get(carrier.Source.Meta()); ok && v != "" {
-					out[shape.ContractParamKey(name, p).Name()] = v
-				}
-			}
-		}
-	}
-	return out
-}
-
-// mixinParamKeys names one mixin's declared parameter keys, from the
-// live registry.
-func mixinParamKeys(name string) []string {
-	for _, m := range mixins.All() {
-		if m.Name == name {
-			return shape.ParamKeys(m.Params)
-		}
-	}
-	return nil
-}
-
-// contractParamKeys is [mixinParamKeys] on the contract axis.
-func contractParamKeys(name string) []string {
-	for _, c := range contracts.All() {
-		if c.Name == name {
-			return shape.ParamKeys(c.Params)
-		}
-	}
-	return nil
 }

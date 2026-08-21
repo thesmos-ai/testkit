@@ -498,7 +498,7 @@ func methodsOf(iface *sdk.Interface, set sdk.MethodSetResult) []subject.Method {
 func mixinParamsOf(bag *sdk.Bag, stamped []string) map[string]string {
 	var out map[string]string
 	for _, name := range stamped {
-		for _, param := range mixinParamKeys(name) {
+		for _, param := range subject.MixinParamKeys(name) {
 			v, found := shape.MixinParamKey(name, param).Get(bag)
 			if !found {
 				continue

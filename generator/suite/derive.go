@@ -6,8 +6,6 @@ package suite
 import (
 	"slices"
 
-	"go.thesmos.sh/eidos/plugins/annotator/shape"
-
 	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite/projection"
@@ -201,47 +199,6 @@ func declaredLimit(methods []subject.Method) string {
 		}
 	}
 	return ""
-}
-
-// MissSentinel is the error a method reports for an input nothing
-// wrote, and whether it declares one.
-//
-// Two declarations, in precedence order. A `notfound sentinel=` is the
-// read's own answer and the ordinary case. A `ttl notfound=` overrides
-// it, because expiry and absence are separate conditions that usually
-// coincide: a store whose lapsed reads report differently from its
-// missing ones says so there, and one where they agree declares only
-// the first and this falls through to it.
-//
-// The convention is documented on ttl's parameter upstream; this is its
-// one implementation, so no caller has to remember the order — and the
-// model tier reads it too, which is why it is exported. Its own version
-// scanned EVERY mixin for a `sentinel=` or `notfound=` and took the
-// first hit, so an interface stamping ttl beside lifecycleafterclose
-// could be handed a post-close sentinel as its miss sentinel.
-func MissSentinel(m subject.Method) (string, bool) {
-	if v, declared := stampedParam(m, MixinTTL, MixinTTLNotFound); declared {
-		return v, true
-	}
-	return stampedParam(m, MixinNotFound, MixinNotFoundSentinel)
-}
-
-// stampedParam reads one mixin parameter off the DECLARATION rather
-// than off the projected map.
-//
-// The map exists because a template renders long after the node left
-// scope, and it is right for that. This is asked during derivation,
-// where the node is still in hand — and [subject.Method.Shape] already reads
-// the same way for the same reason. Reading the declaration also means
-// a caller holding a hand-built projection, which every deriver test
-// does, gets the answer the pipeline would give rather than an empty
-// map's silence.
-func stampedParam(m subject.Method, mixin, param string) (string, bool) {
-	if m.Source == nil {
-		return "", false
-	}
-	v, found := shape.MixinParamKey(mixin, param).Get(m.Source.Meta())
-	return v, found && v != ""
 }
 
 // methodNamed finds a sibling by name, nil where the interface declares

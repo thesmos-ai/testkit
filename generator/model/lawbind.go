@@ -10,7 +10,6 @@ import (
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/subject"
-	"go.thesmos.sh/testkit/generator/suite"
 )
 
 // lawsOf selects and fills every law the interface's classifications earn.
@@ -58,7 +57,7 @@ func lawsOf(b *Bindings, harness *subject.Projection, partners map[string]string
 		if _, partner := partners[m.Name]; partner {
 			selectable = m.Mixins
 		}
-		for _, r := range tiers.Select(selectable, suite.LawParams(harness.Methods, *m)) {
+		for _, r := range tiers.Select(selectable, subject.LawParams(harness.Methods, *m)) {
 			if reason, negated := negatedBy(claims, r.Law); negated {
 				if !seen[r.Law+"\x00"+reason] {
 					seen[r.Law+"\x00"+reason] = true
