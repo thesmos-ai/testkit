@@ -287,6 +287,14 @@ func DefeatsOracles(mixin string) (string, bool) {
 
 //nolint:gochecknoglobals // a lookup table, read-only after init.
 var oracleDefeats = map[string]string{
+	// The accumulates claim is that a repeated write COMPOUNDS, and every
+	// store oracle replaces: the second write to one key leaves the
+	// subject holding a sum and the store holding the last argument, so a
+	// correct subject diverges on the first re-write. Its reader diverges
+	// sooner — an accumulator answers zero for a key nothing added to,
+	// where a store answers a miss. Twins compound together.
+	mixinAccumulates: "the accumulates claim is that a repeated write compounds, " +
+		"and every store oracle replaces",
 	mixinEventually: "the eventually claim lets reads lag writes, which no immediate store models",
 	mixinCRDTMerge:  "the merge relation is the claim, and every store oracle holds it inert",
 	// The atomic claim is about refused writes: the subject rejects by policy

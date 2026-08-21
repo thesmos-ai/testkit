@@ -5,7 +5,6 @@ package model
 
 import (
 	vocab "go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
@@ -19,6 +18,19 @@ const (
 	lawsClaim = "every bound law holds over random operation sequences"
 	refClaim  = "every operation sequence leaves the subject agreeing with the reference"
 )
+
+// unproven is why neither row claims to have been shown able to fail.
+//
+// Argued rather than Proven, and not a formality: the parity gate refuses
+// the Proven stamp without a planted defect beside it, and the defects
+// this package plants break one method of a stub at a time. A sequence
+// claim needs a subject that is wrong over a history — the saturation
+// prover's job, which runs against a surface this tier does not emit yet.
+// Claiming proof without the evidence is refused in both directions, so
+// the honest record is the argument.
+const unproven = "no defect is planted for it: the proofs beside this file break one " +
+	"method at a time, and a claim about sequences needs a subject that is wrong " +
+	"over a history"
 
 // PlanRows is the checks this tier owns for one interface.
 //
@@ -43,7 +55,7 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Claim:       lawsClaim,
 			Body:        projection.LawLeg{Laws: bundle},
 			Binds:       bundle,
-			Falsifiable: vocab.Proven(),
+			Falsifiable: vocab.Argued(unproven),
 		})
 	}
 
@@ -58,7 +70,7 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Class:       vocab.ClassDifferential,
 			Claim:       refClaim,
 			Body:        projection.DifferentialLeg{},
-			Falsifiable: vocab.Proven(),
+			Falsifiable: vocab.Argued(unproven),
 		})
 	}
 	return out
@@ -72,14 +84,16 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 // moment an interface name has two words.
 func (b *Bindings) qualifier() string { return projection.IDQualifier(b.IfaceName) }
 
-// bundledLaws are the laws riding the shared sequences — every bound law
-// without a leg of its own.
+// bundledLaws are the laws riding the shared sequences, as the row's
+// Binds column spells them.
+//
+// Read off [Bindings.LegLaws] rather than filtered again here, so the row
+// names exactly the laws the leg beside it registers. Two derivations of
+// one set is how a manifest comes to promise a law nothing runs.
 func (b *Bindings) bundledLaws() []projection.Bind {
-	var out []projection.Bind
-	for _, l := range b.Laws {
-		if _, own := tiers.LegOf(l.ID); own {
-			continue
-		}
+	legLaws := b.LegLaws()
+	out := make([]projection.Bind, 0, len(legLaws))
+	for _, l := range legLaws {
 		out = append(out, projection.Bind{Law: l.ID})
 	}
 	return out

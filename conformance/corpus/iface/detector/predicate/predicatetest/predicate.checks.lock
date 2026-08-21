@@ -1,2 +1,3 @@
 testkit-checks v2
 IsEmpty/smoke	signature/smoke	IsEmpty survives a call	
+model/predicate/laws	model/laws	every bound law holds over random operation sequences	

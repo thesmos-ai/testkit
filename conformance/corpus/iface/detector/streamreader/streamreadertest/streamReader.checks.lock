@@ -4,3 +4,4 @@ Add/deadline	signature/deadline	Add reports an expired deadline as exceeded
 Add/nilcontext	signature/nilcontext	Add returns an error rather than panicking on a nil context	
 Add/smoke	signature/smoke	Add survives a call with a derived value	
 List/smoke	signature/smoke	List survives a call	
+model/stream-reader/laws	model/laws	every bound law holds over random operation sequences	

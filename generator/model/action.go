@@ -92,7 +92,7 @@ func (a *Action) Kind() sdk.Kind { return a.KindName }
 // ActionArg is one drawn argument of a multi-argument writer or a
 // parameterised pure call.
 type ActionArg struct {
-	// Field is the fixture field the position samples; Type its slice
+	// Field is the fixture accessor the position samples; Type its slice
 	// literal's element clause. Wide blends the pair with arbitrary draws —
 	// licensed for pure inputs unconditionally, because a pure call stores
 	// nothing a claim could refuse.
@@ -100,6 +100,13 @@ type ActionArg struct {
 	Type  sdk.Ref
 	Wide  bool
 }
+
+// OtherField is the accessor for the second, different value of the pair.
+//
+// Composed here rather than in the template, because the suffix belongs to
+// the fixture's own naming policy and a template spelling it is a second
+// home for a rule that has one.
+func (a ActionArg) OtherField() string { return a.Field + subject.OtherSuffix }
 
 // actionOf builds one method's action, or says why there is none.
 func actionOf(ctx *sdk.GeneratorContext, b *Bindings, m *subject.Method) (*Action, string) {

@@ -3,3 +3,4 @@ Fail/cancel	signature/cancel	Fail reports a cancelled context as cancelled
 Fail/nilcontext	signature/nilcontext	Fail returns an error rather than panicking on a nil context	
 Fail/smoke	signature/smoke	Fail survives a call	
 Probe/smoke	signature/smoke	Probe survives a call	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

@@ -10,3 +10,4 @@ Stats/deadline	signature/deadline	Stats reports an expired deadline as exceeded
 Stats/nilcontext	signature/nilcontext	Stats returns an error rather than panicking on a nil context	
 Stats/smoke	signature/smoke	Stats survives a call	
 Stats/zero-on-error	signature/zero-on-error	Stats returns the zero Stats alongside any error	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

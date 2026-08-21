@@ -352,7 +352,7 @@ func ({{ suite_veneerName .Token }}) Corpus() {{ suite_corpusTypeName .IfaceName
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var {{ suite_indexPathName .Token }} = map[{{ renderExpr (external $.Vocab "ID") }}]string{
-{{- range $g := .Index.Groups }}
+{{- range $g := .CheckIndex.Groups }}
 {{- range $a := $g.Accessors }}
 	{{ suite_indexVar $c.Token }}.{{ $g.Field }}.{{ $a.Name }}(): "{{ suite_veneerVar $c.IfaceName }}.Checks.{{ $g.Field }}.{{ $a.Name }}()",
 {{- end }}

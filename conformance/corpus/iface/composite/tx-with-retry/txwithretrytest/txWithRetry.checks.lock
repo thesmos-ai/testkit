@@ -8,3 +8,4 @@ Commit/smoke	signature/smoke	Commit survives a call
 Rollback/cancel	signature/cancel	Rollback reports a cancelled context as cancelled	
 Rollback/nilcontext	signature/nilcontext	Rollback returns an error rather than panicking on a nil context	
 Rollback/smoke	signature/smoke	Rollback survives a call	
+model/tx-with-retry/laws	model/laws	every bound law holds over random operation sequences	

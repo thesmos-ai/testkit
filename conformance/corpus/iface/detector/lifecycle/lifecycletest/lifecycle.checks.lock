@@ -3,3 +3,4 @@ Close/cancel	signature/cancel	Close reports a cancelled context as cancelled
 Close/idempotent	mixin/idempotent	a second Close after a clean one is accepted	
 Close/nilcontext	signature/nilcontext	Close returns an error rather than panicking on a nil context	
 Close/smoke	signature/smoke	Close survives a call	
+model/lifecycle/laws	model/laws	every bound law holds over random operation sequences	

@@ -22,3 +22,4 @@ Rollback/cancel	signature/cancel	Rollback reports a cancelled context as cancell
 Rollback/deadline	signature/deadline	Rollback reports an expired deadline as exceeded	
 Rollback/nilcontext	signature/nilcontext	Rollback returns an error rather than panicking on a nil context	
 Rollback/smoke	signature/smoke	Rollback survives a call with a derived tx	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

@@ -9,3 +9,5 @@ Store/cancel	signature/cancel	Store reports a cancelled context as cancelled
 Store/deadline	signature/deadline	Store reports an expired deadline as exceeded	
 Store/nilcontext	signature/nilcontext	Store returns an error rather than panicking on a nil context	
 Store/smoke	signature/smoke	Store survives a call with a derived value	
+model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

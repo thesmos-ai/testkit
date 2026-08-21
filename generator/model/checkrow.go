@@ -6,6 +6,7 @@ package model
 import (
 	"go.thesmos.sh/eidos/lang/golang"
 
+	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 )
@@ -27,8 +28,15 @@ type CheckRow struct {
 	AssertName string
 
 	// ClassConst is the runtime class constant's identifier, for the
-	// report's per-kind lines.
-	ClassConst string
+	// report's per-kind lines, and StrengthConst how far the row looks
+	// before it passes.
+	//
+	// Read off the plan's body rather than stamped here: strength is a
+	// fact about what the body examines, and the body is what the plan
+	// carries. Both legs judge against something outside the subject,
+	// which is the strongest of the three — and saying so is what stops a
+	// reader crediting the row for more or less than it does.
+	ClassConst, StrengthConst string
 
 	// Claim is the sentence the row states, carried verbatim from the
 	// plan. Not rephrased here: the plan's claim is what the census
@@ -50,8 +58,10 @@ type CheckRow struct {
 	// only disagree with a field that already exists.
 	Needs []projection.NeedPlan
 
-	// Binds names the laws the row reports under, where any back it.
-	Binds []projection.Bind
+	// Binds names the laws the row reports under, where any back it, each
+	// as the lawid identifier that declares it. A generated file naming a
+	// law as a literal drifts the moment the catalogue rewords one.
+	Binds []string
 }
 
 // CheckRows projects every row this tier renders out of the plans the
@@ -64,14 +74,15 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 	out := make([]CheckRow, 0, len(plans))
 	for _, p := range plans {
 		out = append(out, CheckRow{
-			Accessor:   rowAccessor(p.ID),
-			AssertName: rowAssertName(token, p.ID),
-			ClassConst: classConst(p.Class),
-			Claim:      p.Claim,
-			Proven:     p.Falsifiable.State == vocab.Proven().State,
-			Argument:   p.Falsifiable.Why,
-			Needs:      p.Needs,
-			Binds:      p.Binds,
+			Accessor:      rowAccessor(p.ID),
+			AssertName:    rowAssertName(token, p.ID),
+			ClassConst:    classConst(p.Class),
+			StrengthConst: strengthConst(p.Body),
+			Claim:         p.Claim,
+			Proven:        p.Falsifiable.State == vocab.Proven().State,
+			Argument:      p.Falsifiable.Why,
+			Needs:         p.Needs,
+			Binds:         lawConsts(p.Binds),
 		})
 	}
 	return out
@@ -90,6 +101,41 @@ func rowAccessor(id projection.IDPlan) string {
 		return golang.ExportedName(id.Seg)
 	}
 	return acc.Name
+}
+
+// strengthConst is the runtime's identifier for how far a body looks.
+//
+// A switch rather than a table, and the default is the weakest of the
+// three: a body whose strength nobody decided is reported as looking at
+// the least, which is the reading that cannot flatter it.
+func strengthConst(body projection.Body) string {
+	if body == nil {
+		return "StrengthErrorOnly"
+	}
+	switch body.Strength() {
+	case vocab.StrengthDifferential:
+		return "StrengthDifferential"
+	case vocab.StrengthObserved:
+		return "StrengthObserved"
+	default:
+		return "StrengthErrorOnly"
+	}
+}
+
+// lawConsts spells each bound law through the identifier lawid declares
+// it under, dropping any the catalogue does not know.
+//
+// Dropped rather than spelled as a literal: a law nobody declares is one
+// the manifest cannot be held to, and a string in a generated file that
+// nothing checks is how a renamed law goes on reading as bound.
+func lawConsts(binds []projection.Bind) []string {
+	out := make([]string, 0, len(binds))
+	for _, b := range binds {
+		if name, ok := lawid.ConstOf(b.Law); ok {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // classConst is the runtime's identifier for a class, so a generated row

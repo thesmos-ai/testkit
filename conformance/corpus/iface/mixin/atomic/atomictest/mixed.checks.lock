@@ -9,3 +9,4 @@ Write/cancel	signature/cancel	Write reports a cancelled context as cancelled
 Write/deadline	signature/deadline	Write reports an expired deadline as exceeded	
 Write/nilcontext	signature/nilcontext	Write returns an error rather than panicking on a nil context	
 Write/smoke	signature/smoke	Write survives a call with a derived entry	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

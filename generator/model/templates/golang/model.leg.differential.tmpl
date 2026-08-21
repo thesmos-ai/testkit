@@ -1,0 +1,89 @@
+{{- /*
+model.leg.differential — the body behind the row claiming the subject and
+the reference agree over every sequence.
+*/ -}}
+{{- define "model.leg.differential" -}}
+// {{ .Assert }} drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func {{ .Assert }}(
+	tb {{ renderExpr (external "testing" "TB") }},
+	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
+{{- if .Draws }}
+	{{ .Fixture }} {{ .FixtureType }},
+{{- end }}
+) {
+	tb.Helper()
+{{- template "model.leg.history" . }}
+	{{ renderExpr (external .LegsPkg "Differential") }}(tb, sub,
+		{{ template "model.leg.ref" . }},
+		{{ template "model.leg.actions" . }}{{ if .History }},
+		{{ template "model.leg.reset" . }}{{ end }})
+}
+{{- end -}}
+
+{{- /*
+model.leg.history declares the per-iteration append log, for the legs whose
+laws read what the sequences attempted.
+*/ -}}
+{{- define "model.leg.history" -}}
+{{- if .History }}
+	// The log the recording actions fill and the runner clears each
+	// iteration: a law reading a history the sequences never wrote into is
+	// a law over an empty record.
+	{{ .History }} := {{ renderExpr (external .HistoryPkg "New") }}[string, {{ renderType .HistoryElem }}]()
+{{- end }}
+{{- end -}}
+
+{{- /*
+model.leg.reset is the option that clears the log between iterations.
+*/ -}}
+{{- define "model.leg.reset" -}}
+{{ renderExpr (external .ModelPkg "WithHistoryReset") }}[{{ .Subject }}]({{ .History }}.Reset)
+{{- end -}}
+
+{{- /*
+model.leg.ref spells the comparison instance's constructor: the one the
+directive named, the derived adapter, or — at the twin floor — a second
+instance from the subject's own factory.
+*/ -}}
+{{- define "model.leg.ref" -}}
+{{- if .RefExpr }}{{ renderExpr .RefExpr }}
+{{- else if .Ref }}{{ .Ref }}
+{{- else }}func() {{ .Subject }} { return sub.New(tb) }
+{{- end -}}
+{{- end -}}
+
+{{- /*
+model.leg.actions calls the shared operation vocabulary, with whatever the
+leg has to hand it.
+*/ -}}
+{{- define "model.leg.actions" -}}
+{{ .Actions }}({{ template "model.leg.args" . }})
+{{- end -}}
+
+{{- /*
+model.leg.args is what every declaration below the legs takes: the run's
+sample inputs where anything reads them, and the append log where a law
+reads what the sequences attempted. One spelling, because a call and a
+signature that disagree are a compile error in a file nobody may edit.
+*/ -}}
+{{- define "model.leg.args" -}}
+{{- $sep := "" -}}
+{{- if .Draws }}{{ .Fixture }}{{ $sep = ", " }}{{ end }}
+{{- if .History }}{{ $sep }}{{ .History }}{{ end -}}
+{{- end -}}
+
+{{- /*
+model.leg.lawargs is model.leg.args and the subject factory, spelled here
+because only a leg has the subject to build one from.
+*/ -}}
+{{- define "model.leg.lawargs" -}}
+{{- $sep := "" -}}
+{{- if .Draws }}{{ .Fixture }}{{ $sep = ", " }}{{ end }}
+{{- if .History }}{{ $sep }}{{ .History }}{{ $sep = ", " }}{{ end }}
+{{- if .Factory }}{{ $sep }}func() {{ .Subject }} { return sub.New(tb) }{{ end -}}
+{{- end -}}

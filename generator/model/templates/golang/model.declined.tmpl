@@ -1,0 +1,19 @@
+{{- /*
+model.declined — the refusal, where the model tier's rows would have been.
+
+A comment and nothing else. The alternative is silence, and a directive
+honoured in every other package and silently dropped in this one is the
+absence nothing in the output would show.
+*/ -}}
+{{- define "model.declined" -}}
+// --- {{ .Iface }}'s model tier: not emitted ----------------------------------
+//
+// {{ .Iface }} carries //testkit:model, and no rows above come from it:
+{{- range .Why }}
+// {{ . }}
+{{- end }}
+//
+// Nothing to do about it here. The claims that needed sequences are the
+// ones this package does not check, and this says so rather than letting
+// the run surface read as complete.
+{{- end -}}

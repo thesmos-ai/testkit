@@ -6,3 +6,4 @@ IsLeader/smoke	signature/smoke	IsLeader survives a call
 Resign/cancel	signature/cancel	Resign reports a cancelled context as cancelled	
 Resign/nilcontext	signature/nilcontext	Resign returns an error rather than panicking on a nil context	
 Resign/smoke	signature/smoke	Resign survives a call	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

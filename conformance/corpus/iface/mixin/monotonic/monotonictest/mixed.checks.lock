@@ -7,3 +7,4 @@ Version/deadline	signature/deadline	Version reports an expired deadline as excee
 Version/nilcontext	signature/nilcontext	Version returns an error rather than panicking on a nil context	
 Version/smoke	signature/smoke	Version survives a call	
 Version/zero-on-error	signature/zero-on-error	Version returns zero alongside any error	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

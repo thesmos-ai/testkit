@@ -12,3 +12,4 @@ Step/cancel	signature/cancel	Step reports a cancelled context as cancelled
 Step/deadline	signature/deadline	Step reports an expired deadline as exceeded	
 Step/nilcontext	signature/nilcontext	Step returns an error rather than panicking on a nil context	
 Step/smoke	signature/smoke	Step survives a call with a derived value	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

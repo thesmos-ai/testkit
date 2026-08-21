@@ -9,3 +9,4 @@ Watch/miss	mixin/reader	Watch reports zero for a key nothing has written
 Watch/nilcontext	signature/nilcontext	Watch returns an error rather than panicking on a nil context	
 Watch/smoke	signature/smoke	Watch survives a call with a derived key	
 Watch/zero-on-error	signature/zero-on-error	Watch returns the zero Subscription alongside any error	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

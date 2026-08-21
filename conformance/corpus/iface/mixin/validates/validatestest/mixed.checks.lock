@@ -11,3 +11,5 @@ Store/nilcontext	signature/nilcontext	Store returns an error rather than panicki
 Store/smoke	signature/smoke	Store survives a call with a derived payload	
 Store/validates	mixin/validates	Store agrees with Validate about the values this run draws	
 Validate/smoke	signature/smoke	Validate survives a call with a derived payload	
+model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

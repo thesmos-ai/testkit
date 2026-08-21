@@ -58,6 +58,10 @@ type RowDecl struct {
 	IndexVar string
 	Group    string
 
+	// LawIDs is the law catalogue's import path, for the Binds column: a
+	// row names a law through the constant that declares it.
+	LawIDs string
+
 	// Rows is what the function returns.
 	Rows []CheckRow
 }
@@ -78,12 +82,13 @@ func rowDeclFor(
 		Func:       b.RowsFuncName(),
 		Subject:    harness.SubjectType(),
 		Vocab:      VocabPkg,
+		LawIDs:     suite.LawIDs,
 		IndexVar:   projection.IndexVar(projection.Token(b.IfaceName)),
 		Group:      golang.ExportedName(vocab.FamilyModel),
 		Rows:       CheckRows(projection.Token(b.IfaceName), b.Rows),
 		TypeParams: harness.TypeParams,
 	}
-	if harness.DrawsFixture {
+	if drawsFixture(b, harness) {
 		d.FixtureParam = fixtureIdent
 		d.FixtureType = harness.Fixture.TypeName + harness.TypeArgs
 	}

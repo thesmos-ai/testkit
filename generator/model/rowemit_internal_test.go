@@ -26,23 +26,33 @@ func TestNoRowsIsNoContribution(t *testing.T) {
 	testkit.True(t, call == nil, "no planned row is no contributed expression")
 }
 
-// The call names the parameter only where the function it renders inside
-// declares one.
+// The call names the parameter only where both halves agree: this tier
+// reads the sample inputs, and the function it renders inside declares
+// them.
 //
-// It renders within the harness generator's own function and can name
-// nothing that function does not — the harness's flag decides, not this
-// tier's fixture.
+// Two questions rather than one, because they fail in opposite
+// directions. The call renders within the harness generator's own
+// function and can name nothing that function does not declare; the
+// declarations it reaches take a parameter only where something reads
+// it, and one nothing reads does not compile.
 func TestTheCallNamesOnlyADeclaredParameter(t *testing.T) {
 	t.Parallel()
 
-	b := rowBindings(projection.CheckPlan{})
+	reads := rowBindings(projection.CheckPlan{})
+	reads.LawsUseFixture = true
 
-	drawn := rowCallFor(sdk.NewProvenance(Name), rowIface(), b, &suite.Contract{DrawsFixture: true})
-	testkit.Equal(t, drawn.Fixture, fixtureIdent, "the surface takes a fixture, so the call passes it")
+	both := rowCallFor(sdk.NewProvenance(Name), rowIface(), reads, &suite.Contract{DrawsFixture: true})
+	testkit.Equal(t, both.Fixture, fixtureIdent,
+		"the tier reads the inputs and the surface has them, so the call passes them")
 
-	bare := rowCallFor(sdk.NewProvenance(Name), rowIface(), b, &suite.Contract{})
-	testkit.Equal(t, bare.Fixture, "",
-		"and where it does not, passing one names an identifier nothing declared")
+	undeclared := rowCallFor(sdk.NewProvenance(Name), rowIface(), reads, &suite.Contract{})
+	testkit.Equal(t, undeclared.Fixture, "",
+		"a surface with no inputs has nothing to pass, whatever this tier wants")
+
+	unread := rowCallFor(sdk.NewProvenance(Name), rowIface(),
+		rowBindings(projection.CheckPlan{}), &suite.Contract{DrawsFixture: true})
+	testkit.Equal(t, unread.Fixture, "",
+		"and a tier that reads none takes none, or the parameter does not compile")
 }
 
 // Every plan reaches the index, because the index names what runs.
@@ -74,6 +84,7 @@ func TestTheDeclarationMatchesTheCall(t *testing.T) {
 	t.Parallel()
 
 	b := rowBindings(projection.CheckPlan{})
+	b.LawsUseFixture = true
 	h := &suite.Contract{DrawsFixture: true}
 	h.Fixture.TypeName = "MixedFixture"
 

@@ -10,3 +10,4 @@ Outstanding/zero-on-error	signature/zero-on-error	Outstanding returns zero along
 Release/cancel	signature/cancel	Release reports a cancelled context as cancelled	
 Release/nilcontext	signature/nilcontext	Release returns an error rather than panicking on a nil context	
 Release/smoke	signature/smoke	Release survives a call	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

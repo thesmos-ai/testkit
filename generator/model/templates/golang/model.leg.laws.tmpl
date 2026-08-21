@@ -1,0 +1,39 @@
+{{- /*
+model.leg.laws — the body behind the row claiming every bundled law holds
+over the same sequences the differential drives.
+*/ -}}
+{{- define "model.leg.laws" -}}
+// {{ .Assert }} drives the same sequences with the bound laws as the only
+// oracle, and reports when they engaged nothing.
+//
+// The differential verdict is off here, and that is the whole reason this
+// is a second leg rather than more options on the first: with it armed, a
+// subject broken anywhere disagrees at step 0 and no law is ever reached,
+// which makes "can this law catch a defect" unanswerable.
+//
+// The report is the other half. A law behind a precondition the subject
+// refuses on every draw passes every time and asserts nothing, and from
+// outside that is indistinguishable from a law that held.
+func {{ .Assert }}(
+	tb {{ renderExpr (external "testing" "TB") }},
+	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
+{{- if .Draws }}
+	{{ .Fixture }} {{ .FixtureType }},
+{{- end }}
+) {
+	tb.Helper()
+{{- template "model.leg.history" . }}
+
+	// The run's declared oracle where one exists, the derived reference
+	// otherwise — and the report says which, because a law held against a
+	// second copy of the subject is a weaker claim than the same law held
+	// against something written independently.
+	buildRef, tier := {{ renderExpr (external .LegsPkg "Reference") }}(tb, sub, {{ template "model.leg.ref" . }})
+	sub.NoteTier(tier)
+	{{ renderExpr (external .LegsPkg "Law") }}(tb, sub,
+		func() {{ .Subject }} { return sub.New(tb) }, buildRef,
+		{{ template "model.leg.actions" . }},
+		{{ .Laws }}({{ template "model.leg.lawargs" . }}){{ if .History }},
+		{{ template "model.leg.reset" . }}{{ end }})
+}
+{{- end -}}

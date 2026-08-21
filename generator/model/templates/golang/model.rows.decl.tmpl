@@ -12,7 +12,9 @@ consumer drops one of these the way they drop any other.
 // Every row here needs sequences of calls judged against something
 // outside the subject, which is what separates them from the rows
 // above: those settle a claim with a fixed call sequence, and these
-// cannot be stated that way at all.
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
 func {{ .Func }}{{ renderTypeParams .TypeParams }}({{ if .FixtureParam }}{{ .FixtureParam }} {{ .FixtureType }}{{ end }}) []{{ renderExpr (external .Vocab "Check") }}[{{ .Subject }}] {
 	return []{{ renderExpr (external .Vocab "Check") }}[{{ .Subject }}]{
 {{- range .Rows }}
@@ -20,7 +22,18 @@ func {{ .Func }}{{ renderTypeParams .TypeParams }}({{ if .FixtureParam }}{{ .Fix
 			ID:          {{ $.IndexVar }}.{{ $.Group }}.{{ .Accessor }}(),
 			Class:       {{ renderExpr (external $.Vocab .ClassConst) }},
 			Claim:       {{ printf "%q" .Claim }},
+{{- if .Binds }}
+			Binds: []string{
+{{- range .Binds }}
+				{{ renderExpr (external $.LawIDs .) }},
+{{- end }}
+			},
+{{- end }}
 			Falsifiable: {{ if .Proven }}{{ renderExpr (external $.Vocab "Proven") }}(){{ else }}{{ renderExpr (external $.Vocab "Argued") }}({{ printf "%q" .Argument }}){{ end }},
+			Strength:    {{ renderExpr (external $.Vocab .StrengthConst) }},
+			RunWith: func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external $.Vocab "Subject") }}[{{ $.Subject }}]) {
+				{{ .AssertName }}(tb, sub{{ if $.FixtureParam }}, {{ $.FixtureParam }}{{ end }})
+			},
 		},
 {{- end }}
 	}

@@ -50,6 +50,12 @@ const (
 	// lowers a contributed harness field onto.
 	VocabPkg = EngineModule + "/suite"
 
+	// LegsPkg is the sanctioned bridge between the two: the differential
+	// leg, the law leg, the oracle-or-derived pick and the vacuity note,
+	// held in one package so the runtime vocabulary never has to see the
+	// engine. Every body this tier renders is one call into it.
+	LegsPkg = EngineModule + "/legs"
+
 	actionPkg = ModelPkg + "/action"
 
 	// RefPkg holds the reference implementations the derived adapter wraps,

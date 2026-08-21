@@ -4,6 +4,7 @@
 package model
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -116,6 +117,31 @@ type Pool struct {
 	// an argument beside the value, or where a restricting claim holds the
 	// pool to values the harness has proven accepted.
 	Pin string
+}
+
+// Read and OtherRead spell the two draws as calls on the harness's
+// fixture: `fx.Key()`, or `fx.Value().Key` where the key rides inside a
+// fixture value rather than beside it.
+//
+// The harness exposes its inputs as accessors and holds the values
+// unexported, which is what lets a supplied value and a derived one read
+// the same. A dotted field is a path THROUGH one of those accessors, so
+// only its head is a call — spelling the whole path as one is how
+// `fx.Value.Key()` reached a generated file.
+func (p Pool) Read() string { return fixtureRead(p.Field) }
+
+// OtherRead is [Pool.Read] for the second, different value of the pair.
+func (p Pool) OtherRead() string { return fixtureRead(p.OtherField) }
+
+func fixtureRead(field string) string {
+	if field == "" {
+		return ""
+	}
+	head, rest, dotted := strings.Cut(field, ".")
+	if !dotted {
+		return "fx." + head + "()"
+	}
+	return "fx." + head + "()." + rest
 }
 
 // pinValues pins the value's key field to the keys pool where the value

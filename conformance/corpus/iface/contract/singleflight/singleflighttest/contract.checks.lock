@@ -9,3 +9,4 @@ Run/deadline	signature/deadline	Run reports an expired deadline as exceeded
 Run/nilcontext	signature/nilcontext	Run returns an error rather than panicking on a nil context	
 Run/smoke	signature/smoke	Run survives a call with seeded inputs	
 Run/zero-on-error	signature/zero-on-error	Run returns zero alongside any error	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

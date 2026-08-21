@@ -9,3 +9,4 @@ Items/nilcontext	signature/nilcontext	Items returns an error rather than panicki
 Items/smoke	signature/smoke	Items survives a call	
 Items/zero-on-error	signature/zero-on-error	Items returns nothing alongside any error	
 Merge/smoke	signature/smoke	Merge survives a call with a derived replica	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

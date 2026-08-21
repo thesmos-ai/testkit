@@ -10,6 +10,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
 )
@@ -61,20 +62,69 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			}
 		}
 
-		// The rows this tier owns are planned and shaped — see planRows,
-		// CheckRows, RowCall and RowDecl — and not contributed yet.
+		// The rows, and the declarations they name. Three contributions
+		// and one order: the expression is appended to the run surface,
+		// the function it calls is declared beside it, and the bodies
+		// that function's rows run — the pools, the reference, the
+		// actions — are declared beside that.
 		//
-		// A row needs a body, and this tier's bodies drive sequences: the
-		// actions, the derived reference and the bound laws, which are
-		// what a RunWith would call. Those still render through the
-		// structural templates written for the file this tier no longer
-		// emits, so contributing a row today gives the runtime a check
-		// that sets neither Run nor RunWith, and it refuses it by name.
-		//
-		// Rendering them into the declarations region is the remaining
-		// work. Nothing above waits on it: the doors already contribute,
-		// and the regions, the index merge and the plan-to-row projection
-		// are all reached by tests.
+		// All three or none. An expression naming a function nobody
+		// declared, or a row whose RunWith calls a body that is not
+		// there, is a compile error over generated code the consumer
+		// cannot edit.
+		if why := declineReason(b, harness); len(why) > 0 {
+			note := &Declined{BaseEmit: sdk.EmitBase(c, iface), Iface: iface.Name, Why: why}
+			if err := harness.Decls().Append(note, c.Provenance(Name+".declined")); err != nil {
+				return fmt.Errorf("%s: record the refusal for %q: %w", Name, iface.Name, err)
+			}
+			continue
+		}
+		call := rowCallFor(c, iface, b, harness)
+		if call == nil {
+			continue
+		}
+		if err := harness.Rows().Append(call, c.Provenance(Name+".rows")); err != nil {
+			return fmt.Errorf("%s: contribute the rows for %q: %w", Name, iface.Name, err)
+		}
+		decls := []sdk.EmitNode{rowDeclFor(c, iface, b, harness), b}
+		for _, d := range decls {
+			if err := harness.Decls().Append(d, c.Provenance(Name+".decls")); err != nil {
+				return fmt.Errorf("%s: declare the rows for %q: %w", Name, iface.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+// declineReason is why this tier's rows cannot land on the harness it
+// derived against, empty where they can.
+//
+// Two of them, both about the file rather than about the claims. A generic
+// harness is generic all the way through — its run surface, its fixture
+// and its checks all carry the interface's type parameters — and this
+// tier's derivation is pinned at the witnesses the source named, so the
+// rows would be checks at concrete types appended to a set of checks at
+// parameters. There is no spelling of that. The second is narrower: the
+// pools read the harness's sample inputs, and a harness that derives none
+// has nothing to hand them.
+//
+// Returned rather than diagnosed, because a refusal a reader has to run
+// the generator to hear about is one most readers never hear. It renders
+// into the generated file where the rows would have been.
+func declineReason(b *Bindings, harness *suite.Contract) []string {
+	switch {
+	case len(harness.TypeParams) > 0:
+		return []string{
+			"this interface is generic and its checks are generic with it,",
+			"while these sequences run at the concrete types " + WitnessKey + "= names.",
+			"Checks at concrete types cannot join a check set at type parameters.",
+		}
+	case b.NeedsFixture() && !harness.DrawsFixture:
+		return []string{
+			"the sequences draw sample inputs and this harness derives none,",
+			"so there is nothing to draw from. The header above names what",
+			"each parameter is waiting on.",
+		}
 	}
 	return nil
 }
@@ -92,11 +142,8 @@ func rowCallFor(
 	if len(b.Rows) == 0 {
 		return nil
 	}
-	// The harness generator's own flag, not this tier's: the call renders
-	// inside that generator's function and can only name a parameter that
-	// function declares.
 	fixture := ""
-	if harness.DrawsFixture {
+	if drawsFixture(b, harness) {
 		fixture = fixtureIdent
 	}
 	return &RowCall{
@@ -130,7 +177,19 @@ func BindingsFor(
 	if !usable {
 		return nil, false
 	}
-	return bindingsOf(ctx, c, iface, &harness.Projection, harness.EntryName, witnesses)
+	b, ok := bindingsOf(ctx, c, iface, &harness.Projection, harness.EntryName, witnesses)
+	if !ok {
+		return nil, false
+	}
+	// How the harness file spells the things this tier lands beside. Taken
+	// rather than derived: a qualified spelling of the subject compiles
+	// beside the local one, so a second derivation puts two names for one
+	// type in one file and nothing complains.
+	b.SubjectSpelling = harness.SubjectType()
+	b.FixtureTypeName = harness.Fixture.TypeName + harness.TypeArgs
+	b.VeneerVar = projection.VeneerName(iface.Name)
+	b.Legs = legsFor(b, harness)
+	return b, true
 }
 
 func bindingsOf(

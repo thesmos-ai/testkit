@@ -4,12 +4,14 @@
 package model
 
 import (
+	"slices"
 	"strings"
 
 	"go.thesmos.sh/eidos/plugins/annotator/shape"
 	"go.thesmos.sh/eidos/sdk"
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
+	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
@@ -23,7 +25,7 @@ const Capability = "model"
 
 // Version composes into the pipeline's plugin fingerprint. Bump it on any
 // change to what this plugin emits, the projection or the templates alike.
-const Version = "0.63.0"
+const Version = "0.64.0"
 
 // DirectiveName is the bare directive name — without the `//testkit:` prefix —
 // that opts an interface in.
@@ -125,12 +127,22 @@ func (b *Bindings) addSuppliedOption(o *SuppliedOption) string {
 	return ""
 }
 
-// The two shared pool locals the generated property declares. Every draw in
+// The two shared pool locals every generated leg declares. Every draw in
 // the file goes through one of them, which is what keeps a law's values
 // colliding with the sequences it runs beside.
 const (
 	poolKeys   = "keys"
 	poolValues = "values"
+)
+
+// factoryFieldKind is the law field naming the subject factory, and
+// factoryIdent the parameter it reads.
+//
+// Spelled here because two places have to agree: the template that
+// renders the field, and the signature that declares what it names.
+const (
+	factoryFieldKind = sdk.Kind(LawFieldKindPrefix + "Factory")
+	factoryIdent     = "factory"
 )
 
 // The detector spellings this plugin branches on beyond its template
@@ -291,6 +303,24 @@ type Bindings struct {
 	Laws    []*LawBinding
 	Unbound []Skip
 
+	// Legs are the bodies the rows run, one per row and in plan order.
+	//
+	// Emit values rather than a shape this template branches on: a leg is
+	// a different body, not a different setting, and rendering each
+	// through its own template is what keeps the reason for the split
+	// beside the code it produced.
+	Legs []sdk.EmitNode
+
+	// SubjectSpelling is the interface as the harness file spells it, and
+	// FixtureTypeName its sample inputs. Taken from the harness rather
+	// than derived, because the qualified form compiles beside the local
+	// one — two spellings of one type in one file, and nothing complains.
+	SubjectSpelling, FixtureTypeName string
+
+	// VeneerVar is the harness's naming surface, for the prose that tells
+	// a reader how to decline these rows.
+	VeneerVar string
+
 	// Rows are the check plans this tier renders — the ones the harness
 	// generator planned and listed under Withheld because no template of
 	// its own spells them.
@@ -400,8 +430,31 @@ func (b *Bindings) MissPrefix() string {
 // KeyOfName is the shared key projection's identifier — one derivation used
 // by the reference constructor and every law field that keys a value, so the
 // two cannot disagree about which field is the identity.
-func (b *Bindings) KeyOfName() string {
-	return strings.ToLower(b.IfaceName[:1]) + b.IfaceName[1:] + "ModelKeyOf"
+func (b *Bindings) KeyOfName() string { return b.declName("KeyOf") }
+
+// ActionsFuncName is the operation vocabulary both legs drive.
+func (b *Bindings) ActionsFuncName() string { return b.declName("Actions") }
+
+// LawsFuncName is the bundled laws the shared sequences carry.
+func (b *Bindings) LawsFuncName() string { return b.declName("Laws") }
+
+// KeysFuncName and ValuesFuncName are the two shared pools.
+//
+// Functions rather than the locals they used to be: both legs draw from
+// them, and a pool declared inside one leg is one the other cannot reach.
+func (b *Bindings) KeysFuncName() string { return b.declName("Keys") }
+
+// ValuesFuncName is [Bindings.KeysFuncName] for the values pool.
+func (b *Bindings) ValuesFuncName() string { return b.declName("Values") }
+
+// declName composes one identifier this tier declares inside the harness's
+// own file — `<iface>Model<What>`.
+//
+// One prefix for all of them, because they land beside the harness
+// generator's declarations and a reader has to be able to tell whose is
+// whose at a glance.
+func (b *Bindings) declName(what string) string {
+	return strings.ToLower(b.IfaceName[:1]) + b.IfaceName[1:] + "Model" + what
 }
 
 // Concurrent reports whether a linearizability leg derives: the map-shaped
@@ -510,6 +563,108 @@ func (b *Bindings) UsesKeys() bool {
 		}
 	}
 	return false
+}
+
+// LawsUseKeys and LawsUseValues report whether a bundled law draws from a
+// shared pool.
+//
+// Asked separately from the actions because the two now live in separate
+// functions. A pool the actions draw and the laws do not is a local the
+// laws' function must not declare — an unused one does not compile, and
+// this file's output is not something a consumer can edit around.
+func (b *Bindings) LawsUseKeys() bool { return b.lawsDraw(poolKeys) }
+
+// LawsUseValues is [Bindings.LawsUseKeys] for the values pool.
+func (b *Bindings) LawsUseValues() bool { return b.lawsDraw(poolValues) }
+
+func (b *Bindings) lawsDraw(pool string) bool {
+	return b.lawFields(func(f *LawField) bool { return f.Pool == pool })
+}
+
+// LawsNeedFactory reports whether a bundled law builds instances of its
+// own — a merge claim compares two, and no observation over one states it.
+//
+// The leg has the subject in hand and this function does not, so the
+// factory arrives as a parameter rather than as a local. That is the whole
+// reason to ask: a parameter nothing reads does not compile.
+func (b *Bindings) LawsNeedFactory() bool {
+	return b.lawFields(func(f *LawField) bool { return f.KindName == factoryFieldKind })
+}
+
+func (b *Bindings) lawFields(match func(*LawField) bool) bool {
+	for _, l := range b.LegLaws() {
+		if slices.ContainsFunc(l.Fields, match) {
+			return true
+		}
+	}
+	return false
+}
+
+// LegLawPools are the law-declared pools the bundled laws actually name.
+//
+// Filtered rather than taken whole, because the pools were derived for
+// every selected law and the leg carries only some of them: a clocked
+// law's schedule offsets are declared by a law that rides its own leg, and
+// the local for it here would be one nothing reads.
+func (b *Bindings) LegLawPools() []LawPool {
+	named := map[string]bool{}
+	for _, l := range b.LegLaws() {
+		for _, f := range l.Fields {
+			named[f.Pool] = true
+		}
+	}
+	out := make([]LawPool, 0, len(b.LawPools))
+	for _, p := range b.LawPools {
+		if named[p.Name] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// ActionsUseKeys reports whether an action draws from the keys pool.
+//
+// Narrower than [Bindings.UsesKeys], which also answers true for a pinned
+// values pool — the pin is spelled inside the values constructor now, so
+// the actions never see the keys it draws.
+func (b *Bindings) ActionsUseKeys() bool {
+	for _, a := range b.Actions {
+		if a.Pool == poolKeys || a.Shape == shapeCompositeWriter {
+			return true
+		}
+	}
+	return false
+}
+
+// NeedsKeysPool and NeedsValuesPool report whether the pool's constructor
+// is declared at all. A function nothing calls is dead code the linter
+// refuses, and this tier emits into somebody else's file.
+func (b *Bindings) NeedsKeysPool() bool { return b.UsesKeys() || b.LawsUseKeys() }
+
+// NeedsValuesPool is [Bindings.NeedsKeysPool] for the values pool.
+func (b *Bindings) NeedsValuesPool() bool { return b.UsesValues() || b.LawsUseValues() }
+
+// LegLaws are the laws the shared sequences carry: every bound law with no
+// leg of its own, and none whose fields wait on a value only the consumer
+// has.
+//
+// The second exclusion is what the config used to carry. A supplied field
+// arrived through an option on a surface this tier no longer emits, so the
+// law that reads it cannot be filled — and a law literal with a nil
+// closure in it panics on the first draw rather than reporting anything.
+// The header names each one and what it is waiting for.
+func (b *Bindings) LegLaws() []*LawBinding {
+	var out []*LawBinding
+	for _, l := range b.Laws {
+		if l.Clocked || len(l.Supplied) > 0 {
+			continue
+		}
+		if _, own := tiers.LegOf(l.ID); own {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out
 }
 
 // The three store models Go interfaces declare — a value that carries its own

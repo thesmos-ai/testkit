@@ -9,3 +9,4 @@ Lookup/deadline	signature/deadline	Lookup reports an expired deadline as exceede
 Lookup/nilcontext	signature/nilcontext	Lookup returns an error rather than panicking on a nil context	
 Lookup/smoke	signature/smoke	Lookup survives a call with a seeded key	
 Lookup/zero-on-error	signature/zero-on-error	Lookup returns the zero Value alongside any error	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

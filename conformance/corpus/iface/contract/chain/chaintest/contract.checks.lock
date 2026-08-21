@@ -11,3 +11,5 @@ Replay/zero-on-error	signature/zero-on-error	Replay returns nothing alongside an
 Verify/cancel	signature/cancel	Verify reports a cancelled context as cancelled	
 Verify/nilcontext	signature/nilcontext	Verify returns an error rather than panicking on a nil context	
 Verify/smoke	signature/smoke	Verify survives a call	
+model/contract/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

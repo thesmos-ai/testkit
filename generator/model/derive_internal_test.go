@@ -4,14 +4,47 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/node"
+	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/generator/internal/subject"
+	"go.thesmos.sh/testkit/generator/suite"
 )
+
+// A refusal is recorded in the generated file, not swallowed.
+//
+// A directive honoured in every other package and silently dropped in
+// this one is the absence nothing else in the output would show — so the
+// two cases that cannot be served say so where a reader is already
+// looking.
+func TestARefusalSaysWhy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a generic harness carries generic checks these rows cannot join", func(t *testing.T) {
+		t.Parallel()
+		generic := &suite.Contract{}
+		generic.TypeParams = []*sdk.EmitTypeParam{{Name: "V"}}
+
+		why := declineReason(&Bindings{}, generic)
+		testkit.True(t, len(why) > 0, "the generic case is refused")
+		testkit.Contains(t, strings.Join(why, " "), WitnessKey,
+			"and names the key whose concrete types are the obstacle")
+	})
+
+	t.Run("inputs nothing derives are inputs nothing can draw", func(t *testing.T) {
+		t.Parallel()
+		reads := &Bindings{LawsUseFixture: true}
+		testkit.True(t, len(declineReason(reads, &suite.Contract{})) > 0,
+			"a tier reading sample inputs the harness never derived is refused")
+		testkit.Len(t, declineReason(reads, &suite.Contract{DrawsFixture: true}), 0,
+			"and served the moment the harness has them")
+	})
+}
 
 // TestAppendLegGuards holds the append leg to its own eligibility: an
 // appender whose offsets are not int64, or whose method drives nothing,

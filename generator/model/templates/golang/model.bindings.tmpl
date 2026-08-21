@@ -1,433 +1,100 @@
 {{- /*
-The whole model tier for one interface: the contract option, the property, the
-derived reference, and its adapter. One file so deleting the directive deletes
-the tier — and the engine dependency with it.
+The model tier's declarations for one interface: the pools its sequences
+draw from, the reference they are compared against, the operation
+vocabulary they drive, the laws they carry, and one body per row.
+
+Rendered into the harness generator's own file rather than a file of this
+tier's own, because the rows land on one run surface: a claim's checks sit
+beside the checks they are compared against, and a consumer reads one
+generated file per interface.
 */ -}}
 {{- define "model.bindings" -}}
 {{ $b := . }}
-// {{ .OptionName }} runs random sequences of {{ .IfaceName }}'s methods against every
-// subject and a known-good in-memory reference side by side, comparing after
-// every call. Pass it to {{ .EntryName }}; it reports under
-// "{{ .TierPath }}", and {{ .IfaceName }}Without("{{ .TierPath }}") declines it.
+// --- {{ .IfaceName }}'s model tier -------------------------------------------
 //
-{{- if .Reference.Supplied }}
-//	Reference: supplied through //testkit:model ref=
-{{- else if .Reference.Twin }}
-//	Reference: the subject's own factory — {{ .Reference.TwinWhy }},
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-{{- else if .Reference.IsContract }}
-//	Reference: derived — the {{ .Reference.StoreType }} oracle, which is the
-//	           {{ .Reference.ContractName }} contract's own semantics; {{ .IfaceName }}ModelReference replaces it
-{{- else if .Reference.Collects }}
-//	Reference: derived — an append-and-drain collection over the
-//	           {{ .Values.Field }} fixture pair; {{ .IfaceName }}ModelReference replaces it
-{{- else if .Reference.Keyed }}
-//	Reference: derived — a keyed store over the {{ .Keys.Field }} and
-//	           {{ .Values.Field }} fixture pairs; {{ .IfaceName }}ModelReference replaces it
-{{- else }}
-//	Reference: derived — a {{ if .Reference.Pins }}resolution-pinning{{ else }}keyed{{ end }} map over the {{ .Values.Field }} fixture pair,
-//	           keyed on {{ .Reference.KeyField }}; {{ .IfaceName }}ModelReference replaces it
-{{- end }}
-//	Sequences: {{ range $i, $a := .Actions }}{{ if $i }}, {{ end }}{{ $a.Method }} ({{ $a.Shape }}){{ end }}
-{{- if .Witnesses }}
-//	Witnesses: the property runs at {{ renderType .IfaceRef }} — the types
-//	           the source's witness= names, one per type parameter
-{{- end }}
-{{- if .Session }}
-//	Sessions:  per-client laws read {{ .Session.VersionField }} off {{ .Session.Reader }}'s value; the
-//	           concurrent leg interleaves real clients over a stepless model —
-//	           a store-assigned stamp defeats value equality, so the laws carry it
-{{- end }}
-{{- if .Publisher }}
-//	Drain:     derived — a non-blocking sweep asserting fan-out synchronous
-//	           with Publish; an async subject supplies {{ .IfaceName }}ModelDrain or this
-//	           floor reads its in-flight deliveries as loss
-{{- end }}
-{{- if .UsesValues }}
-{{- if .Values.GenFunc }}
-//	Values:    the fixture pair blended with {{ .Values.GenFunc }}'s draws — the gen= supply
-{{- else if .Values.Wide }}
-//	Values:    the fixture pair blended with arbitrary draws{{ if .Values.Pin }}, each keyed
-//	           from the pool{{ end }}; {{ .IfaceName }}ModelValues replaces the pool
-{{- else }}
-//	Values:    the fixture pair — {{ .Values.WhyNarrow }};
-//	           {{ .IfaceName }}ModelValues is the door to a wider pool
-{{- end }}
-{{- end }}
-{{- if eq .ConcFamily "kv" }}
-//	Concurrent: {{ .ConcWriter.Method }} and {{ .ConcReader.Method }} interleave across four workers,
-//	           Porcupine-checked against the keyed-store model per key
-{{- else if eq .ConcFamily "session" }}
-//	Concurrent: {{ .ConcWriter.Method }} and {{ .ConcReader.Method }} interleave across four workers;
-//	           the per-client laws read the multi-client trace — stepless,
-//	           because a store-assigned {{ .Session.VersionField }} defeats value equality
-{{- else if eq .ConcFamily "lease" }}
-//	Concurrent: {{ .ConcAcquire.Method }} and {{ .ConcRelease.Method }} interleave across four workers,
-//	           Porcupine-checked against the lease-table model per key
-{{- else if eq .ConcFamily "cas" }}
-//	Concurrent: {{ .ConcWriter.Method }} and {{ .ConcReader.Method }} interleave across four workers,
-//	           Porcupine-checked against the versioned-cell model in the
-//	           oracle's own dialect
-{{- else if eq .ConcFamily "append" }}
-//	Concurrent: {{ .ConcWriter.Method }} interleaves across four workers,
-//	           Porcupine-checked against the shared append-log model — the
-//	           offsets of one linearizable order
-{{- end }}
-{{- with .Laws }}
-//	Laws:      {{ range $i, $l := . }}{{ if $i }}, {{ end }}{{ $l.ID }}{{ if $l.Clocked }} (clocked){{ end }}{{ if $l.Supplied }} (supplied: {{ range $j, $s := $l.Supplied }}{{ if $j }}, {{ end }}{{ $s }}{{ end }}){{ end }}{{ if $l.Unarmed }} (unarmed: {{ range $j, $u := $l.Unarmed }}{{ if $j }}, {{ end }}{{ $u }}{{ end }}){{ end }}{{ end }}
-{{- end }}
-{{- if .UsesClock }}
-//	Clock:     the (clocked) laws arm only under {{ .IfaceName }}ModelClocked,
-//	           whose factory builds the subject on the run's own test clock —
-//	           advancing a clock the subject does not read fails every
-//	           correct implementation
-{{- end }}
-{{- with .Skipped }}
-//	Not driven:
-{{- range . }}
-//	           {{ .Method }} — {{ .Reason }}
-{{- end }}
-{{- end }}
-{{- with .Unbound }}
-//	Not bound:
-{{- range . }}
-//	           {{ .Method }} — {{ .Reason }}
-{{- end }}
-{{- end }}
-func {{ .OptionName }}(opts ...{{ .OptionTypeName }}) {{ .IfaceName }}Option{{ template "model.witnessuse" . }} {
-	return func(c *{{ lower .IfaceName }}Config{{ template "model.witnessuse" . }}) {
-		c.extensions = append(c.extensions, {{ lower .IfaceName }}ContractExtension{{ template "model.witnessuse" . }}{
-			name: "{{ .TierPath }}",
-			run: func(t *{{ renderExpr (external "testing" "T") }}, _ string, factory func() {{ renderType .IfaceRef }}, _ *{{ lower .IfaceName }}Config{{ template "model.witnessuse" . }}) {
-				{{ renderExpr (external .ModelPkg "Check") }}(t, {{ .PropertyName }}(factory, opts...))
-			},
-		})
-{{- if .Concurrent }}
-		c.extensions = append(c.extensions, {{ lower .IfaceName }}ContractExtension{{ template "model.witnessuse" . }}{
-			name: "{{ .TierName }}/concurrent",
-			run: func(t *{{ renderExpr (external "testing" "T") }}, _ string, factory func() {{ renderType .IfaceRef }}, _ *{{ lower .IfaceName }}Config{{ template "model.witnessuse" . }}) {
-				{{ .IfaceName }}ModelConcurrent(t, factory, opts...)
-			},
-		})
-{{- end }}
-	}
-}
+// Random sequences of {{ .IfaceName }}'s methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and {{ .VeneerVar }}.Without declines any of them by name.
+//
+{{- template "model.header" . }}
 
-// {{ .PropertyName }} builds the property the option runs — exported because a
-// bespoke harness composes from here: model.Check for a test, model.MakeFuzz
-// for a coverage-guided fuzz target, both over this one derivation.
-func {{ .PropertyName }}(factory func() {{ renderType .IfaceRef }}, opts ...{{ .OptionTypeName }}) func(*{{ renderExpr (external .ModelPkg "T") }}) {
-	cfg := new{{ .IfaceName }}ModelConfig(opts...)
-{{- if .NeedsFixture }}
-	fx := {{ .FixtureCtor }}{{ template "model.witnessuse" . }}()
-{{- end }}
-{{- template "model.pools" . }}
-{{- template "model.lawpools" . }}
-{{- if .UsesClock }}
-	// One deterministic clock per property: the clocked factory builds every
-	// subject on it, and the aging laws advance it. A fixed origin, because a
-	// wall reading would make the choice stream unreplayable.
-	var clk *{{ renderExpr (external .ClockPkg "TestClock") }}
-	if cfg.clocked != nil {
-		clk = {{ renderExpr (external .ClockPkg "NewTestClock") }}({{ renderExpr (external "time" "Unix") }}(0, 0))
-		clocked := cfg.clocked
-		factory = func() {{ renderType .IfaceRef }} { return clocked(clk) }
-	}
-{{- end }}
-	reference := cfg.reference
-	if reference == nil {
-{{- if .Reference.Supplied }}
-		reference = {{ renderExpr .Reference.SuppliedCtor }}
-{{- else if .Reference.Twin }}
-		reference = factory
-{{- else }}
-		reference = {{ .Reference.CtorName }}
-{{- end }}
-	}
-{{- if and .UsesClock (not .Reference.Twin) }}
-	if cfg.reference == nil && clk != nil {
-		// Under the clock, the derived oracle lies: every mirrored write
-		// ages on the subject and never on a store that cannot read time.
-		// Twins on one clock age together, so the clocked run rides them.
-		reference = factory
-	}
-{{- end }}
-{{- if .Laws }}
-	// The laws the classifications earned, each reporting under its AUTO-
-	// identifier when it fails. Observational: a law never mutates, so running
-	// them inside the sequences is safe for every step that follows.
-{{- if .Publisher }}
-	// The supplied drain outranks the derived sweep: the sweep is the
-	// synchronous floor, and an asynchronous publisher knows better.
-	drainSub := cfg.drain
-	if drainSub == nil {
-		drainSub = {{ .Publisher.DrainName }}
-	}
-{{- end }}
-{{- if .Coalesced }}
-	// The coalescing law's own instrumentation: its compute increments this
-	// under the lock, because a subject that fails to coalesce invokes it
-	// concurrently.
-	coalesceCalls := 0
-	var coalesceMu {{ renderExpr (external "sync" "Mutex") }}
-{{- end }}
-{{- if .RecordsHistory }}
-	// Every successful append the sequences drive lands here too, so the
-	// no-drops law knows what was attempted; the runner clears it each
-	// iteration.
-	appendHist := {{ renderExpr (external .HistoryPkg "New") }}[string, {{ renderType .HistoryElem }}]()
-{{- end }}
-	laws := {{ renderExpr (external .ModelPkg "NewRegistry") }}[{{ renderType .IfaceRef }}]()
-{{- range .Laws }}
-{{- if not .Clocked }}
-{{- if .Supplied }}
-	if {{ range $i, $s := .Supplied }}{{ if $i }} && {{ end }}cfg.{{ $s }} != nil{{ end }} {
-		laws.Add({{ render . }})
-	} else {
-		laws.Declined({{ printf "%q" .ID }},
-			"{{ range $i, $s := .Supplied }}{{ if $i }} and {{ end }}{{ $b.IfaceName }}Model{{ title $s }}{{ end }}")
-	}
-{{- else }}
-	laws.Add({{ render . }})
-{{- end }}
-{{- end }}
-{{- end }}
-{{- if .UsesClock }}
-	if clk != nil {
-{{- range .Laws }}
-{{- if .Clocked }}
-		laws.Add({{ render . }})
-{{- end }}
-{{- end }}
-	} else {
-		// The door the header names, said again where the run can hear it. A
-		// clocked law without a clocked factory used to vanish: selected,
-		// listed as bound, and never registered.
-{{- range .Laws }}
-{{- if .Clocked }}
-		laws.Declined({{ printf "%q" .ID }}, "{{ $b.IfaceName }}ModelClocked")
-{{- end }}
-{{- end }}
-	}
-{{- end }}
-{{- end }}
-{{- if .SatLaws }}
-	// The saturation prover's isolation: with siblings registered, the first
-	// law to catch a defect ends the iteration and every other law bound on
-	// the same methods reads as unsaturatable.
-	if cfg.onlyLaw != "" {
-		for _, l := range laws.Laws() {
-			if l.ID() != cfg.onlyLaw {
-				laws.SkipByID(l.ID())
-			}
-		}
-	}
-{{- end }}
-	return {{ renderExpr (external .ModelPkg "Property") }}(factory,
-		{{ renderExpr (external .ModelPkg "WithReference") }}(reference),
-{{- if .Laws }}
-		{{ renderExpr (external .ModelPkg "WithLaws") }}(laws),
-{{- end }}
-{{- if .SatLaws }}
-		// Isolating one law is the prover asking whether that law can fail,
-		// and the differential answers first for almost any defect — the
-		// worn subject disagrees with the clean reference at step 0 and the
-		// iteration ends before a law is consulted. Silencing it is what
-		// leaves the law as the only witness. A conformance run isolates
-		// nothing, so this is false there and the differential stays armed.
-		{{ renderExpr (external .ModelPkg "WithLawsOnly") }}[{{ renderType .IfaceRef }}](cfg.onlyLaw != ""),
-{{- end }}
-{{- if .RecordsHistory }}
-		{{ renderExpr (external .ModelPkg "WithHistoryReset") }}[{{ renderType .IfaceRef }}](appendHist.Reset),
-{{- end }}
-		{{ renderExpr (external .ModelPkg "WithActions") }}(
-{{- range .Actions }}
-			{{ render . }},
-{{- end }}
-		),
-	)
-}
-// {{ .IfaceName }}ModelFuzz hands a subject's sequence space to the
-// coverage-guided engine: the fuzzer's bytes replay as rapid's choice
-// stream, so mutating them mutates the action ordering and every drawn
-// input at once — and the engine's coverage feedback climbs the subject's
-// own branches, which is what no fixed seed can do. Wire it from a fuzz
-// target beside the subject:
+{{- if .NeedsKeysPool }}
+
+// {{ .KeysFuncName }} is the key pool every key slot draws from.
 //
-//	func Fuzz{{ .IfaceName }}(f *testing.F) {
-//		{{ .IfaceName }}ModelFuzz(f, func() {{ .IfaceName }} { return NewMine() })
-//	}
-func {{ .IfaceName }}ModelFuzz(f *{{ renderExpr (external "testing" "F") }}, factory func() {{ renderType .IfaceRef }}, opts ...{{ .OptionTypeName }}) {
-	f.Add([]byte{})
-	f.Fuzz({{ renderExpr (external .ModelPkg "MakeFuzz") }}({{ .PropertyName }}(factory, opts...)))
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func {{ .KeysFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .ModelPkg "Generator") }}[{{ renderType .Keys.Type }}] {
+	return {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{ {{ .Keys.Read }}, {{ .Keys.OtherRead }} })
 }
-{{ if .Concurrent }}
-// {{ .IfaceName }}ModelConcurrent runs the linearizability leg: four workers
-{{- if eq .ConcFamily "kv" }}
-// interleave {{ .ConcWriter.Method }} and {{ .ConcReader.Method }} over the shared pools, and
-// Porcupine checks the recorded history against the keyed-store model, one
-// key at a time. No reference runs here — linearizability is the oracle —
-{{- else if eq .ConcFamily "session" }}
-// interleave {{ .ConcWriter.Method }} and {{ .ConcReader.Method }} over the shared pools, and hold
-// the recorded interleaving to the per-client session laws. No Porcupine
-// model runs here — the subject assigns {{ .Session.VersionField }} on write, which no
-// value-equality model predicts — so the trace-scanning laws are the check.
-{{- else if eq .ConcFamily "lease" }}
-// interleave {{ .ConcAcquire.Method }} and {{ .ConcRelease.Method }} over the shared keys, and
-// Porcupine checks the recorded history against the lease-table model, one
-// key at a time. No reference runs here — linearizability is the oracle —
 {{- end }}
-// and the laws stay with the sequential leg, whose step boundary they need.
-// Exported for the same bespoke harnesses the property serves.
-func {{ .IfaceName }}ModelConcurrent(t *{{ renderExpr (external "testing" "T") }}, factory func() {{ renderType .IfaceRef }}, opts ...{{ .OptionTypeName }}) {
-{{- if .UsesValues }}
-	cfg := new{{ .IfaceName }}ModelConfig(opts...)
-{{- end }}
-	fx := {{ .FixtureCtor }}{{ template "model.witnessuse" . }}()
-{{- template "model.pools" . }}
-	{{ renderExpr (external .ModelPkg "Assert") }}(t, factory,
-{{- if eq .ConcFamily "kv" }}
-		{{ renderExpr (external .ModelPkg "WithConcurrent") }}({{ renderExpr (external .ModelPkg "ConcurrentConfig") }}[{{ renderType .IfaceRef }}]{
-			// The subject's own miss error is not knowable here; nil reads
-			// any non-nil answer on an absent key as a miss. The op spellings
-			// are the model's canonical vocabulary, not the method names —
-			// the model switches on them, and an alias checks nothing.
-			Model: {{ renderExpr (external .LinearizePkg "KV") }}[{{ renderType .Keys.Type }}, {{ renderType .Values.Type }}](nil),
-			Actions: []{{ renderExpr (external .ModelPkg "ConcurrentAction") }}[{{ renderType .IfaceRef }}]{
-				{{ renderExpr (external .LinearizePkg "ConcurrentWriter") }}({{ renderExpr (external .LinearizePkg "OpPut") }}, values,
-					func({{ if .ConcWriter.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, v {{ renderType .Values.Type }}) error {
-						return s.{{ .ConcWriter.Method }}({{ if .ConcWriter.TakesCtx }}ctx, {{ end }}v)
-					}, {{ .KeyOfName }}),
-				{{ renderExpr (external .LinearizePkg "ConcurrentReader") }}({{ renderExpr (external .LinearizePkg "OpGet") }}, keys,
-					func({{ if .ConcReader.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, k {{ renderType .Keys.Type }}) ({{ renderType .Values.Type }}, error) {
-						return s.{{ .ConcReader.Method }}({{ if .ConcReader.TakesCtx }}ctx, {{ end }}k)
-					}),
-			},
-		}),
-{{- else if eq .ConcFamily "session" }}
-		{{ renderExpr (external .ModelPkg "WithConcurrent") }}({{ renderExpr (external .ModelPkg "ConcurrentConfig") }}[{{ renderType .IfaceRef }}]{
-			// Stepless on purpose: the subject assigns {{ .Session.VersionField }} on write, and
-			// no value-equality model survives a stamp it cannot predict. The
-			// per-client laws over the recorded interleaving are the check.
-			Actions: []{{ renderExpr (external .ModelPkg "ConcurrentAction") }}[{{ renderType .IfaceRef }}]{
-{{- if eq .Session.Writer .ConcWriter.Method }}
-				{{ renderExpr (external .LinearizePkg "ConcurrentAnsweringWriter") }}("{{ .ConcWriter.Method }}", values,
-					func({{ if .ConcWriter.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, v {{ renderType .Values.Type }}) ({{ renderType .Values.Type }}, error) {
-						return s.{{ .ConcWriter.Method }}({{ if .ConcWriter.TakesCtx }}ctx, {{ end }}v)
-					}, func(v {{ renderType .Values.Type }}) {{ renderType .Keys.Type }} { return v.{{ .Session.KeyField }} }),
+{{- if .NeedsValuesPool }}
+
+// {{ .ValuesFuncName }} is the value pool every value slot draws from.
+{{- if .Values.GenFunc }}
+//
+// The fixture pair blended with {{ .Values.GenFunc }}'s draws — the gen= supply,
+// for a domain no reflection walk can spell.
+{{- else if .Values.Wide }}
+//
+// The fixture pair blended with arbitrary draws: the pair keeps identical
+// rewrites frequent, the wide arm reaches values no fixture spells, and
+// nothing in the claims licenses refusing either.
 {{- else }}
-				{{ renderExpr (external .LinearizePkg "ConcurrentWriter") }}("{{ .ConcWriter.Method }}", values,
-					func({{ if .ConcWriter.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, v {{ renderType .Values.Type }}) error {
-						return s.{{ .ConcWriter.Method }}({{ if .ConcWriter.TakesCtx }}ctx, {{ end }}v)
-					}, func(v {{ renderType .Values.Type }}) {{ renderType .Keys.Type }} { return v.{{ .Session.KeyField }} }),
+//
+// The fixture pair alone — {{ .Values.WhyNarrow }}.
 {{- end }}
-				{{ renderExpr (external .LinearizePkg "ConcurrentReader") }}("{{ .ConcReader.Method }}", keys,
-					func({{ if .ConcReader.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, k {{ renderType .Keys.Type }}) ({{ renderType .Values.Type }}, error) {
-						return s.{{ .ConcReader.Method }}({{ if .ConcReader.TakesCtx }}ctx, {{ end }}k)
-					}),
-			},
-		}),
-{{- range .Laws }}{{ if .Session }}
-		{{ renderExpr (external $b.ModelPkg "WithLaw") }}({{ render . }}),
-{{- end }}{{ end }}
-{{- else if eq .ConcFamily "lease" }}
-		{{ renderExpr (external .ModelPkg "WithConcurrent") }}({{ renderExpr (external .ModelPkg "ConcurrentConfig") }}[{{ renderType .IfaceRef }}]{
-			// The lease-table model speaks the acquire/release vocabulary at
-			// the oracle's own held identity; the nil free arm is the lenient
-			// release both the oracle and the corpus subject speak. The op
-			// spellings are the model's canonical vocabulary — it switches on
-			// them, and an alias checks nothing.
-			Model: {{ renderExpr (external .LinearizePkg "LeaseTable") }}({{ with .LeaseHeld }}{{ if .Sym }}{{ renderExpr .Sym }}{{ else }}{{ .Name }}{{ end }}{{ end }}, nil),
-			Actions: []{{ renderExpr (external .ModelPkg "ConcurrentAction") }}[{{ renderType .IfaceRef }}]{
-				{{ renderExpr (external .LinearizePkg "ConcurrentWriter") }}({{ renderExpr (external .LinearizePkg "OpAcquire") }}, keys,
-					func({{ if .ConcAcquire.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, k {{ renderType .Keys.Type }}) error {
-						return s.{{ .ConcAcquire.Method }}({{ if .ConcAcquire.TakesCtx }}ctx, {{ end }}k)
-					}, func(k {{ renderType .Keys.Type }}) {{ renderType .Keys.Type }} { return k }),
-				{{ renderExpr (external .LinearizePkg "ConcurrentWriter") }}({{ renderExpr (external .LinearizePkg "OpRelease") }}, keys,
-					func({{ if .ConcRelease.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, k {{ renderType .Keys.Type }}) error {
-						return s.{{ .ConcRelease.Method }}({{ if .ConcRelease.TakesCtx }}ctx, {{ end }}k)
-					}, func(k {{ renderType .Keys.Type }}) {{ renderType .Keys.Type }} { return k }),
-			},
-		}),
-{{- else if eq .ConcFamily "cas" }}
-		{{ renderExpr (external .ModelPkg "WithConcurrent") }}({{ renderExpr (external .ModelPkg "ConcurrentConfig") }}[{{ renderType .IfaceRef }}]{
-			// The cell model speaks the live oracle's own dialect — the stamp
-			// is seen+1 and an empty cell matches only the zero version. The
-			// mismatch is the declaration's stamped identity, the same one the
-			// sequential oracle consumes; the subject's own empty error is not
-			// knowable here, and nil reads any non-nil answer on an empty cell
-			// as the miss. The op spellings are the model's canonical
-			// vocabulary — it switches on them, and an alias checks nothing.
-			Model: {{ renderExpr (external .LinearizePkg "CASCell") }}[{{ renderType .Reference.ContractArg }}, int64](nil, {{ with .CasMismatch }}{{ if .Sym }}{{ renderExpr .Sym }}{{ else }}{{ .Name }}{{ end }}{{ end }},
-				func(v {{ renderType .Reference.ContractArg }}) int64 { return int64(v.{{ .Reference.VersionField }}) },
-				func(ver int64) int64 { return ver + 1 }),
-			Actions: []{{ renderExpr (external .ModelPkg "ConcurrentAction") }}[{{ renderType .IfaceRef }}]{
-				{{ renderExpr (external .LinearizePkg "ConcurrentCAS") }}({{ renderExpr (external .LinearizePkg "OpCAS") }}, {{ .ConcWriter.Pool }},
-					func({{ if .ConcWriter.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, v {{ renderType .Reference.ContractArg }}) error {
-						return s.{{ .ConcWriter.Method }}({{ if .ConcWriter.TakesCtx }}ctx, {{ end }}v)
-					}),
-				{{ renderExpr (external .LinearizePkg "ConcurrentCellReader") }}({{ renderExpr (external .LinearizePkg "OpGet") }},
-					func({{ if .ConcReader.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}) ({{ renderType .Reference.ContractArg }}, error) {
-						return s.{{ .ConcReader.Method }}({{ if .ConcReader.TakesCtx }}ctx{{ end }})
-					}),
-			},
-		}),
-{{- else if eq .ConcFamily "append" }}
-		{{ renderExpr (external .ModelPkg "WithConcurrent") }}({{ renderExpr (external .ModelPkg "ConcurrentConfig") }}[{{ renderType .IfaceRef }}]{
-			// One shared history: concurrent appends must answer the offsets
-			// of one linearizable order. The monotonic-offsets law states the
-			// claim per client; this leg states it across them, which is
-			// where a torn append hides. The op spelling is the model's
-			// canonical vocabulary.
-			Model: {{ renderExpr (external .LinearizePkg "AppendLog") }}[{{ renderType .ConcEntry }}](),
-			Actions: []{{ renderExpr (external .ModelPkg "ConcurrentAction") }}[{{ renderType .IfaceRef }}]{
-				{{ renderExpr (external .LinearizePkg "ConcurrentAppend") }}({{ renderExpr (external .LinearizePkg "OpAppend") }}, {{ .ConcWriter.Pool }},
-					func({{ if .ConcWriter.TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .IfaceRef }}, v {{ renderType .ConcEntry }}) (int64, error) {
-						return s.{{ .ConcWriter.Method }}({{ if .ConcWriter.TakesCtx }}ctx, {{ end }}v)
-					}),
-			},
-		}),
+func {{ .ValuesFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .ModelPkg "Generator") }}[{{ renderType .Values.Type }}] {
+{{- if .Values.Pin }}
+	keys := {{ .KeysFuncName }}(fx)
 {{- end }}
-	)
+	bodies := {{ template "model.bodies" . }}
+{{- if .Values.Pin }}
+	// Every drawn value lands on a pooled key: a key rewritten under
+	// another body is the history latest-write-wins is about, and a
+	// fresh-keyed value would never collide with one already held.
+	return {{ renderExpr (external .ModelPkg "Custom") }}(func(t *{{ renderExpr (external .ModelPkg "T") }}) {{ renderType .Values.Type }} {
+		v := bodies.Draw(t, "value_body")
+		v.{{ .Values.Pin }} = keys.Draw(t, "value_key")
+		return v
+	})
+{{- else }}
+	return bodies
+{{- end }}
 }
-{{ end }}
+{{- end }}
 {{- if .Reference.Derived }}
-{{ if and (not .Reference.Collects) (not .Reference.IsContract) (not .Reference.MissSym) -}}
+{{ if and (not .Reference.Collects) (not .Reference.IsContract) (not .Reference.MissSym) }}
 // {{ .Reference.MissName }} is what the reference reports for a key nothing
 // wrote. Only its presence is compared — a subject reports its own miss
 // sentinel, and the run asks whether both sides missed, not how they spelled
 // it. Where the declaration stamps a sentinel of its own, the oracle takes
 // that identity instead and this var is not declared.
 var {{ .Reference.MissName }} = {{ renderExpr (external "errors" "New") }}("{{ .MissPrefix }}: the model reference holds nothing under the key")
-
-{{ end -}}
-{{ if .Reference.KeyField -}}
+{{ end }}
+{{- if .Reference.KeyField }}
 // {{ .KeyOfName }} projects a value's identity — the one derivation the
 // reference keys on and every keyed law reuses, so the two cannot disagree
 // about which field is the key.
 func {{ .KeyOfName }}(v {{ renderType .Values.Type }}) {{ renderType .Keys.Type }} {
 	return v.{{ .Reference.KeyField }}
 }
-
-{{ end -}}
-{{ if .Reference.IsContract -}}
-{{ if .Reference.VersionField -}}
+{{ end }}
+{{- if .Reference.IsContract }}
+{{- if .Reference.VersionField }}
 // {{ lower .IfaceName }}ModelVersionOf projects a value's version — the one
 // derivation the cell guards writes by, shared so the oracle and any law
 // cannot disagree about which field is the guard.
 func {{ lower .IfaceName }}ModelVersionOf(v {{ renderType .Reference.ContractArg }}) int64 {
 	return v.{{ .Reference.VersionField }}
 }
-
-{{ end -}}
-{{ range .Reference.CtorErrs }}{{ if .Name -}}
+{{ end }}
+{{- range .Reference.CtorErrs }}{{ if .Name }}
 // {{ .Name }} is the oracle's spelling; only its presence is compared, so a
 // subject reporting its own error under the same state agrees with it.
 var {{ .Name }} = {{ renderExpr (external "errors" "New") }}("{{ $b.MissPrefix }}: {{ .Msg }}")
-
-{{ end }}{{ end -}}
+{{ end }}{{ end }}
 // {{ .Reference.TypeName }} adapts the shipped {{ .Reference.StoreType }} oracle — the
 // {{ .Reference.ContractName }} contract's own semantics — to {{ .IfaceName }}.
 // Deliberately simple: its correctness is read, not tested.
@@ -435,7 +102,10 @@ type {{ .Reference.TypeName }} struct {
 	store *{{ renderExpr (external .RefPkg .Reference.StoreType) }}[{{ renderType .Reference.ContractArg }}]
 }
 
-func {{ .Reference.CtorName }}() {{ renderType .IfaceRef }} {
+// {{ .Reference.CtorName }} builds one. Exported because a consumer whose
+// semantics outrun their shape replaces it, and because the proof beside
+// this file drives it as a subject of its own.
+func {{ .Reference.CtorName }}() {{ .SubjectSpelling }} {
 	return &{{ .Reference.TypeName }}{store: {{ renderExpr (external .RefPkg (printf "New%s" .Reference.StoreType)) }}[{{ renderType .Reference.ContractArg }}](
 {{- if .Reference.VersionField }}
 		{{ lower .IfaceName }}ModelVersionOf,
@@ -448,14 +118,17 @@ func {{ .Reference.CtorName }}() {{ renderType .IfaceRef }} {
 {{- end }}
 	)}
 }
-{{ else -}}
+{{ else }}
 // {{ .Reference.TypeName }} adapts the shipped {{ .Reference.StoreType }} oracle to {{ .IfaceName }}.
 // Deliberately simple: its correctness is read, not tested.
 type {{ .Reference.TypeName }} struct {
 	store *{{ renderExpr (external .RefPkg .Reference.StoreType) }}[{{ if not .Reference.Collects }}{{ renderType .Keys.Type }}, {{ end }}{{ renderType .Values.Type }}]
 }
 
-func {{ .Reference.CtorName }}() {{ renderType .IfaceRef }} {
+// {{ .Reference.CtorName }} builds one. Exported because a consumer whose
+// semantics outrun their shape replaces it, and because the proof beside
+// this file drives it as a subject of its own.
+func {{ .Reference.CtorName }}() {{ .SubjectSpelling }} {
 	return &{{ .Reference.TypeName }}{store: {{ renderExpr (external .RefPkg (printf "New%s" .Reference.StoreType)) }}[{{ if not .Reference.Collects }}{{ renderType .Keys.Type }}, {{ end }}{{ renderType .Values.Type }}](
 {{- if not .Reference.Collects }}
 {{- if not .Reference.Keyed }}
@@ -465,8 +138,8 @@ func {{ .Reference.CtorName }}() {{ renderType .IfaceRef }} {
 {{- end }}
 	)}
 }
-{{ end -}}
-{{ range .Adapter }}
+{{ end }}
+{{- range .Adapter }}
 {{- if and .Op .Collect }}
 // {{ .Sig.Name }} drains the oracle's iterator into the slice the contract
 // answers — the one seam between the two spellings of a replay.
@@ -491,7 +164,7 @@ func (r *{{ $b.Reference.TypeName }}) {{ .Sig.Name }}({{ template "model.params"
 {{ end }}
 {{- end }}
 {{- end }}
-{{ if .Session }}
+{{- if .Session }}
 // {{ .Session.ClassifyName }} interprets one trace event as a per-client
 // operation: the ordering stamp rides the value's {{ .Session.VersionField }} member, and an
 // errored call classifies nothing — a miss's zero value is not a version.
@@ -522,13 +195,12 @@ func {{ .Session.ClassifyName }}(ev {{ renderExpr (external .TracePath "Event") 
 	return {{ renderExpr (external .LawPath "ClientOp") }}[{{ renderType .Session.Key }}]{}, false
 }
 {{ end }}
-{{ if .Publisher }}
-// {{ .Publisher.DrainName }} sweeps what Publish already delivered. The
-// derived form asserts synchronous fan-out: everything a subscriber is owed
-// is in its channel by the time Publish returns. An asynchronous publisher
-// supplies its own through {{ .IfaceName }}ModelDrain — this floor would read its
-// in-flight deliveries as loss.
-func {{ .Publisher.DrainName }}(_ *{{ renderExpr (external .ModelPkg "T") }}, _ {{ renderType .IfaceRef }}, sub {{ renderType .Publisher.Sub }}) ([]{{ renderType .Publisher.Msg }}, error) {
+{{- if .Publisher }}
+// {{ .Publisher.DrainName }} sweeps what Publish already delivered, asserting
+// synchronous fan-out: everything a subscriber is owed is in its channel by
+// the time Publish returns. An asynchronous publisher's in-flight deliveries
+// read as loss here, which is the floor this states and not more.
+func {{ .Publisher.DrainName }}(_ *{{ renderExpr (external .ModelPkg "T") }}, _ {{ .SubjectSpelling }}, sub {{ renderType .Publisher.Sub }}) ([]{{ renderType .Publisher.Msg }}, error) {
 	var got []{{ renderType .Publisher.Msg }}
 	for {
 		select {
@@ -540,154 +212,173 @@ func {{ .Publisher.DrainName }}(_ *{{ renderExpr (external .ModelPkg "T") }}, _ 
 	}
 }
 {{ end }}
-// {{ .OptionTypeName }} configures the model run.
-type {{ .OptionTypeName }} func(*{{ .ConfigName }})
-
-// {{ .IfaceName }}ModelReference replaces the derived reference — for an
-// interface whose semantics outrun its shape.
-func {{ .IfaceName }}ModelReference(factory func() {{ renderType .IfaceRef }}) {{ .OptionTypeName }} {
-	return func(c *{{ .ConfigName }}) { c.reference = factory }
-}
-{{ range .SuppliedOptions }}
-// {{ $b.IfaceName }}Model{{ .Field }} supplies the {{ .Config }} closure — a domain fact
-// no derivation can invent. Every law reading it arms only under this
-// option; unarmed, the header still names the door.
-func {{ $b.IfaceName }}Model{{ .Field }}(fn {{ template "model.suppliedtype" . }}) {{ $b.OptionTypeName }} {
-	return func(c *{{ $b.ConfigName }}) { c.{{ .Config }} = fn }
-}
-{{ end }}
-{{ template "model.saturation" . }}
-{{ if .UsesClock }}
-{{ if .Publisher }}
-// {{ .IfaceName }}ModelDrain replaces the derived subscription sweep — the door an
-// asynchronous publisher takes, because the sweep asserts fan-out synchronous
-// with Publish and would read in-flight deliveries as loss.
-func {{ .IfaceName }}ModelDrain(fn func(*{{ renderExpr (external .ModelPkg "T") }}, {{ renderType .IfaceRef }}, {{ renderType .Publisher.Sub }}) ([]{{ renderType .Publisher.Msg }}, error)) {{ .OptionTypeName }} {
-	return func(c *{{ .ConfigName }}) { c.drain = fn }
-}
-{{ end }}
-// {{ .IfaceName }}ModelClocked supplies a factory that builds the subject on
-// the run's own test clock — what arms the aging laws, whose Advance moves
-// exactly the time the subject reads. Without it those laws stay dropped,
-// and the header says so.
-func {{ .IfaceName }}ModelClocked(build func(clk *{{ renderExpr (external .ClockPkg "TestClock") }}) {{ renderType .IfaceRef }}) {{ .OptionTypeName }} {
-	return func(c *{{ .ConfigName }}) { c.clocked = build }
-}
-{{ end -}}
-{{ if .UsesValues }}
-// {{ .IfaceName }}ModelValues replaces the values pool — for a subject whose
-// accepted values a raw draw cannot spell. The pool feeds every value slot,
-// the sequences and the laws alike; keep its draws colliding, because values
-// that never revisit a key pass every comparison over a history that holds
-// nothing twice.
-func {{ .IfaceName }}ModelValues(values *{{ renderExpr (external .ModelPkg "Generator") }}[{{ renderType .Values.Type }}]) {{ .OptionTypeName }} {
-	return func(c *{{ .ConfigName }}) { c.values = values }
-}
-{{ end -}}
-{{ if .SatLaws -}}
-// {{ lower .IfaceName }}ModelOnlyLaw narrows the run to one law.
+// {{ .ActionsFuncName }} is the operation vocabulary both legs drive.
 //
-// Unexported: this is the saturation prover's instrument, not a knob. A
-// conformance run asserts every law the classifications earned, and dropping
-// all but one is only ever right when the question is "can this law fail",
-// which is the one question the prover asks.
-//
-// Without it the prover cannot answer that question at all. The runner stops
-// the iteration at the first law that fails, so a defect worn for law A is
-// reported under whichever law happens to catch it first — the corpus showed
-// 114 such runs, each one a law that looked unsaturatable because a sibling
-// spoke over it.
-func {{ lower .IfaceName }}ModelOnlyLaw(id string) {{ .OptionTypeName }} {
-	return func(c *{{ .ConfigName }}) { c.onlyLaw = id }
-}
-
-{{ end -}}
-type {{ .ConfigName }} struct {
-	reference func() {{ renderType .IfaceRef }}
-{{- if .SatLaws }}
-	onlyLaw string
-{{- end }}
-{{- range .SuppliedOptions }}
-	{{ .Config }} {{ template "model.suppliedtype" . }}
-{{- end }}
-{{- if .Publisher }}
-	drain func(*{{ renderExpr (external .ModelPkg "T") }}, {{ renderType .IfaceRef }}, {{ renderType .Publisher.Sub }}) ([]{{ renderType .Publisher.Msg }}, error)
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func {{ .ActionsFuncName }}({{ template "model.declparams" . }}) []{{ renderExpr (external .ModelPkg "Action") }}[{{ .SubjectSpelling }}] {
+{{- if .ActionsUseKeys }}
+	keys := {{ .KeysFuncName }}(fx)
 {{- end }}
 {{- if .UsesValues }}
-	values *{{ renderExpr (external .ModelPkg "Generator") }}[{{ renderType .Values.Type }}]
+	values := {{ .ValuesFuncName }}(fx)
 {{- end }}
-{{- if .UsesClock }}
-	clocked func(clk *{{ renderExpr (external .ClockPkg "TestClock") }}) {{ renderType .IfaceRef }}
+	return []{{ renderExpr (external .ModelPkg "Action") }}[{{ .SubjectSpelling }}]{
+{{- range .Actions }}
+		{{ render . }},
 {{- end }}
-}
-
-func new{{ .IfaceName }}ModelConfig(opts ...{{ .OptionTypeName }}) *{{ .ConfigName }} {
-	c := &{{ .ConfigName }}{}
-	for _, o := range opts {
-		o(c)
 	}
-	return c
 }
+{{ if .LegLaws }}
+// {{ .LawsFuncName }} is the laws the classifications earned and this build
+// could fill.
+//
+// Observational, every one of them: a law never mutates, so running them
+// inside the sequences is safe for every step that follows. What they
+// judge is the subject's own behaviour, which is why they are a separate
+// leg from the reference comparison rather than more oracles on it.
+func {{ .LawsFuncName }}({{ template "model.lawparams" . }}) []{{ renderExpr (external .LawPath "Law") }}[{{ .SubjectSpelling }}] {
+{{- if .LawsUseKeys }}
+	keys := {{ .KeysFuncName }}(fx)
+{{- end }}
+{{- if .LawsUseValues }}
+	values := {{ .ValuesFuncName }}(fx)
+{{- end }}
+{{- template "model.lawpools" . }}
+{{- if .Publisher }}
+	drainSub := {{ .Publisher.DrainName }}
+{{- end }}
+{{- if .Coalesced }}
+	// The coalescing law's own instrumentation: its compute increments this
+	// under the lock, because a subject that fails to coalesce invokes it
+	// concurrently.
+	coalesceCalls := 0
+	var coalesceMu {{ renderExpr (external "sync" "Mutex") }}
+{{- end }}
+	return []{{ renderExpr (external .LawPath "Law") }}[{{ .SubjectSpelling }}]{
+{{- range .LegLaws }}
+		{{ render . }},
+{{- end }}
+	}
+}
+{{ end }}
+{{- range .Legs }}
+{{ render . }}
+{{ end }}
 {{- end -}}
 
 {{- /*
-model.pools declares the shared pools — one spelling for the sequential and
-concurrent legs, because a leg drawing from anywhere else could stop
-colliding without anyone noticing.
+model.declparams spells the parameter list every declaration below shares:
+the run's sample inputs where anything reads them, and the append log where
+a law reads what the sequences attempted.
 */ -}}
-{{- define "model.pools" -}}
-{{- if .UsesKeys }}
-	// Two keys, drawn for every key slot: collision density is what makes a
-	// read revisit a write and an overwrite land on held state. A wide key
-	// pool would pass every comparison over a history that never collides.
-	keys := {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{fx.{{ .Keys.Field }}(), fx.{{ .Keys.OtherField }}()})
-{{- end }}
-{{- if .UsesValues }}
-{{- if .Values.GenFunc }}
-	// Bodies blend the fixture pair with {{ .Values.GenFunc }}'s draws — the
-	// gen= supply, for a domain no reflection walk can spell.
-	bodies := {{ renderExpr (external .ModelPkg "OneOf") }}(
-		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}(), fx.{{ .Values.OtherField }}()}),
+{{- define "model.declparams" -}}
+{{- $sep := "" -}}
+{{- if .NeedsFixture }}fx {{ .FixtureTypeName }}{{ $sep = ", " }}{{ end }}
+{{- if .RecordsHistory }}{{ $sep }}appendHist *{{ renderExpr (external .HistoryPkg "History") }}[string, {{ renderType .HistoryElem }}]{{ end -}}
+{{- end -}}
+
+{{- /*
+model.lawparams is model.declparams and the subject factory, for the laws
+that build instances of their own — a merge claim compares two replicas,
+and no observation over one states it. The leg has the subject in hand and
+this function does not, so it arrives as a parameter.
+*/ -}}
+{{- define "model.lawparams" -}}
+{{- $sep := "" -}}
+{{- if .NeedsFixture }}fx {{ .FixtureTypeName }}{{ $sep = ", " }}{{ end }}
+{{- if .RecordsHistory }}{{ $sep }}appendHist *{{ renderExpr (external .HistoryPkg "History") }}[string, {{ renderType .HistoryElem }}]{{ $sep = ", " }}{{ end }}
+{{- if .LawsNeedFactory }}{{ $sep }}factory func() {{ .SubjectSpelling }}{{ end -}}
+{{- end -}}
+
+{{- /*
+model.bodies spells the value pool's unpinned generator.
+*/ -}}
+{{- define "model.bodies" -}}
+{{- if .Values.GenFunc }}{{ renderExpr (external .ModelPkg "OneOf") }}(
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
 		{{ .Values.GenFunc }}(),
 	)
-{{- else if .Values.Wide }}
-	// Bodies blend the fixture pair with arbitrary draws: the pair keeps
-	// identical rewrites frequent, the wide arm reaches values no fixture
-	// spells — and nothing in the claims licenses refusing either.
-	bodies := {{ renderExpr (external .ModelPkg "OneOf") }}(
-		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}(), fx.{{ .Values.OtherField }}()}),
+{{- else if .Values.Wide }}{{ renderExpr (external .ModelPkg "OneOf") }}(
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
 		{{ renderExpr (external .ModelPkg "Make") }}[{{ renderType .Values.Type }}](),
 	)
+{{- else }}{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} })
+{{- end -}}
+{{- end -}}
+
+{{- /*
+model.header is the prose above the block: what the sequences drive, what
+judges them, and — at least as important — what they do not.
+*/ -}}
+{{- define "model.header" -}}
+{{- if .Reference.Supplied }}
+//	Reference: supplied through //testkit:model ref=
+{{- else if .Reference.Twin }}
+//	Reference: the subject's own factory — {{ .Reference.TwinWhy }},
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+{{- else if .Reference.IsContract }}
+//	Reference: derived — the {{ .Reference.StoreType }} oracle, which is the
+//	           {{ .Reference.ContractName }} contract's own semantics; {{ .Reference.CtorName }} replaces it
+{{- else if .Reference.Collects }}
+//	Reference: derived — an append-and-drain collection over the
+//	           {{ .Values.Field }} fixture pair; {{ .Reference.CtorName }} replaces it
+{{- else if .Reference.Keyed }}
+//	Reference: derived — a keyed store over the {{ .Keys.Field }} and
+//	           {{ .Values.Field }} fixture pairs; {{ .Reference.CtorName }} replaces it
 {{- else }}
-	// Bodies keep to the fixture pair —
-	// {{ .Values.WhyNarrow }}.
-	bodies := {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}(), fx.{{ .Values.OtherField }}()})
+//	Reference: derived — a {{ if .Reference.Pins }}resolution-pinning{{ else }}keyed{{ end }} map over the {{ .Values.Field }} fixture pair,
+//	           keyed on {{ .Reference.KeyField }}; {{ .Reference.CtorName }} replaces it
 {{- end }}
-{{- if .Values.Pin }}
-	// Every drawn value lands on a pooled key: a key rewritten under another
-	// body is the history latest-write-wins is about, and a fresh-keyed value
-	// would never collide with one already held.
-	values := {{ renderExpr (external .ModelPkg "Custom") }}(func(t *{{ renderExpr (external .ModelPkg "T") }}) {{ renderType .Values.Type }} {
-		v := bodies.Draw(t, "value_body")
-		v.{{ .Values.Pin }} = keys.Draw(t, "value_key")
-		return v
-	})
+//	Sequences: {{ range $i, $a := .Actions }}{{ if $i }}, {{ end }}{{ $a.Method }} ({{ $a.Shape }}){{ end }}
+{{- if .Witnesses }}
+//	Witnesses: the sequences run at {{ renderType .IfaceRef }} — the types
+//	           the source's witness= names, one per type parameter
+{{- end }}
+{{- if .Session }}
+//	Sessions:  per-client laws read {{ .Session.VersionField }} off {{ .Session.Reader }}'s value
+{{- end }}
+{{- if .Publisher }}
+//	Drain:     derived — a non-blocking sweep asserting fan-out synchronous
+//	           with Publish; an async subject reads as loss against this floor
+{{- end }}
+{{- if .NeedsValuesPool }}
+{{- if .Values.GenFunc }}
+//	Values:    the fixture pair blended with {{ .Values.GenFunc }}'s draws — the gen= supply
+{{- else if .Values.Wide }}
+//	Values:    the fixture pair blended with arbitrary draws{{ if .Values.Pin }}, each keyed
+//	           from the pool{{ end }}
 {{- else }}
-	values := bodies
+//	Values:    the fixture pair — {{ .Values.WhyNarrow }}
 {{- end }}
-	if cfg.values != nil {
-		values = cfg.values
-	}
+{{- end }}
+{{- with .LegLaws }}
+//	Laws:      {{ range $i, $l := . }}{{ if $i }}, {{ end }}{{ $l.ID }}{{ if $l.Unarmed }} (unarmed: {{ range $j, $u := $l.Unarmed }}{{ if $j }}, {{ end }}{{ $u }}{{ end }}){{ end }}{{ end }}
+{{- end }}
+{{- with .Skipped }}
+//	Not driven:
+{{- range . }}
+//	           {{ .Method }} — {{ .Reason }}
+{{- end }}
+{{- end }}
+{{- with .Unbound }}
+//	Not bound:
+{{- range . }}
+//	           {{ .Method }} — {{ .Reason }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
 {{- /*
-model.lawpools declares the pools the laws bring beyond the shared pair —
-sequential leg only, because the laws run there and an unused local is a
-compile error in a generated file.
+model.lawpools declares the pools the laws bring beyond the shared pair.
 */ -}}
 {{- define "model.lawpools" -}}
-{{- range .LawPools }}
+{{- range .LegLawPools }}
 {{- if .Adversarial }}
 	// The {{ .Name }} pool is the laws' own: hostile strings beside arbitrary
 	// ones, because a safety claim never probed with an attack is vacuous.
@@ -734,18 +425,8 @@ zero values, whatever the signature — no per-type zero spelling to get wrong.
 {{- end -}}
 
 {{- /*
-model.witnessuse instantiates a harness-side generic type at the witnesses —
-`[string, int]` — and renders nothing in the ordinary non-generic case, so
-every splice site is unconditional.
-*/ -}}
-{{- define "model.witnessuse" -}}
-{{- if .Witnesses }}[{{ range $i, $w := .Witnesses }}{{ if $i }}, {{ end }}{{ renderType $w }}{{ end }}]{{ end -}}
-{{- end -}}
-
-{{- /*
 model.suppliedtype spells one supplied door's closure type at the fixture's
-own instantiation — the same spelling the option, the config field and the
-consumer's closure share.
+own instantiation.
 */ -}}
 {{- define "model.suppliedtype" -}}
 {{- if eq .Shape "ClientOpPred" -}}

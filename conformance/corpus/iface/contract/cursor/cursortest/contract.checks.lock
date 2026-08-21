@@ -7,3 +7,4 @@ Next/deadline	signature/deadline	Next reports an expired deadline as exceeded
 Next/nilcontext	signature/nilcontext	Next returns an error rather than panicking on a nil context	
 Next/smoke	signature/smoke	Next survives a call	
 Next/zero-on-error	signature/zero-on-error	Next returns the zero Value and bool alongside any error	
+model/contract/laws	model/laws	every bound law holds over random operation sequences	

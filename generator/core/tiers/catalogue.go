@@ -38,6 +38,7 @@ const (
 	shapeAnsweringWriter = "answeringwriter"
 
 	// Mixins.
+	mixinAccumulates       = "accumulates"
 	mixinAssociative       = "associative"
 	mixinAtomic            = "atomic"
 	mixinBounded           = "bounded"

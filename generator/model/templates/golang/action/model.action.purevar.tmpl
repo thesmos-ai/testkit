@@ -22,9 +22,9 @@ fixture pair, blended with arbitrary draws where the position says so.
 					return []any{
 {{- range $i, $arg := .Args }}
 {{- if $arg.Wide }}
-						{{ renderExpr (external $a.ModelPkg "OneOf") }}({{ renderExpr (external $a.ModelPkg "SampledFrom") }}([]{{ renderType $arg.Type }}{fx.{{ $arg.Field }}(), fx.{{ $arg.Field }}()Other()}), {{ renderExpr (external $a.ModelPkg "Make") }}[{{ renderType $arg.Type }}]()).Draw(t, {{ printf "%q" (printf "%s_arg%d" $a.Method $i) }}),
+						{{ renderExpr (external $a.ModelPkg "OneOf") }}({{ renderExpr (external $a.ModelPkg "SampledFrom") }}([]{{ renderType $arg.Type }}{fx.{{ $arg.Field }}(), fx.{{ $arg.OtherField }}()}), {{ renderExpr (external $a.ModelPkg "Make") }}[{{ renderType $arg.Type }}]()).Draw(t, {{ printf "%q" (printf "%s_arg%d" $a.Method $i) }}),
 {{- else }}
-						{{ renderExpr (external $a.ModelPkg "SampledFrom") }}([]{{ renderType $arg.Type }}{fx.{{ $arg.Field }}(), fx.{{ $arg.Field }}()Other()}).Draw(t, {{ printf "%q" (printf "%s_arg%d" $a.Method $i) }}),
+						{{ renderExpr (external $a.ModelPkg "SampledFrom") }}([]{{ renderType $arg.Type }}{fx.{{ $arg.Field }}(), fx.{{ $arg.OtherField }}()}).Draw(t, {{ printf "%q" (printf "%s_arg%d" $a.Method $i) }}),
 {{- end }}
 {{- end }}
 					}

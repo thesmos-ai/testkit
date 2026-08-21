@@ -14,3 +14,5 @@ Record/cancel	signature/cancel	Record reports a cancelled context as cancelled
 Record/deadline	signature/deadline	Record reports an expired deadline as exceeded	
 Record/nilcontext	signature/nilcontext	Record returns an error rather than panicking on a nil context	
 Record/smoke	signature/smoke	Record survives a call with a derived entry	
+model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+model/mixed/laws	model/laws	every bound law holds over random operation sequences	

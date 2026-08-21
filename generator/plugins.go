@@ -101,19 +101,8 @@ func DirectiveSchemas() []sdk.DirectiveSchema {
 	for _, g := range generators {
 		out = append(out, schemasOf(g)...)
 	}
-	// The dormant model tier's schema, registered though its generator is
-	// not. A directive is screened by this list and stamped by a plugin,
-	// and the two are separable: dropping the schema with the generator
-	// turned every `//testkit:model` already written into "no directive
-	// named model", which is the pre-screen correctly reporting a
-	// vocabulary this build no longer admits. Source that declares a
-	// model is not wrong; this build simply does not act on it.
-	return append(out, schemasOf(dormant()...)...)
+	return out
 }
-
-// dormant returns the generators this build registers a vocabulary for
-// and does not run. See [Generators] for why the model tier is one.
-func dormant() []sdk.Plugin { return []sdk.Plugin{model.New()} }
 
 // schemasOf returns a plugin's declared directive schemas, empty for one that
 // declares none.
@@ -143,12 +132,9 @@ func schemasOf(plugins ...sdk.Plugin) []sdk.DirectiveSchema {
 // The model tier emits no file of its own. It contributes into the harness
 // the suite generator emits, through the regions that generator hands out, so
 // a consumer reads one generated file per interface and a claim's rows sit
-// beside the rows they are compared against.
-//
-// It is registered for what it contributes today, which is the capability a
-// clocked law needs. Its rows and their assertions are the contributions still
-// to come; until they land the tier derives everything and emits one field and
-// the line that carries it.
+// beside the rows they are compared against: the capability fields its checks
+// need, the rows themselves, and the pools, reference, actions and laws those
+// rows run.
 func Generators() []sdk.Plugin {
 	return []sdk.Plugin{
 		builder.New(),

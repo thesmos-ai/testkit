@@ -1,2 +1,3 @@
 testkit-checks v2
 Describe/smoke	signature/smoke	Describe survives a call	
+model/pure/laws	model/laws	every bound law holds over random operation sequences	
