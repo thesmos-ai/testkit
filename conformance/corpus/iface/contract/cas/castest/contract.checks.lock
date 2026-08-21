@@ -8,6 +8,6 @@ Put/cancel	signature/cancel	Put reports a cancelled context as cancelled
 Put/deadline	signature/deadline	Put reports an expired deadline as exceeded	
 Put/nilcontext	signature/nilcontext	Put returns an error rather than panicking on a nil context	
 Put/smoke	signature/smoke	Put survives a call with a derived value	
+model/contract/AUTO-CAS-ATOMIC-ONE-WINNER	model/laws	two concurrent writes from one version leave exactly one winner	AUTO-CAS-ATOMIC-ONE-WINNER
 model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/contract/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
-model/contract/laws	model/laws	every bound law holds over random operation sequences	

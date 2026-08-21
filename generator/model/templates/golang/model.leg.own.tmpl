@@ -26,6 +26,16 @@ func {{ .Assert }}(
 {{- if .Drain }}
 	drainSub := {{ .Drain }}
 {{- end }}
+{{- if .Builds }}
+	factory := func() {{ .Subject }} { return sub.New(tb) }
+{{- end }}
+{{- if .Coalesces }}
+	// The coalescing law's own instrumentation: its compute increments
+	// this under the lock, because a subject that fails to coalesce
+	// invokes it concurrently.
+	coalesceCalls := 0
+	var coalesceMu {{ renderExpr (external "sync" "Mutex") }}
+{{- end }}
 
 	buildRef, tier := {{ renderExpr (external .LegsPkg "Reference") }}(tb, sub, {{ template "model.leg.ref" . }})
 	sub.NoteTier(tier)

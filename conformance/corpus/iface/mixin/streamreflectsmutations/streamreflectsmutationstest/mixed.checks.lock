@@ -8,4 +8,6 @@ Remove/deadline	signature/deadline	Remove reports an expired deadline as exceede
 Remove/nilcontext	signature/nilcontext	Remove returns an error rather than panicking on a nil context	
 Remove/smoke	signature/smoke	Remove survives a call with a derived item	
 Stream/smoke	signature/smoke	Stream survives a call	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-STREAM-COMPLETION	model/laws	the stream terminates within the declared limit	AUTO-STREAM-COMPLETION
+model/mixed/AUTO-STREAM-REENTRANT	model/laws	draining twice yields the same items	AUTO-STREAM-REENTRANT
+model/mixed/AUTO-STREAM-REFLECTS-MUTATIONS	model/laws	a written item appears in the next drain, and a deleted one stops appearing	AUTO-STREAM-REFLECTS-MUTATIONS

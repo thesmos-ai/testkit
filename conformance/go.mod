@@ -10,6 +10,7 @@ require (
 	go.thesmos.sh/testkit v0.10.0
 	go.thesmos.sh/testkit/engine v0.0.0-00010101000000-000000000000
 	go.thesmos.sh/testkit/generator v0.0.0-00010101000000-000000000000
+	pgregory.net/rapid v1.3.0
 )
 
 require (
@@ -18,7 +19,6 @@ require (
 	golang.org/x/mod v0.39.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
-	pgregory.net/rapid v1.3.0 // indirect
 )
 
 // The runtime and generator modules are developed in lockstep with this one

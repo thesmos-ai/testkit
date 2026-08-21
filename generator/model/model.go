@@ -25,7 +25,7 @@ const Capability = "model"
 
 // Version composes into the pipeline's plugin fingerprint. Bump it on any
 // change to what this plugin emits, the projection or the templates alike.
-const Version = "0.69.0"
+const Version = "0.70.0"
 
 // DirectiveName is the bare directive name — without the `//testkit:` prefix —
 // that opts an interface in.
@@ -622,18 +622,27 @@ func LawsDraw(laws []*LawBinding, pool string) bool {
 	return false
 }
 
+// LawsNeed reports whether any of these laws carries a field of the
+// given kind — the question a leg asks to know which locals it owes.
+//
+// A worded law has a leg of its own now, and the locals its literal
+// reads are that leg's to declare: the bundle used to declare them for
+// every law at once, and a promoted law taken out of the bundle takes
+// its locals with it.
+func LawsNeed(laws []*LawBinding, kind sdk.Kind) bool {
+	for _, l := range laws {
+		if slices.ContainsFunc(l.Fields, func(f *LawField) bool { return f.KindName == kind }) {
+			return true
+		}
+	}
+	return false
+}
+
 // LawsDrawDrain reports whether any of these laws reads the publisher's
 // subscription sweep — the one extra local a worded law's own leg has to
 // declare, since the bundle that used to declare it no longer carries it.
 func LawsDrawDrain(laws []*LawBinding) bool {
-	for _, l := range laws {
-		for _, f := range l.Fields {
-			if f.KindName == sdk.Kind(LawFieldKindPrefix+"DrainSub") {
-				return true
-			}
-		}
-	}
-	return false
+	return LawsNeed(laws, sdk.Kind(LawFieldKindPrefix+"DrainSub"))
 }
 
 // PoolsFor are the law-declared pools the given laws actually name, in

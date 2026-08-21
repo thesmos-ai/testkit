@@ -4,4 +4,5 @@ Fail/nilcontext	signature/nilcontext	Fail returns an error rather than panicking
 Fail/smoke	signature/smoke	Fail survives a call	
 Probe/smoke	signature/smoke	Probe survives a call	
 model/mixed/AUTO-POISON-CONSISTENT	model/poison	once the mixed reports it is closed, it keeps reporting it	AUTO-POISON-CONSISTENT
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-POISON-IDEMPOTENT-READ	model/laws	two consecutive reads of the poison answer the same thing	AUTO-POISON-IDEMPOTENT-READ
+model/mixed/AUTO-POISON-NIL-ON-FRESH	model/laws	a freshly built subject reports no poison	AUTO-POISON-NIL-ON-FRESH

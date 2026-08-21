@@ -1,3 +1,3 @@
 testkit-checks v2
 Describe/smoke	signature/smoke	Describe survives a call	
-model/pure/laws	model/laws	every bound law holds over random operation sequences	
+model/pure/AUTO-PURE-DETERMINISTIC	model/laws	the call answers the same on repeated calls	AUTO-PURE-DETERMINISTIC

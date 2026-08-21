@@ -9,5 +9,5 @@ Store/cancel	signature/cancel	Store reports a cancelled context as cancelled
 Store/deadline	signature/deadline	Store reports an expired deadline as exceeded	
 Store/nilcontext	signature/nilcontext	Store returns an error rather than panicking on a nil context	
 Store/smoke	signature/smoke	Store survives a call with derived inputs	
+model/mixed/AUTO-INJECTION-SAFE	model/laws	a payload of metacharacters round-trips as literal data	AUTO-INJECTION-SAFE
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	

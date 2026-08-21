@@ -134,6 +134,255 @@ func worded() map[string]law {
 			"an entry stops being readable once its lifetime has run out",
 			"Expiry", "TTLExpiry",
 		},
+
+		// The rest of the registry, each worded from the law's own body
+		// rather than from its name. The accessor is the identifier this
+		// package declares the law under: an index is scoped to one
+		// interface, so a shorter word would often read better, but
+		// shortening invites two laws meeting under one name — a
+		// paginator and a stream both wanting NoDuplicates — and a
+		// collision there is a generated file that does not compile.
+		Associative: {
+			"applying the same values in either order leaves the same observation",
+			"Associative", "Associative",
+		},
+		CommutativeWrite: {
+			"two writes in either order leave the same observation",
+			"CommutativeWrite", "CommutativeWrite",
+		},
+		Conservative: {
+			"a mutation leaves the sum of the conserved field unchanged",
+			"Conservative", "Conservative",
+		},
+		Windowed: {
+			"the window reflects an event until the clock passes the window, and not after",
+			"Windowed", "Windowed",
+		},
+		CausalOrdering: {
+			"the run's operations are consistent with one causal order",
+			"CausalOrdering", "CausalOrdering",
+		},
+		HashChainIntegrityVerify: {
+			"the chain verifies its own integrity after every operation",
+			"HashChainIntegrityVerify", "HashChainIntegrityVerify",
+		},
+		ReplayCausalOrdering: {
+			"every replayed entry appears after the entries it depends on",
+			"ReplayCausalOrdering", "ReplayCausalOrdering",
+		},
+		PoolBalanced: {
+			"the pool's outstanding count never goes negative and returns to zero at rest",
+			"PoolBalanced", "PoolBalanced",
+		},
+		PoolLeakFree: {
+			"with no cycle outstanding, the pool reports itself balanced",
+			"PoolLeakFree", "PoolLeakFree",
+		},
+		SagaFullCompensation: {
+			"a saga whose step fails leaves the state it started from",
+			"SagaFullCompensation", "SagaFullCompensation",
+		},
+		TwoPhaseMutex: {
+			"once a transaction commits or rolls back, the other reports it closed",
+			"TwoPhaseMutex", "TwoPhaseMutex",
+		},
+		TwoPhaseRollbackAfterCommit: {
+			"rolling back a committed transaction reports it closed",
+			"TwoPhaseRollbackAfterCommit", "TwoPhaseRollbackAfterCommit",
+		},
+		CASAtomicOneWinner: {
+			"two concurrent writes from one version leave exactly one winner",
+			"CASAtomicOneWinner", "CASAtomicOneWinner",
+		},
+		PaginatorNoDuplicates: {
+			"a full walk emits every element at most once",
+			"PaginatorNoDuplicates", "PaginatorNoDuplicates",
+		},
+		PaginatorResumable: {
+			"resuming from a cursor yields exactly the suffix the full walk would have",
+			"PaginatorResumable", "PaginatorResumable",
+		},
+		PersisterRetrievable: {
+			"what a save answers is what a read finds",
+			"PersisterRetrievable", "PersisterRetrievable",
+		},
+		SingleflightCoalesces: {
+			"concurrent calls for one key compute at most once",
+			"SingleflightCoalesces", "SingleflightCoalesces",
+		},
+		TransactionNoMidTxVisibility: {
+			"a write inside an open transaction is invisible until it commits",
+			"TransactionNoMidTxVisibility", "TransactionNoMidTxVisibility",
+		},
+		TransactionRollback: {
+			"a transaction whose body errs leaves none of its writes visible",
+			"TransactionRollback", "TransactionRollback",
+		},
+		UpdaterReplaces: {
+			"the second update of a key is the one that reads back",
+			"UpdaterReplaces", "UpdaterReplaces",
+		},
+		UpserterIdempotent: {
+			"upserting the same value twice leaves what the first upsert left",
+			"UpserterIdempotent", "UpserterIdempotent",
+		},
+		WatcherReturnsOnChange: {
+			"a watch established before a change observes it",
+			"WatcherReturnsOnChange", "WatcherReturnsOnChange",
+		},
+		PublisherDelivery: {
+			"every subscriber's delivery count is within the declared bound",
+			"PublisherDelivery", "PublisherDelivery",
+		},
+		PublisherAtMostOnce: {
+			"no subscriber receives a published message more than once",
+			"PublisherAtMostOnce", "PublisherAtMostOnce",
+		},
+		PublisherExactlyOnce: {
+			"every subscriber receives a published message exactly once",
+			"PublisherExactlyOnce", "PublisherExactlyOnce",
+		},
+		EventualConvergence: {
+			"replicas given disjoint writes converge once they exchange state",
+			"EventualConvergence", "EventualConvergence",
+		},
+		CRDTMerge: {
+			"two replicas that merge each other's state end up observably the same",
+			"CRDTMerge", "CRDTMerge",
+		},
+		DeleteReturnsNotFound: {
+			"where the reference reports the miss sentinel, so does the subject",
+			"DeleteReturnsNotFound", "DeleteReturnsNotFound",
+		},
+		IdempotentLifecycle: {
+			"calling the lifecycle method twice leaves what calling it once left",
+			"IdempotentLifecycle", "IdempotentLifecycle",
+		},
+		LeakFree: {
+			"repeated open-and-close cycles leak no goroutines",
+			"LeakFree", "LeakFree",
+		},
+		PoisonIdempotentRead: {
+			"two consecutive reads of the poison answer the same thing",
+			"PoisonIdempotentRead", "PoisonIdempotentRead",
+		},
+		PoisonNilOnFresh: {
+			"a freshly built subject reports no poison",
+			"PoisonNilOnFresh", "PoisonNilOnFresh",
+		},
+		MonotonicReads: {
+			"a client's successive reads of a key never go backwards",
+			"MonotonicReads", "MonotonicReads",
+		},
+		MonotonicWrites: {
+			"a client's successive writes to a key are stamped in issue order",
+			"MonotonicWrites", "MonotonicWrites",
+		},
+		ReadYourWrites: {
+			"a client reading after its own write sees that write or a later one",
+			"ReadYourWrites", "ReadYourWrites",
+		},
+		WritesFollowReads: {
+			"a client's write is stamped no older than what it has read",
+			"WritesFollowReads", "WritesFollowReads",
+		},
+		PredicateConsistent: {
+			"the predicate answers the same on repeated calls",
+			"PredicateConsistent", "PredicateConsistent",
+		},
+		PureDeterministic: {
+			"the call answers the same on repeated calls",
+			"PureDeterministic", "PureDeterministic",
+		},
+		DefaultOnError: {
+			"a read that errs answers the declared default",
+			"DefaultOnError", "DefaultOnError",
+		},
+		MonotonicNonDecreasing: {
+			"the count never decreases across calls",
+			"MonotonicNonDecreasing", "MonotonicNonDecreasing",
+		},
+		PointInTime: {
+			"a read at a time answers what was committed at or before it",
+			"PointInTime", "PointInTime",
+		},
+		Sticky: {
+			"once a key resolves, it keeps resolving to the same value",
+			"Sticky", "Sticky",
+		},
+		SnapshotIsolationG0: {
+			"the recorded transaction history has no write cycles",
+			"SnapshotIsolationG0", "SnapshotIsolationG0",
+		},
+		SnapshotIsolationG1: {
+			"the recorded transaction history has no aborted, intermediate or cyclic reads",
+			"SnapshotIsolationG1", "SnapshotIsolationG1",
+		},
+		SnapshotIsolationG2: {
+			"the recorded transaction history has no write skew",
+			"SnapshotIsolationG2", "SnapshotIsolationG2",
+		},
+		LossyRoundtrip: {
+			"encoding what a decode produced gives the same encoding back",
+			"LossyRoundtrip", "LossyRoundtrip",
+		},
+		Roundtrip: {
+			"decoding what was encoded gives back what went in",
+			"Roundtrip", "Roundtrip",
+		},
+		TotalOver: {
+			"every input in the declared domain answers something other than the zero value",
+			"TotalOver", "TotalOver",
+		},
+		StreamCompletion: {
+			"the stream terminates within the declared limit",
+			"StreamCompletion", "StreamCompletion",
+		},
+		StreamNoDuplicates: {
+			"each drain emits every element at most once",
+			"StreamNoDuplicates", "StreamNoDuplicates",
+		},
+		StreamOverMatch: {
+			"every required element appears in the drain",
+			"StreamOverMatch", "StreamOverMatch",
+		},
+		StreamPermutation: {
+			"the drain is a permutation of the expected elements",
+			"StreamPermutation", "StreamPermutation",
+		},
+		StreamReentrant: {
+			"draining twice yields the same items",
+			"StreamReentrant", "StreamReentrant",
+		},
+		StreamReflectsMutations: {
+			"a written item appears in the next drain, and a deleted one stops appearing",
+			"StreamReflectsMutations", "StreamReflectsMutations",
+		},
+		StreamStableOrder: {
+			"the drain's order follows the declared one",
+			"StreamStableOrder", "StreamStableOrder",
+		},
+		AtomicWrite: {
+			"a write that errs leaves the observable state unchanged",
+			"AtomicWrite", "AtomicWrite",
+		},
+		InjectionSafe: {
+			"a payload of metacharacters round-trips as literal data",
+			"InjectionSafe", "InjectionSafe",
+		},
+		TamperEvident: {
+			"tampering with stored data is detectable afterwards",
+			"TamperEvident", "TamperEvident",
+		},
+		ValidTransition: {
+			"a write only moves the field along a declared transition",
+			"ValidTransition", "ValidTransition",
+		},
+		XSSSafe: {
+			"no script-capable markup survives rendering",
+			"XSSSafe", "XSSSafe",
+		},
+
 		// The writer pair. Both are about what a write leaves behind,
 		// and both say so through the reader that observes it — neither
 		// claims anything about a write nothing reads back.

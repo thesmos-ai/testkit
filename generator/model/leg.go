@@ -108,6 +108,12 @@ type OwnLeg struct {
 	// this one now that a worded law has a leg of its own.
 	Drain string
 
+	// Builds says the law builds subjects of its own — an algebraic
+	// claim comparing two folds, a freshness claim wanting an untouched
+	// one — and Coalesces that it counts its own invocations under a
+	// lock. Both are locals the bundle declared and this leg now owes.
+	Builds, Coalesces bool
+
 	// Keys and Values say which shared pools the law draws, and Pools the
 	// ones it brings of its own. A local for a pool this law does not
 	// read would not compile.
@@ -255,6 +261,9 @@ func ownLegFor(b *Bindings, base leg, law *LawBinding) sdk.EmitNode {
 	if b.Publisher != nil && LawsDrawDrain(one) {
 		body.Drain = b.Publisher.DrainName
 	}
+	body.Builds = LawsNeed(one, factoryFieldKind)
+	body.Coalesces = LawsNeed(one, sdk.Kind(LawFieldKindPrefix+"Compute")) ||
+		LawsNeed(one, sdk.Kind(LawFieldKindPrefix+"Counter"))
 	if law.Clocked {
 		return &ClockedLeg{OwnLeg: body, Clock: ClockPkg}
 	}

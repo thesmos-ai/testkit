@@ -13,4 +13,4 @@ Step/deadline	signature/deadline	Step reports an expired deadline as exceeded
 Step/nilcontext	signature/nilcontext	Step returns an error rather than panicking on a nil context	
 Step/smoke	signature/smoke	Step survives a call with a derived value	
 model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
-model/contract/laws	model/laws	every bound law holds over random operation sequences	
+model/contract/AUTO-SAGA-FULL-COMPENSATION	model/laws	a saga whose step fails leaves the state it started from	AUTO-SAGA-FULL-COMPENSATION

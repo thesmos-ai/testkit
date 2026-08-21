@@ -4,4 +4,4 @@ Render/deadline	signature/deadline	Render reports an expired deadline as exceede
 Render/nilcontext	signature/nilcontext	Render returns an error rather than panicking on a nil context	
 Render/smoke	signature/smoke	Render survives a call with a seeded in	
 Render/zero-on-error	signature/zero-on-error	Render returns zero alongside any error	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-XSS-SAFE	model/laws	no script-capable markup survives rendering	AUTO-XSS-SAFE

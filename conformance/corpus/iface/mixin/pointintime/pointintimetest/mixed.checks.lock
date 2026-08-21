@@ -9,6 +9,6 @@ Store/cancel	signature/cancel	Store reports a cancelled context as cancelled
 Store/deadline	signature/deadline	Store reports an expired deadline as exceeded	
 Store/nilcontext	signature/nilcontext	Store returns an error rather than panicking on a nil context	
 Store/smoke	signature/smoke	Store survives a call with a derived value	
+model/mixed/AUTO-POINT-IN-TIME	model/laws	a read at a time answers what was committed at or before it	AUTO-POINT-IN-TIME
 model/mixed/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	

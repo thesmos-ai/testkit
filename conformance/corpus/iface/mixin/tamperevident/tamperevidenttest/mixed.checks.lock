@@ -9,4 +9,4 @@ Store/smoke	signature/smoke	Store survives a call with a derived body
 Verify/cancel	signature/cancel	Verify reports a cancelled context as cancelled	
 Verify/nilcontext	signature/nilcontext	Verify returns an error rather than panicking on a nil context	
 Verify/smoke	signature/smoke	Verify survives a call	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-TAMPER-EVIDENT	model/laws	tampering with stored data is detectable afterwards	AUTO-TAMPER-EVIDENT

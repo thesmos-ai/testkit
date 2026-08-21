@@ -8,5 +8,5 @@ Subscribe/deadline	signature/deadline	Subscribe reports an expired deadline as e
 Subscribe/nilcontext	signature/nilcontext	Subscribe returns an error rather than panicking on a nil context	
 Subscribe/smoke	signature/smoke	Subscribe survives a call	
 Subscribe/zero-on-error	signature/zero-on-error	Subscribe returns a nil channel alongside any error	
+model/contract/AUTO-PUBLISHER-AT-MOST-ONCE	model/laws	no subscriber receives a published message more than once	AUTO-PUBLISHER-AT-MOST-ONCE
 model/contract/AUTO-PUBLISHER-DELIVERS	model/laws	a message published after subscribers registered reaches every one of them	AUTO-PUBLISHER-DELIVERS
-model/contract/laws	model/laws	every bound law holds over random operation sequences	

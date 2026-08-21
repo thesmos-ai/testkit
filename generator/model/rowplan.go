@@ -147,7 +147,7 @@ func ownLegRows(b *Bindings) []projection.CheckPlan {
 			},
 			Class: class,
 			Claim: claim,
-			Needs: needsFor(class),
+			Needs: needsFor(l),
 			Body:  projection.LawLeg{Laws: bind},
 			Binds: bind,
 		}, b, defect, over, proven))
@@ -155,16 +155,20 @@ func ownLegRows(b *Bindings) []projection.CheckPlan {
 	return out
 }
 
-// needsFor is what a leg demands of the harness beyond a constructor.
+// needsFor is what a row demands of the harness beyond a constructor.
 //
-// One capability, and read off the leg's class rather than off the law:
-// a clocked law is one whose Advance moves time, and time is exactly what
-// the subject has to be built on. Every other own leg provokes what it
-// needs through methods the interface already declares, so it asks for
-// nothing — a field a consumer must fill for a check that never reads it
-// is worse than no field at all.
-func needsFor(class vocab.Class) []projection.NeedPlan {
-	if class == vocab.ClassClocked {
+// Read off the LAW rather than off the row's class, because the two do
+// not line up and the corpus proved it: the windowed law advances past
+// the window it declared, so its binding is clocked, but it reports
+// under the plain laws class and a class-keyed answer left it asking for
+// no clock while its leg demanded one. The law is what moves time.
+//
+// One capability. Every other leg provokes what it needs through methods
+// the interface already declares, so it asks for nothing — a field a
+// consumer must fill for a check that never reads it is worse than no
+// field at all.
+func needsFor(l *LawBinding) []projection.NeedPlan {
+	if l.Clocked {
 		return []projection.NeedPlan{{Capability: vocab.CapClock}}
 	}
 	return nil

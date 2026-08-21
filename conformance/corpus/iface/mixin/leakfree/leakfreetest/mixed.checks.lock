@@ -11,4 +11,4 @@ Release/cancel	signature/cancel	Release reports a cancelled context as cancelled
 Release/nilcontext	signature/nilcontext	Release returns an error rather than panicking on a nil context	
 Release/smoke	signature/smoke	Release survives a call	
 model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-LEAK-FREE	model/laws	repeated open-and-close cycles leak no goroutines	AUTO-LEAK-FREE

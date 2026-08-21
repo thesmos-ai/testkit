@@ -47,6 +47,9 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) windowedtest.MixedHarness[*windowedtest.InMemory] {
 	return windowedtest.MixedHarness[*windowedtest.InMemory]{
 		Name: name, New: windowedtest.NewInMemory,
+		// The window check advances past the window it declared, which
+		// only moves a clock the subject was built on.
+		OnClock: windowedtest.NewInMemoryOn,
 	}
 }
 

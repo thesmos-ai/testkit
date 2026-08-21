@@ -9,4 +9,4 @@ Encode/deadline	signature/deadline	Encode reports an expired deadline as exceede
 Encode/nilcontext	signature/nilcontext	Encode returns an error rather than panicking on a nil context	
 Encode/smoke	signature/smoke	Encode survives a call with a seeded in	
 Encode/zero-on-error	signature/zero-on-error	Encode returns zero alongside any error	
-model/contract/laws	model/laws	every bound law holds over random operation sequences	
+model/contract/AUTO-LOSSY-ROUNDTRIP	model/laws	encoding what a decode produced gives the same encoding back	AUTO-LOSSY-ROUNDTRIP

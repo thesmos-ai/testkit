@@ -31,6 +31,16 @@ func {{ .Assert }}(
 {{- if .Drain }}
 	drainSub := {{ .Drain }}
 {{- end }}
+{{- if .Builds }}
+	factory := func() {{ .Subject }} { return sub.New(tb) }
+{{- end }}
+{{- if .Coalesces }}
+	// The coalescing law's own instrumentation: its compute increments
+	// this under the lock, because a subject that fails to coalesce
+	// invokes it concurrently.
+	coalesceCalls := 0
+	var coalesceMu {{ renderExpr (external "sync" "Mutex") }}
+{{- end }}
 
 	// One clock per iteration, from a fixed origin: the factory builds the
 	// subject on it and the law's Advance moves exactly it, so the two

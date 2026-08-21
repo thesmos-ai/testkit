@@ -4,4 +4,4 @@ Classify/deadline	signature/deadline	Classify reports an expired deadline as exc
 Classify/nilcontext	signature/nilcontext	Classify returns an error rather than panicking on a nil context	
 Classify/smoke	signature/smoke	Classify survives a call with a seeded in	
 Normalize/smoke	signature/smoke	Normalize survives a call with a seeded in	
-model/mixed/laws	model/laws	every bound law holds over random operation sequences	
+model/mixed/AUTO-TOTAL-OVER	model/laws	every input in the declared domain answers something other than the zero value	AUTO-TOTAL-OVER

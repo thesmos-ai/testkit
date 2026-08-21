@@ -10,4 +10,4 @@ Run/nilcontext	signature/nilcontext	Run returns an error rather than panicking o
 Run/smoke	signature/smoke	Run survives a call with seeded inputs	
 Run/zero-on-error	signature/zero-on-error	Run returns zero alongside any error	
 model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
-model/contract/laws	model/laws	every bound law holds over random operation sequences	
+model/contract/AUTO-SINGLEFLIGHT-COALESCES	model/laws	concurrent calls for one key compute at most once	AUTO-SINGLEFLIGHT-COALESCES
