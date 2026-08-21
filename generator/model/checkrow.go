@@ -36,8 +36,11 @@ type CheckRow struct {
 	Claim string
 
 	// Proven says the row has a planted defect behind it, so the harness
-	// may stamp it Proven rather than Argued.
-	Proven bool
+	// may stamp it Proven rather than Argued. Argument is why not, where
+	// it is not: claiming proof without the evidence is refused in both
+	// directions, so an unproven row states its case.
+	Proven   bool
+	Argument string
 
 	// Needs are the capabilities the row demands of the harness — the
 	// clock a clocked law advances, the induction a poison law provokes.
@@ -63,9 +66,10 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 		out = append(out, CheckRow{
 			Accessor:   rowAccessor(p.ID),
 			AssertName: rowAssertName(token, p.ID),
-			ClassConst: string(p.Class),
+			ClassConst: classConst(p.Class),
 			Claim:      p.Claim,
 			Proven:     p.Falsifiable.State == vocab.Proven().State,
+			Argument:   p.Falsifiable.Why,
 			Needs:      p.Needs,
 			Binds:      p.Binds,
 		})
@@ -81,7 +85,24 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 // tier renders is about the interface as a whole, which is what "the
 // claim needs sequences rather than a call" means.
 func rowAccessor(id projection.IDPlan) string {
-	return golang.ExportedName(id.Seg)
+	acc, err := projection.AccessorOf(id)
+	if err != nil {
+		return golang.ExportedName(id.Seg)
+	}
+	return acc.Name
+}
+
+// classConst is the runtime's identifier for a class, so a generated row
+// names the constant rather than spelling its value.
+//
+// A class rendered as its value is a qualified reference to something
+// that is not a declaration — `suite.model/laws` — which does not parse.
+// The vocabulary has one home and this asks it.
+func classConst(c vocab.Class) string {
+	if name, ok := vocab.ClassConst(c); ok {
+		return name
+	}
+	return ""
 }
 
 // rowAssertName is the generated assertion's identifier —

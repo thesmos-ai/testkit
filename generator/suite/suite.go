@@ -168,6 +168,11 @@ type Contract struct {
 	// typed surface a consumer drops one through. Both are projections
 	// of the same nodes, which is what keeps the index from naming a
 	// check the run does not emit.
+	//
+	// Index covers this generator's own rows. A contributing tier's rows
+	// reach it through [Contract.CheckIndex], which is what the template
+	// reads — the contributions arrive after this value is built, since a
+	// contributor runs on the queued value.
 	Inventory projection.Inventory
 	Index     projection.IndexPlan
 
@@ -242,6 +247,12 @@ type Contract struct {
 	// lowering is the region a contributed field's assignment lands in.
 	// See [Contract.HarnessLowering].
 	lowering *sdk.Slot
+
+	// rows is the region another tier's checks land in, and decls the
+	// region the function those checks name is declared in. See
+	// [Contract.Rows] and [Contract.Decls].
+	rows  *sdk.Slot
+	decls *sdk.Slot
 }
 
 // Gaps words each refusal as the header states it: what was not

@@ -40,12 +40,20 @@ func (c *Contract) HarnessFields() *sdk.Slot {
 
 // Slot satisfies [sdk.SlotHost] so the backend's `slot` template helper
 // reaches the region by name.
+// A region reached by a name this switch does not know gets a fresh
+// empty one, which renders nothing at all — so a name added to the
+// vocabulary and not added here fails by omission rather than by error.
+// TestEveryRegionIsReachable holds the two together.
 func (c *Contract) Slot(name string) *sdk.Slot {
 	switch name {
 	case naming.SlotHarnessFields:
 		return c.HarnessFields()
 	case naming.SlotHarnessLowering:
 		return c.HarnessLowering()
+	case naming.SlotSuiteChecks:
+		return c.Rows()
+	case naming.SlotSuiteDecls:
+		return c.Decls()
 	}
 	return sdk.NewSlot(name, "")
 }

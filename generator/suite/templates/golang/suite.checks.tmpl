@@ -23,11 +23,12 @@ func {{ suite_suiteName .Token }}{{ renderTypeParams .TypeParams }}(
 	return {{ renderExpr (external $.Vocab "Suite") }}[{{ .IfaceName }}{{ .TypeArgs }}]{
 		Name:     "{{ .IfaceName }}",
 		DropHint: {{ suite_dropHintName .Token }},
-		Checks: {{ suite_checksName .Token }}{{ .TypeArgs }}(
+		Checks: {{ if (slot $c $c.RowsSlotName).Len }}append({{ end }}{{ suite_checksName .Token }}{{ .TypeArgs }}(
 			{{- if .DrawsFixture }}{{ suite_fixtureIdent }}{{ end }}
 			{{- if and .DrawsFixture .SeedsCorpus }}, {{ end }}
 			{{- if .SeedsCorpus }}{{ suite_docsIdent }}{{ end -}}
-		),
+		){{- range (slot $c $c.RowsSlotName).Items }},
+			{{ render . }}...{{ end }}{{ if (slot $c $c.RowsSlotName).Len }}){{ end }},
 	}
 }
 

@@ -1,0 +1,28 @@
+{{- /*
+model.rows.decl — the function the run surface's appended expression
+calls.
+
+Rendered at the harness file's package level. Each row names its
+identity through the typed index the harness generator emits, so a
+consumer drops one of these the way they drop any other.
+*/ -}}
+{{- define "model.rows.decl" -}}
+// {{ .Func }} is what this package's model tier claims.
+//
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all.
+func {{ .Func }}{{ renderTypeParams .TypeParams }}({{ if .FixtureParam }}{{ .FixtureParam }} {{ .FixtureType }}{{ end }}) []{{ renderExpr (external .Vocab "Check") }}[{{ .Subject }}] {
+	return []{{ renderExpr (external .Vocab "Check") }}[{{ .Subject }}]{
+{{- range .Rows }}
+		{
+			ID:          {{ $.IndexVar }}.{{ $.Group }}.{{ .Accessor }}(),
+			Class:       {{ renderExpr (external $.Vocab .ClassConst) }},
+			Claim:       {{ printf "%q" .Claim }},
+			Falsifiable: {{ if .Proven }}{{ renderExpr (external $.Vocab "Proven") }}(){{ else }}{{ renderExpr (external $.Vocab "Argued") }}({{ printf "%q" .Argument }}){{ end }},
+		},
+{{- end }}
+	}
+}
+{{- end -}}

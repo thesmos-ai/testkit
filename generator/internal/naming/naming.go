@@ -58,6 +58,20 @@ const (
 	// doors a contributing tier's checks need a consumer to supply.
 	SlotHarnessFields = "harness.fields"
 
+	// SlotSuiteChecks is the run surface's check list — an expression per
+	// contribution, each yielding a slice the surface appends.
+	SlotSuiteChecks = "suite.checks"
+
+	// SlotSuiteDecls is the file's package level, after everything the
+	// harness generator declares.
+	//
+	// Where the function a SlotSuiteChecks expression names is emitted,
+	// along with whatever it calls. The expression and the declaration
+	// are one contribution in two regions, for the reason a field and its
+	// lowering are: an expression naming a function nobody emitted is a
+	// compile error over generated code.
+	SlotSuiteDecls = "suite.decls"
+
 	// SlotHarnessLowering is the body of the harness's Subject method,
 	// after the runtime subject is built and before it is returned.
 	//
@@ -68,3 +82,14 @@ const (
 	// unrepresentable.
 	SlotHarnessLowering = "harness.lowering"
 )
+
+// Slots is every region a generator hands out, so the host that answers
+// them can be held to the list.
+//
+// A name here with no case in the host's switch mints a fresh, empty
+// region: the contribution lands somewhere nobody reads and the file
+// renders without it, which compiles. That is why the list exists rather
+// than the constants alone.
+func Slots() []string {
+	return []string{SlotHarnessFields, SlotHarnessLowering, SlotSuiteChecks, SlotSuiteDecls}
+}

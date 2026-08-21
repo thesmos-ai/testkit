@@ -1,0 +1,10 @@
+{{- /*
+model.rows.call — the expression the run surface appends.
+
+One call yielding every row this tier owns. The surface appends it to
+its own, so both tiers' checks reach one Suite and a consumer reads one
+report.
+*/ -}}
+{{- define "model.rows.call" -}}
+{{ .Func }}({{ .Fixture }})
+{{- end -}}

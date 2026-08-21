@@ -16,7 +16,7 @@ const (
 {{- range $m := .Methods }}
 	{{ suite_methodConst $c.Token $m.Name }} = {{ printf "%q" $m.Name }}
 {{- end }}
-{{- if .Index.HasFamily }}
+{{- if .CheckIndex.HasFamily }}
 
 	// The interface's word inside a family-scoped identity.
 	{{ suite_qualifierConst $c.Token }} = {{ printf "%q" $c.Qualifier }}
@@ -26,13 +26,13 @@ const (
 // {{ suite_indexVar .Token }} names every check in this file, grouped by method.
 // Reach it through {{ suite_veneerVar .IfaceName }}.Checks.
 var {{ suite_indexVar .Token }} = {{ suite_indexType .Token }}{
-{{- range $g := .Index.Groups }}
+{{- range $g := .CheckIndex.Groups }}
 	{{ $g.Field }}: {{ suite_groupType $c.Token $g.Field }}{},
 {{- end }}
 }
 
 type {{ suite_indexType .Token }} struct {
-{{- range $g := .Index.Groups }}
+{{- range $g := .CheckIndex.Groups }}
 	{{ $g.Field }} {{ suite_groupType $c.Token $g.Field }}
 {{- end }}
 }
@@ -40,12 +40,12 @@ type {{ suite_indexType .Token }} struct {
 // All returns every ID this package emits.
 func ({{ suite_indexType .Token }}) All() []{{ renderExpr (external $.Vocab "ID") }} {
 	var out []{{ renderExpr (external $.Vocab "ID") }}
-{{- range $g := .Index.Groups }}
+{{- range $g := .CheckIndex.Groups }}
 	out = append(out, {{ suite_groupType $c.Token $g.Field }}{}.All()...)
 {{- end }}
 	return out
 }
-{{ range $g := .Index.Groups }}
+{{ range $g := .CheckIndex.Groups }}
 type {{ suite_groupType $c.Token $g.Field }} struct{}
 {{ range $a := $g.Accessors }}
 func ({{ suite_groupType $c.Token $g.Field }}) {{ $a.Name }}() {{ renderExpr (external $.Vocab "ID") }} {

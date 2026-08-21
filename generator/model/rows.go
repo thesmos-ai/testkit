@@ -23,12 +23,14 @@ func RowKinds() []projection.BodyKind {
 	}
 }
 
-// Rows selects the rows this tier renders out of the whole planned
-// inventory, in plan order.
+// Rows selects the rows this tier renders out of a planned inventory, in
+// plan order.
 //
-// Order is the inventory's, which is the derivers' declaration order, so
-// the rendered rows and the header that describes them agree without
-// either sorting.
+// Kept for a reader of somebody else's inventory. This tier plans its own
+// rows now — see planRows — because the reason they were planned
+// elsewhere is gone: the harness's capability fields were projected from
+// the plans, so a clocked law's row had to be worked out with the field
+// it opened, and this tier contributes that field itself.
 func Rows(inv projection.Inventory) []projection.CheckPlan {
 	kinds := RowKinds()
 	var out []projection.CheckPlan

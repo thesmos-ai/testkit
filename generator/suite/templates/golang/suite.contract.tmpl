@@ -145,6 +145,10 @@ func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $f.OtherName }}() {{ render
 {{ template "suite.rows" $c }}
 
 {{ template "suite.run" $c }}
+{{- range (slot $c $c.DeclsSlotName).Items }}
+
+{{ render . }}
+{{- end }}
 {{- end -}}
 
 {{- /*

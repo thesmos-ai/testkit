@@ -10,7 +10,6 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
-	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
 )
@@ -61,8 +60,51 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 				return fmt.Errorf("%s: lower a door for %q: %w", Name, iface.Name, err)
 			}
 		}
+
+		// The rows this tier owns are planned and shaped — see planRows,
+		// CheckRows, RowCall and RowDecl — and not contributed yet.
+		//
+		// A row needs a body, and this tier's bodies drive sequences: the
+		// actions, the derived reference and the bound laws, which are
+		// what a RunWith would call. Those still render through the
+		// structural templates written for the file this tier no longer
+		// emits, so contributing a row today gives the runtime a check
+		// that sets neither Run nor RunWith, and it refuses it by name.
+		//
+		// Rendering them into the declarations region is the remaining
+		// work. Nothing above waits on it: the doors already contribute,
+		// and the regions, the index merge and the plan-to-row projection
+		// are all reached by tests.
 	}
 	return nil
+}
+
+// rowCallFor is this tier's contribution to the run surface, nil where
+// it planned no row.
+//
+// Nil rather than an empty call, because an expression yielding nothing
+// is a line in the generated file that says this tier ran and found
+// nothing to say — which reads as coverage. The header is where an
+// absence belongs.
+func rowCallFor(
+	c *sdk.Provenance, iface *sdk.Interface, b *Bindings, harness *suite.Contract,
+) *RowCall {
+	if len(b.Rows) == 0 {
+		return nil
+	}
+	// The harness generator's own flag, not this tier's: the call renders
+	// inside that generator's function and can only name a parameter that
+	// function declares.
+	fixture := ""
+	if harness.DrawsFixture {
+		fixture = fixtureIdent
+	}
+	return &RowCall{
+		BaseEmit: sdk.EmitBase(c, iface),
+		Func:     b.RowsFuncName(),
+		Fixture:  fixture,
+		Plans:    b.Rows,
+	}
 }
 
 // BindingsFor derives one interface's model tier, false where it
@@ -88,9 +130,7 @@ func BindingsFor(
 	if !usable {
 		return nil, false
 	}
-	return bindingsOf(
-		ctx, c, iface, &harness.Projection, harness.EntryName, harness.Inventory, witnesses,
-	)
+	return bindingsOf(ctx, c, iface, &harness.Projection, harness.EntryName, witnesses)
 }
 
 func bindingsOf(
@@ -99,7 +139,6 @@ func bindingsOf(
 	iface *sdk.Interface,
 	harness *subject.Projection,
 	entry string,
-	inv projection.Inventory,
 	witnesses []sdk.Ref,
 ) (*Bindings, bool) {
 	harness, witnessQ := witnessedHarness(harness, iface, witnesses)
@@ -111,7 +150,6 @@ func bindingsOf(
 		OptionTypeName: harness.IfaceName + "ModelOption",
 		ConfigName:     strings.ToLower(harness.IfaceName[:1]) + harness.IfaceName[1:] + "ModelConfig",
 		EntryName:      entry,
-		Rows:           Rows(inv),
 		FixtureCtor:    harness.Fixture.CtorName,
 		Witnesses:      witnesses,
 		witnessQ:       witnessQ,
@@ -269,6 +307,10 @@ func bindingsOf(
 	lawsOf(b, harness, partners, keyed)
 	saturationOf(b, harness)
 	concurrentOf(b, harness, keyed, valued)
+	// Last, because a row is planned from what bound: the laws decide
+	// which legs report, and the reference decides whether there is a
+	// differential at all.
+	b.Rows = PlanRows(b)
 	return b, true
 }
 
