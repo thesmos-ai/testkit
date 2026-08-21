@@ -1,0 +1,91 @@
+// Copyright Thesmos 2026
+// SPDX-License-Identifier: MIT
+
+package model_test
+
+import (
+	"testing"
+
+	"go.thesmos.sh/testkit"
+	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
+	"go.thesmos.sh/testkit/generator/model"
+)
+
+// A row carries everything the harness generator's own rows carry.
+//
+// They land in one []suite.Check and a consumer reading the report
+// cannot tell which generator wrote which, so a row that carried less
+// would be a row the runner treats differently.
+func TestCheckRowsCarryTheWholePlan(t *testing.T) {
+	t.Parallel()
+
+	rows := model.CheckRows("mixed", []projection.CheckPlan{{
+		ID:          projection.IDPlan{Family: vocab.FamilyModel, Seg: "ttl-expiry"},
+		Class:       vocab.ClassClocked,
+		Claim:       "an entry stops being readable once its lifetime has run out",
+		Falsifiable: vocab.Proven(),
+		Needs:       []projection.NeedPlan{{Capability: vocab.CapClock}},
+	}})
+
+	testkit.Len(t, rows, 1, "one row per plan")
+	r := rows[0]
+	testkit.Equal(t, r.Accessor, "TTLExpiry", "the index method, family fixed and segment varying")
+	testkit.Equal(t, r.AssertName, "mixedAssertTTLExpiry", "the token and the segment")
+	testkit.Equal(t, r.Claim, "an entry stops being readable once its lifetime has run out",
+		"carried verbatim — the plan's claim is what the census measured")
+	testkit.True(t, r.Proven, "a plan with a defect behind it may be stamped Proven")
+	testkit.Len(t, r.Needs, 1, "and the capability it demands of the harness")
+}
+
+// Needs travel through rather than being recomputed.
+//
+// The harness was projected from these before this generator ran, so a
+// second derivation could only disagree with a field that already
+// exists — and the disagreement would be silent: a row asking for a
+// capability the harness does not carry fails by name at run time, one
+// asking for nothing runs against a clock nobody advanced.
+func TestCheckRowsDoNotRederiveNeeds(t *testing.T) {
+	t.Parallel()
+
+	rows := model.CheckRows("mixed", []projection.CheckPlan{{
+		ID:    projection.IDPlan{Family: vocab.FamilyModel, Seg: "poison-consistent"},
+		Class: vocab.ClassPoison,
+		Needs: []projection.NeedPlan{{Capability: vocab.CapInduce, Value: "kv.ErrClosed"}},
+	}})
+
+	testkit.Equal(t, rows[0].Needs[0].Capability, vocab.CapInduce, "the plan's capability")
+	testkit.Equal(t, string(rows[0].Needs[0].Value), "kv.ErrClosed",
+		"and the sentinel it was stamped with, unaltered")
+}
+
+// An argued row is not stamped proven.
+func TestCheckRowsKeepTheFalsifiabilityVerdict(t *testing.T) {
+	t.Parallel()
+
+	rows := model.CheckRows("mixed", []projection.CheckPlan{{
+		ID:          projection.IDPlan{Family: vocab.FamilyModel, Seg: "laws"},
+		Falsifiable: vocab.Argued("no defect template plants this yet"),
+	}})
+
+	testkit.False(t, rows[0].Proven,
+		"claiming proof without the evidence is refused, in both directions")
+}
+
+// Nothing is dropped, because the index names every row this tier owns.
+func TestCheckRowsDropNothing(t *testing.T) {
+	t.Parallel()
+
+	plans := []projection.CheckPlan{
+		{ID: projection.IDPlan{Family: vocab.FamilyModel, Seg: "laws"}},
+		{ID: projection.IDPlan{Family: vocab.FamilyModel, Seg: "agrees"}},
+		{ID: projection.IDPlan{Family: vocab.FamilySim, Seg: "recovery"}},
+	}
+
+	rows := model.CheckRows("mixed", plans)
+	testkit.Len(t, rows, len(plans),
+		"a plan dropped here leaves the index naming a check nothing emits")
+	testkit.Equal(t, rows[2].AssertName, "mixedAssertRecovery", "the sim family is spelled the same way")
+
+	testkit.Len(t, model.CheckRows("mixed", nil), 0, "and no plans is no rows")
+}
