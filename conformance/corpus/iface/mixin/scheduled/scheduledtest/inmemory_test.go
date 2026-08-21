@@ -47,6 +47,9 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) scheduledtest.MixedHarness[*scheduledtest.InMemory] {
 	return scheduledtest.MixedHarness[*scheduledtest.InMemory]{
 		Name: name, New: scheduledtest.NewInMemory,
+		// The firing check advances past a scheduled offset, which only
+		// moves a clock the subject was built on.
+		OnClock: scheduledtest.NewInMemoryOn,
 	}
 }
 

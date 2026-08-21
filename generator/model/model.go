@@ -25,7 +25,7 @@ const Capability = "model"
 
 // Version composes into the pipeline's plugin fingerprint. Bump it on any
 // change to what this plugin emits, the projection or the templates alike.
-const Version = "0.64.0"
+const Version = "0.65.0"
 
 // DirectiveName is the bare directive name — without the `//testkit:` prefix —
 // that opts an interface in.
@@ -581,6 +581,60 @@ func (b *Bindings) lawsDraw(pool string) bool {
 	return b.lawFields(func(f *LawField) bool { return f.Pool == pool })
 }
 
+// LawsDraw reports whether any of the given laws draws from the named
+// shared pool.
+//
+// Exported for a leg carrying one law of its own: that leg declares the
+// pool locals its law reads and no others, and asking the whole bound set
+// would declare locals nothing there uses.
+func LawsDraw(laws []*LawBinding, pool string) bool {
+	for _, l := range laws {
+		if slices.ContainsFunc(l.Fields, func(f *LawField) bool { return f.Pool == pool }) {
+			return true
+		}
+	}
+	return false
+}
+
+// PoolsFor are the law-declared pools the given laws actually name, in
+// the order the derivation found them.
+//
+// Filtered rather than taken whole for the same reason: the pools were
+// derived for every selected law, and a leg carrying one of them declares
+// a local for that one alone.
+func (b *Bindings) PoolsFor(laws []*LawBinding) []LawPool {
+	named := map[string]bool{}
+	for _, l := range laws {
+		for _, f := range l.Fields {
+			named[f.Pool] = true
+		}
+	}
+	out := make([]LawPool, 0, len(b.LawPools))
+	for _, p := range b.LawPools {
+		if named[p.Name] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// OwnLegLaws are the laws that ride a leg of their own — the ones the
+// bundled observational run cannot carry, because each needs something
+// it does not provide: a clock to move, a subject in a failure state,
+// writes of its own.
+func (b *Bindings) OwnLegLaws() []*LawBinding {
+	var out []*LawBinding
+	for _, l := range b.Laws {
+		if len(l.Supplied) > 0 {
+			continue
+		}
+		if _, own := tiers.LegOf(l.ID); own {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 // LawsNeedFactory reports whether a bundled law builds instances of its
 // own — a merge claim compares two, and no observation over one states it.
 //
@@ -600,27 +654,8 @@ func (b *Bindings) lawFields(match func(*LawField) bool) bool {
 	return false
 }
 
-// LegLawPools are the law-declared pools the bundled laws actually name.
-//
-// Filtered rather than taken whole, because the pools were derived for
-// every selected law and the leg carries only some of them: a clocked
-// law's schedule offsets are declared by a law that rides its own leg, and
-// the local for it here would be one nothing reads.
-func (b *Bindings) LegLawPools() []LawPool {
-	named := map[string]bool{}
-	for _, l := range b.LegLaws() {
-		for _, f := range l.Fields {
-			named[f.Pool] = true
-		}
-	}
-	out := make([]LawPool, 0, len(b.LawPools))
-	for _, p := range b.LawPools {
-		if named[p.Name] {
-			out = append(out, p)
-		}
-	}
-	return out
-}
+// LegLawPools are the law-declared pools the bundled laws name.
+func (b *Bindings) LegLawPools() []LawPool { return b.PoolsFor(b.LegLaws()) }
 
 // ActionsUseKeys reports whether an action draws from the keys pool.
 //

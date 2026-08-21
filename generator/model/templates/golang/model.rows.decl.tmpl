@@ -29,6 +29,9 @@ func {{ .Func }}{{ renderTypeParams .TypeParams }}({{ if .FixtureParam }}{{ .Fix
 {{- end }}
 			},
 {{- end }}
+{{- if .NeedsCtor }}
+			Needs:       {{ renderExpr (external $.Vocab .NeedsCtor) }}(),
+{{- end }}
 			Falsifiable: {{ if .Proven }}{{ renderExpr (external $.Vocab "Proven") }}(){{ else }}{{ renderExpr (external $.Vocab "Argued") }}({{ printf "%q" .Argument }}){{ end }},
 			Strength:    {{ renderExpr (external $.Vocab .StrengthConst) }},
 			RunWith: func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external $.Vocab "Subject") }}[{{ $.Subject }}]) {

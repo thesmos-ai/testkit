@@ -1,0 +1,50 @@
+{{- /*
+model.leg.clocked — the body behind a row whose law moves time.
+
+[model.leg.own] with the one capability this tier asks a consumer for. A
+clock the subject does not read is a clock the law can advance forever
+without the subject noticing, so the constructor is the door rather than
+a setter on a built instance: an implementation that reads the clock when
+it is constructed cannot be told about a different one afterwards.
+*/ -}}
+{{- define "model.leg.clocked" -}}
+// {{ .Assert }} binds {{ .Law.ID }} over the shared sequences, on a clock
+// the run controls.
+//
+// The guard is here as well as in the runner because a check that
+// quietly skipped for want of wiring looks exactly like one that passed.
+func {{ .Assert }}(
+	tb {{ renderExpr (external "testing" "TB") }},
+	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
+{{- if .Draws }}
+	{{ .Fixture }} {{ .FixtureType }},
+{{- end }}
+) {
+	tb.Helper()
+
+	if sub.OnClock == nil {
+		tb.Fatalf("this check moves time: subject %q has no OnClock; set it on "+
+			"the harness, or drop the check", sub.Name)
+	}
+{{- template "model.leg.history" . }}
+{{- template "model.leg.pools" . }}
+
+	// One clock per iteration, from a fixed origin: the factory builds the
+	// subject on it and the law's Advance moves exactly it, so the two
+	// cannot disagree about which clock the subject reads. A wall reading
+	// would make the choice stream unreplayable.
+	var clk *{{ renderExpr (external .Clock "TestClock") }}
+	buildRef, tier := {{ renderExpr (external .LegsPkg "Reference") }}(tb, sub, {{ template "model.leg.ref" . }})
+	sub.NoteTier(tier)
+	{{ renderExpr (external .LegsPkg "Law") }}(tb, sub,
+		func() {{ .Subject }} {
+			clk = {{ renderExpr (external .Clock "NewTestClock") }}({{ renderExpr (external "time" "Unix") }}(0, 0))
+			return sub.OnClock(tb, clk)
+		}, buildRef,
+		{{ template "model.leg.actions" . }},
+		[]{{ renderExpr (external .LawPath "Law") }}[{{ .Subject }}]{
+			{{ render .Law }},
+		}{{ if .History }},
+		{{ template "model.leg.reset" . }}{{ end }})
+}
+{{- end -}}

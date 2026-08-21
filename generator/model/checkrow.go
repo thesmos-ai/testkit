@@ -50,13 +50,15 @@ type CheckRow struct {
 	Proven   bool
 	Argument string
 
-	// Needs are the capabilities the row demands of the harness — the
-	// clock a clocked law advances, the induction a poison law provokes.
+	// NeedsCtor is the runtime constructor spelling what this row demands
+	// of the harness beyond a constructor — `NeedsClock` — empty for a row
+	// that demands nothing.
 	//
-	// Carried through rather than recomputed. The harness was projected
-	// from these before this generator ran, so a second derivation could
-	// only disagree with a field that already exists.
-	Needs []projection.NeedPlan
+	// The named constructor rather than the capability and its value,
+	// because the runtime is where that pairing is decided: a row spelling
+	// `Needs(CapClock, nil)` would be a second place that has to know a
+	// clock door carries no value.
+	NeedsCtor string
 
 	// Binds names the laws the row reports under, where any back it, each
 	// as the lawid identifier that declares it. A generated file naming a
@@ -81,7 +83,7 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 			Claim:         p.Claim,
 			Proven:        p.Falsifiable.State == vocab.Proven().State,
 			Argument:      p.Falsifiable.Why,
-			Needs:         p.Needs,
+			NeedsCtor:     needsCtor(p.Needs),
 			Binds:         lawConsts(p.Binds),
 		})
 	}
@@ -101,6 +103,24 @@ func rowAccessor(id projection.IDPlan) string {
 		return golang.ExportedName(id.Seg)
 	}
 	return acc.Name
+}
+
+// needsCtor names the runtime constructor for what a row demands of the
+// harness, empty for a row that demands nothing.
+//
+// One capability at most, which is what this tier plans: a clocked law
+// needs the subject built on a clock it can move, and every other leg
+// provokes what it needs through methods the interface declares. A plan
+// carrying two would be one this cannot spell, so it says nothing rather
+// than spelling the first and dropping the second.
+func needsCtor(needs []projection.NeedPlan) string {
+	if len(needs) != 1 {
+		return ""
+	}
+	if needs[0].Capability == vocab.CapClock {
+		return "NeedsClock"
+	}
+	return ""
 }
 
 // strengthConst is the runtime's identifier for how far a body looks.
@@ -152,12 +172,15 @@ func classConst(c vocab.Class) string {
 }
 
 // rowAssertName is the generated assertion's identifier —
-// `mixedAssertTTLExpiry`.
+// `mixedAssertExpiry`.
 //
-// The token and the segment, by the harness generator's own rule, so a
-// reader who has learned one file's naming has learned both. It composes
-// here rather than reading [projection.AssertName] because that policy
-// takes a method and these rows have none.
+// The token and the row's own index accessor, by the harness generator's
+// own rule, so a reader who has learned one file's naming has learned
+// both. The accessor rather than the segment, because a law's segment is
+// its AUTO- identifier and `mixedAssertAUTOTTLEXPIRY` is what spelling it
+// directly produces. It composes here rather than reading
+// [projection.AssertName] because that policy takes a method and these
+// rows have none.
 func rowAssertName(token string, id projection.IDPlan) string {
-	return token + "Assert" + golang.ExportedName(id.Seg)
+	return token + "Assert" + rowAccessor(id)
 }

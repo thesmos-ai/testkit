@@ -5,7 +5,9 @@ package model
 
 import (
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
+	"go.thesmos.sh/testkit/generator/internal/subject"
 )
 
 // The claims this tier's own rows state.
@@ -73,7 +75,60 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Falsifiable: vocab.Argued(unproven),
 		})
 	}
+	return append(out, ownLegRows(b)...)
+}
+
+// ownLegRows is one row per law the shared sequences cannot carry.
+//
+// Its own row rather than a line in the bundle, because what a reader
+// wants from a red is which claim broke: every law on the shared leg
+// failed the same way, and these did not. Each reports under the law's
+// own identity and states the law's own sentence, so the report names the
+// claim rather than the machinery.
+//
+// A law whose claim will not word is refused here and named in the
+// header. The alternative is a row stating a sentence this package
+// invented for a law somebody else defined, which is how a manifest comes
+// to promise something nothing checks.
+func ownLegRows(b *Bindings) []projection.CheckPlan {
+	token := projection.Token(b.IfaceName)
+	var out []projection.CheckPlan
+	for _, l := range b.OwnLegLaws() {
+		class, _ := tiers.LegOf(l.ID)
+		claim, err := subject.ClaimOf(l.ID, token, l.Carriers())
+		if err != nil {
+			b.Unbound = append(b.Unbound, Skip{Method: l.ID, Reason: err.Error()})
+			continue
+		}
+		bind := []projection.Bind{{Law: l.ID}}
+		out = append(out, projection.CheckPlan{
+			ID: projection.IDPlan{
+				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: l.ID,
+			},
+			Class:       class,
+			Claim:       claim,
+			Needs:       needsFor(class),
+			Body:        projection.LawLeg{Laws: bind},
+			Binds:       bind,
+			Falsifiable: vocab.Argued(unproven),
+		})
+	}
 	return out
+}
+
+// needsFor is what a leg demands of the harness beyond a constructor.
+//
+// One capability, and read off the leg's class rather than off the law:
+// a clocked law is one whose Advance moves time, and time is exactly what
+// the subject has to be built on. Every other own leg provokes what it
+// needs through methods the interface already declares, so it asks for
+// nothing — a field a consumer must fill for a check that never reads it
+// is worse than no field at all.
+func needsFor(class vocab.Class) []projection.NeedPlan {
+	if class == vocab.ClassClocked {
+		return []projection.NeedPlan{{Capability: vocab.CapClock}}
+	}
+	return nil
 }
 
 // qualifier is the interface's word inside a family-scoped identity.

@@ -22,6 +22,8 @@ import (
 const (
 	KindDifferentialLeg sdk.Kind = "model.leg.differential"
 	KindLawsLeg         sdk.Kind = "model.leg.laws"
+	KindOwnLeg          sdk.Kind = "model.leg.own"
+	KindClockedLeg      sdk.Kind = "model.leg.clocked"
 )
 
 // leg is what every body needs and no template can work out for itself.
@@ -67,7 +69,7 @@ type leg struct {
 	Factory bool
 
 	// The packages a body reaches, so a template asks rather than spells.
-	Vocab, LegsPkg, ModelPkg, HistoryPkg string
+	Vocab, LegsPkg, ModelPkg, HistoryPkg, LawPath string
 }
 
 // Twin reports the floor where no independent reference exists: the leg
@@ -87,6 +89,45 @@ type LawsLeg struct{ leg }
 
 // Kind returns the template this body renders through.
 func (*LawsLeg) Kind() sdk.Kind { return KindLawsLeg }
+
+// OwnLeg is the body of a row carrying one law the shared sequences
+// cannot: it needs a lifecycle probe, a poisoned subject, or writes of
+// its own, and the bundle provides none of those.
+type OwnLeg struct {
+	leg
+
+	// Law is the one law this leg registers, rendered inline rather than
+	// through the bundle's function. Inline because a clocked law's
+	// Advance reads a local the leg declares, and a law literal spelled
+	// outside the function that declares it names nothing.
+	Law *LawBinding
+
+	// Keys and Values say which shared pools the law draws, and Pools the
+	// ones it brings of its own. A local for a pool this law does not
+	// read would not compile.
+	Keys, Values bool
+	Pools        []LawPool
+
+	// KeysFunc and ValuesFunc name the pool constructors the locals call.
+	KeysFunc, ValuesFunc string
+}
+
+// Kind returns the template this body renders through.
+func (*OwnLeg) Kind() sdk.Kind { return KindOwnLeg }
+
+// ClockedLeg is [OwnLeg] for a law that moves time: the subject is built
+// on a clock the law advances, which is the one capability this tier asks
+// a consumer for.
+type ClockedLeg struct {
+	OwnLeg
+
+	// Clock is the controllable clock's package, whose test clock the
+	// factory builds and the law's Advance moves.
+	Clock string
+}
+
+// Kind returns the template this body renders through.
+func (*ClockedLeg) Kind() sdk.Kind { return KindClockedLeg }
 
 // KindDeclined is the emit kind and template for a refusal: the interface
 // asked for this tier and the harness it has cannot carry it.
@@ -155,6 +196,7 @@ func legsFor(b *Bindings, harness *suite.Contract) []sdk.EmitNode {
 		LegsPkg:     LegsPkg,
 		ModelPkg:    ModelPkg,
 		HistoryPkg:  HistoryPkg,
+		LawPath:     LawPkg,
 	}
 	switch {
 	case b.Reference.Supplied():
@@ -166,16 +208,46 @@ func legsFor(b *Bindings, harness *suite.Contract) []sdk.EmitNode {
 		base.History, base.HistoryElem = historyIdent, b.HistoryElem
 	}
 
+	// The own-leg laws by identity, because a row for one names it in the
+	// segment of its own ID — which is how a body finds the law it is the
+	// body of without re-running the selection.
+	own := map[string]*LawBinding{}
+	for _, l := range b.OwnLegLaws() {
+		own[l.ID] = l
+	}
+
 	out := make([]sdk.EmitNode, 0, len(b.Rows))
 	for _, p := range b.Rows {
 		l := base
 		l.Assert = rowAssertName(projection.Token(b.IfaceName), p.ID)
-		switch p.Body.(type) {
-		case projection.DifferentialLeg:
+		law, single := own[p.ID.Seg]
+		switch {
+		case single:
+			out = append(out, ownLegFor(b, l, law))
+		case p.Body.BodyKind() == projection.DifferentialLeg{}.BodyKind():
 			out = append(out, &DifferentialLeg{leg: l})
-		case projection.LawLeg:
+		default:
 			out = append(out, &LawsLeg{leg: l})
 		}
 	}
 	return out
+}
+
+// ownLegFor is the body of a row carrying one law: the clocked shape
+// where the law moves time, the plain one otherwise.
+func ownLegFor(b *Bindings, base leg, law *LawBinding) sdk.EmitNode {
+	one := []*LawBinding{law}
+	body := OwnLeg{
+		leg:        base,
+		Law:        law,
+		Keys:       LawsDraw(one, poolKeys),
+		Values:     LawsDraw(one, poolValues),
+		Pools:      b.PoolsFor(one),
+		KeysFunc:   b.KeysFuncName(),
+		ValuesFunc: b.ValuesFuncName(),
+	}
+	if law.Clocked {
+		return &ClockedLeg{OwnLeg: body, Clock: ClockPkg}
+	}
+	return &body
 }

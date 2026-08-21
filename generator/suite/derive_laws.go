@@ -4,9 +4,9 @@
 package suite
 
 import (
+	"errors"
 	"slices"
 
-	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
@@ -49,23 +49,13 @@ func (Laws) Derive(f Iface) ([]projection.CheckPlan, []Refusal) {
 			bundle = append(bundle, bind)
 			continue
 		}
-		template, worded := lawid.ClaimOf(s.Law)
-		if !worded {
-			refusals = append(refusals, Refusal{
-				Deriver: DeriverLaws,
-				What:    s.Law + " for " + f.Name,
-				Why:     "the law rides its own leg but its claim is unworded",
-				Remedy:  "word it in lawid's claim table",
-			})
-			continue
-		}
-		claim, err := template.Fill(fillsFor(f, s.carriers)...)
+		claim, err := subject.ClaimOf(s.Law, f.Token, s.carriers)
 		if err != nil {
 			refusals = append(refusals, Refusal{
 				Deriver: DeriverLaws,
 				What:    s.Law + " for " + f.Name,
 				Why:     err.Error(),
-				Remedy:  "declare the name the claim speaks on the selecting stamp",
+				Remedy:  claimRemedy(err),
 			})
 			continue
 		}
@@ -203,30 +193,14 @@ func suiteTabled(r tiers.Rule) bool {
 	})
 }
 
-// fillsFor resolves the claim placeholder vocabulary from the law's
-// own carriers, first-stamped wins. Over-supplying is free — an
-// absent placeholder ignores its pair — which is what keeps this
-// generic: no law names its fills, the stamps do.
-func fillsFor(f Iface, carriers []subject.Method) []string {
-	pairs := []string{lawid.PlaceSubject, f.Token}
-	seen := map[string]bool{lawid.PlaceSubject: true}
-	set := func(place, v string) {
-		if v != "" && !seen[place] {
-			seen[place] = true
-			pairs = append(pairs, place, v)
-		}
+// claimRemedy points at the file the gap is in: an unworded law is
+// fixed in the catalogue, and one worded in terms nothing supplies is
+// fixed on the stamp that selected it.
+func claimRemedy(err error) string {
+	if errors.Is(err, subject.ErrUnworded) {
+		return "word it in lawid's claim table"
 	}
-	for _, m := range carriers {
-		if v, ok := m.MixinParam(MixinAfterClose, MixinAfterCloseClose); ok {
-			set(lawid.PlaceClose, v)
-		}
-		if slices.Contains(m.Contracts, ContractCursor) {
-			set(lawid.PlaceClose, m.ContractPartner(ContractCursor, ContractCursorClose))
-			set(lawid.PlaceNext, m.ContractPartner(ContractCursor, ContractCursorNext))
-			set(lawid.PlaceProduced, ContractCursor)
-		}
-	}
-	return pairs
+	return "declare the name the claim speaks on the selecting stamp"
 }
 
 // chainShaped reports the append-and-replay protocol, whose bundle

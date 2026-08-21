@@ -134,6 +134,19 @@ func worded() map[string]law {
 			"an entry stops being readable once its lifetime has run out",
 			"Expiry", "TTLExpiry",
 		},
+		DeadlineRespecting: {
+			"an operation given a deadline returns once that deadline fires",
+			"Deadline", "DeadlineRespecting",
+		},
+		ScheduledFiresAfterAdvance: {
+			// At least, not exactly: the law shares its subject with an
+			// action stream scheduling work of its own, and whatever of
+			// that is pending fires inside the same advance. The wording
+			// says what the law checks, which is the whole reason it is
+			// written here rather than inferred from the identifier.
+			"work scheduled for a time already passed has fired",
+			"Scheduled", "ScheduledFiresAfterAdvance",
+		},
 		LifecycleAfterClose: {
 			"once {close} has run, every method reports the closed sentinel",
 			"AfterClose", "LifecycleAfterClose",

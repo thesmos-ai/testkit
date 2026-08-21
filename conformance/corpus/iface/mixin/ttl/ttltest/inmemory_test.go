@@ -46,6 +46,10 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) ttltest.MixedHarness[*ttltest.InMemory] {
 	return ttltest.MixedHarness[*ttltest.InMemory]{
 		Name: name, New: ttltest.NewInMemory,
+		// The aging check advances a clock, and one the subject does not
+		// read is one it can advance forever without the subject
+		// noticing — so the door is a constructor rather than a setter.
+		OnClock: ttltest.NewInMemoryOn,
 	}
 }
 

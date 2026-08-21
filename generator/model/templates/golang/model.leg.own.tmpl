@@ -1,0 +1,69 @@
+{{- /*
+model.leg.own — the body behind a row carrying one law.
+
+Its own leg because the bundle cannot carry it: the claim needs a
+lifecycle probe, a poisoned subject, or writes of its own, and the shared
+observational run provides none of those. Reporting under the law's own
+identity is the other half — a red here names the claim that broke rather
+than "one of the laws".
+*/ -}}
+{{- define "model.leg.own" -}}
+// {{ .Assert }} binds {{ .Law.ID }} over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func {{ .Assert }}(
+	tb {{ renderExpr (external "testing" "TB") }},
+	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
+{{- if .Draws }}
+	{{ .Fixture }} {{ .FixtureType }},
+{{- end }}
+) {
+	tb.Helper()
+{{- template "model.leg.history" . }}
+{{- template "model.leg.pools" . }}
+
+	buildRef, tier := {{ renderExpr (external .LegsPkg "Reference") }}(tb, sub, {{ template "model.leg.ref" . }})
+	sub.NoteTier(tier)
+	{{ renderExpr (external .LegsPkg "Law") }}(tb, sub,
+		func() {{ .Subject }} { return sub.New(tb) }, buildRef,
+		{{ template "model.leg.actions" . }},
+		[]{{ renderExpr (external .LawPath "Law") }}[{{ .Subject }}]{
+			{{ render .Law }},
+		}{{ if .History }},
+		{{ template "model.leg.reset" . }}{{ end }})
+}
+{{- end -}}
+
+{{- /*
+model.leg.pools declares the shared pools this leg's law draws, and the
+ones it brings of its own. A local for a pool the law does not read would
+not compile, so each is asked for separately.
+*/ -}}
+{{- define "model.leg.pools" -}}
+{{- if .Keys }}
+	keys := {{ .KeysFunc }}({{ .Fixture }})
+{{- end }}
+{{- if .Values }}
+	values := {{ .ValuesFunc }}({{ .Fixture }})
+{{- end }}
+{{- range .Pools }}
+{{- if .Adversarial }}
+	// The {{ .Name }} pool is the law's own: hostile strings beside arbitrary
+	// ones, because a safety claim never probed with an attack is vacuous.
+	{{ .Name }} := {{ renderExpr (external $.ModelPkg "AdversarialStrings") }}()
+{{- else if .Offsets }}
+	// The {{ .Name }} pool draws bounded schedule offsets: within the law's
+	// own advance horizon, and never in the past nothing promises.
+	{{ .Name }} := {{ renderExpr (external $.ModelPkg "Map") }}(
+		{{ renderExpr (external $.ModelPkg "Int64Range") }}(0, {{ renderExpr (external "time" "Second") }}.Nanoseconds()*10),
+		func(n int64) {{ renderExpr (external "time" "Duration") }} { return {{ renderExpr (external "time" "Duration") }}(n) },
+	)
+{{- else }}
+	// The {{ .Name }} pool is the law's own: a wide domain for a stateless
+	// claim, which the colliding pair deliberately does not serve.
+	{{ .Name }} := {{ renderExpr (external $.ModelPkg "Make") }}[{{ renderType .Elem }}]()
+{{- end }}
+{{- end }}
+{{- end -}}

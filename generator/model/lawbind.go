@@ -173,6 +173,12 @@ func lawOf(
 		// what follows it.
 		Args: []sdk.Ref{b.IfaceRef},
 	}
+	if m != nil {
+		// The selecting method, kept for the wording its row reports
+		// under: the claim names what only this stamp supplies — which
+		// method Close is, what the produced handle is called.
+		lb.carrier = *m
+	}
 	for _, a := range spec.Args {
 		ref, reason := resolveArg(b, harness, r, a, m, keyed)
 		if reason != "" {

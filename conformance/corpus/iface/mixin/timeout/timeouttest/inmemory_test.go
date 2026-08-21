@@ -47,6 +47,9 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) timeouttest.MixedHarness[*timeouttest.InMemory] {
 	return timeouttest.MixedHarness[*timeouttest.InMemory]{
 		Name: name, New: timeouttest.NewInMemory,
+		// The deadline check advances past the deadline it set, which
+		// only moves a clock the subject was built on.
+		OnClock: timeouttest.NewInMemoryOn,
 	}
 }
 

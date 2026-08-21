@@ -1,7 +1,13 @@
 {{- /*
-The clock's own hand: every aging law advances the one clock the ModelClocked
-factory built the subject on.
+The clock's own hand: every aging law advances the one clock the leg built
+the subject on.
+
+A closure rather than the method value `clk.Advance`. The law literal is
+an argument to the leg, so it is built before the factory has run and the
+variable is still nil — a method value taken there binds the nil receiver
+and panics on the first advance, where the closure reads whichever clock
+the current iteration built.
 */ -}}
 {{- define "model.lawfield.Advance" -}}
-{{ .Name }}: clk.Advance
+{{ .Name }}: func(d {{ renderExpr (external "time" "Duration") }}) { clk.Advance(d) }
 {{- end -}}

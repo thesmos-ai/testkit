@@ -6,8 +6,7 @@ package model
 import (
 	"go.thesmos.sh/eidos/sdk"
 
-	vocab "go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/subject"
 )
 
 // LawBinding is one law, instantiated and filled, in the generated registry.
@@ -43,27 +42,26 @@ type LawBinding struct {
 	// a green bound law that never redelivered reads as more than it
 	// proved unless the header confesses it.
 	Unarmed []string
+
+	// carrier is the method whose stamps selected the law, kept because
+	// the claim it reports under is worded in terms only that method
+	// supplies — which method Close names, what the produced handle is
+	// called. Unexported: the fill is [subject.ClaimOf]'s, and a template
+	// reaching a raw method here would be a second way to word a law.
+	carrier subject.Method
 }
+
+// Carriers are the methods whose stamps selected this law, for the
+// wording its row reports under.
+//
+// One today: the derivation keeps the richest binding and discards the
+// rest, so the claim is filled from the method that produced the binding
+// that survived. A slice because [subject.ClaimOf] takes one, and because
+// a claim naming several methods is what a probe set would need.
+func (l *LawBinding) Carriers() []subject.Method { return []subject.Method{l.carrier} }
 
 // Kind returns the one template every binding renders through.
 func (*LawBinding) Kind() sdk.Kind { return "model.law" }
-
-// Induces reports that some bound law asks the subject to be put into a
-// failure state before it can state its claim.
-//
-// Read off the leg each law reports under rather than off the stamps: a
-// law that binds is one that will run, and the harness field exists for
-// the checks that run. A classification could select a law this build
-// then refused, and a field for a refused law is one a consumer fills
-// for a check that never comes.
-func (b *Bindings) Induces() bool {
-	for _, l := range b.Laws {
-		if class, own := tiers.LegOf(l.ID); own && class == vocab.ClassPoison {
-			return true
-		}
-	}
-	return false
-}
 
 // LawField is one filled field of a law struct.
 type LawField struct {

@@ -4,7 +4,12 @@
 package model
 
 import (
+	"slices"
+
 	"go.thesmos.sh/eidos/sdk"
+
+	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
 // The emit kinds and template names for what this tier contributes to
@@ -18,11 +23,14 @@ import (
 // and both need a line in Subject. A structure describing "a field"
 // could express none of it, which is how the clock first went in as a
 // bare value nothing read.
+// One capability, because one is what this tier's checks ask for. Every
+// other leg provokes what it needs through methods the interface already
+// declares — the poison law calls the failing method, the lifecycle law
+// calls Close — and a field for a state the checks reach without it is a
+// field a consumer fills for nothing.
 const (
-	KindClockDoor      sdk.Kind = "model.door.clock"
-	KindClockLowering  sdk.Kind = "model.lowering.clock"
-	KindInduceDoor     sdk.Kind = "model.door.induce"
-	KindInduceLowering sdk.Kind = "model.lowering.induce"
+	KindClockDoor     sdk.Kind = "model.door.clock"
+	KindClockLowering sdk.Kind = "model.lowering.clock"
 )
 
 // door is what every contribution to the harness needs and no template
@@ -61,44 +69,36 @@ type ClockLowering struct{ door }
 // Kind returns the template this contribution renders through.
 func (*ClockLowering) Kind() sdk.Kind { return KindClockLowering }
 
-// InduceDoor is the map a check about a failure state needs, so it can
-// provoke the state before asking what happens in it. InduceLowering
-// carries it onto the runtime.
-type InduceDoor struct{ door }
-
-// Kind returns the template this contribution renders through.
-func (*InduceDoor) Kind() sdk.Kind { return KindInduceDoor }
-
-// InduceLowering is [InduceDoor]'s other half.
-type InduceLowering struct{ door }
-
-// Kind returns the template this contribution renders through.
-func (*InduceLowering) Kind() sdk.Kind { return KindInduceLowering }
-
-// doorsFor is every field this interface's bound laws need, each with
-// the line that carries it.
+// doorsFor is every field this interface's rows need, each with the line
+// that carries it.
 //
-// Read off the bindings rather than the classifications, because a field
-// is owed by a law that actually BOUND. A law selected and then refused
-// states nothing, so a field for it would be one a consumer must fill
-// for a check that never runs.
+// Read off the rows rather than off the laws, and that is the whole rule:
+// a field is owed by a CHECK, and a check is what a row is. A law can
+// bind and still reach no row — its claim may go unworded, or its leg may
+// wait on a closure only the consumer has — and a field for it is one a
+// consumer must fill for a check that never comes. The corpus had exactly
+// that: a windowed harness asking for a clock, with no clocked check in
+// the file.
 //
 // The pair is the unit: a field nothing lowers is somewhere to write a
 // value that goes nowhere, which is what the harness carried for a clock
 // before either existed.
 func doorsFor(b *Bindings, subject string) (fields, lowerings []sdk.EmitNode) {
 	d := door{Vocab: VocabPkg, Clock: ClockPkg, Subject: subject}
-
-	for _, l := range b.Laws {
-		if l.Clocked {
-			fields = append(fields, &ClockDoor{door: d})
-			lowerings = append(lowerings, &ClockLowering{door: d})
-			break
+	for _, r := range b.Rows {
+		if !needsClock(r) {
+			continue
 		}
-	}
-	if b.Induces() {
-		fields = append(fields, &InduceDoor{door: d})
-		lowerings = append(lowerings, &InduceLowering{door: d})
+		fields = append(fields, &ClockDoor{door: d})
+		lowerings = append(lowerings, &ClockLowering{door: d})
+		break
 	}
 	return fields, lowerings
+}
+
+// needsClock reports that a row is built on a clock the run controls.
+func needsClock(r projection.CheckPlan) bool {
+	return slices.ContainsFunc(r.Needs, func(n projection.NeedPlan) bool {
+		return n.Capability == vocab.CapClock
+	})
 }

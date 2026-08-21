@@ -35,17 +35,17 @@ func TestCheckRowsCarryTheWholePlan(t *testing.T) {
 	testkit.Equal(t, r.Claim, "an entry stops being readable once its lifetime has run out",
 		"carried verbatim — the plan's claim is what the census measured")
 	testkit.True(t, r.Proven, "a plan with a defect behind it may be stamped Proven")
-	testkit.Len(t, r.Needs, 1, "and the capability it demands of the harness")
+	testkit.Equal(t, r.NeedsCtor, "NeedsClock", "and the capability it demands of the harness")
 }
 
-// Needs travel through rather than being recomputed.
+// A capability this tier cannot spell is spelled as none.
 //
-// The harness was projected from these before this generator ran, so a
-// second derivation could only disagree with a field that already
-// exists — and the disagreement would be silent: a row asking for a
-// capability the harness does not carry fails by name at run time, one
-// asking for nothing runs against a clock nobody advanced.
-func TestCheckRowsDoNotRederiveNeeds(t *testing.T) {
+// The row names a runtime constructor, and the runtime is where the
+// pairing of a capability with its value is decided. A plan carrying a
+// capability with no constructor here would otherwise render as the
+// nearest one — a row demanding a clock where its law wanted a poisoned
+// subject, which fails naming the wrong field.
+func TestCheckRowsSpellOnlyTheCapabilitiesTheyKnow(t *testing.T) {
 	t.Parallel()
 
 	rows := model.CheckRows("mixed", []projection.CheckPlan{{
@@ -54,9 +54,9 @@ func TestCheckRowsDoNotRederiveNeeds(t *testing.T) {
 		Needs: []projection.NeedPlan{{Capability: vocab.CapInduce, Value: "kv.ErrClosed"}},
 	}})
 
-	testkit.Equal(t, rows[0].Needs[0].Capability, vocab.CapInduce, "the plan's capability")
-	testkit.Equal(t, string(rows[0].Needs[0].Value), "kv.ErrClosed",
-		"and the sentinel it was stamped with, unaltered")
+	testkit.Equal(t, rows[0].NeedsCtor, "",
+		"an induction has no constructor here, so the row demands nothing "+
+			"rather than demanding the wrong thing")
 }
 
 // An argued row is not stamped proven.

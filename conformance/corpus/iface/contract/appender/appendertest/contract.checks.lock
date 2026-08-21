@@ -4,3 +4,4 @@ Run/deadline	signature/deadline	Run reports an expired deadline as exceeded
 Run/nilcontext	signature/nilcontext	Run returns an error rather than panicking on a nil context	
 Run/smoke	signature/smoke	Run survives a call with a seeded value	
 Run/zero-on-error	signature/zero-on-error	Run returns zero alongside any error	
+model/contract/AUTO-APPENDER-MONOTONIC-OFFSETS	model/appender	offsets of successive appends strictly increase	AUTO-APPENDER-MONOTONIC-OFFSETS

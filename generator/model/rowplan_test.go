@@ -8,6 +8,7 @@ import (
 
 	"go.thesmos.sh/testkit"
 	vocab "go.thesmos.sh/testkit/engine/suite"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/model"
 )
 
@@ -31,6 +32,37 @@ func TestPlanRowsFollowsWhatBound(t *testing.T) {
 		testkit.NotEqual(t, r.Claim, "", "and states a claim a reader can disagree with")
 		testkit.True(t, r.Body != nil,
 			"and carries a body kind, or nothing can render it")
+	}
+}
+
+// A law the shared sequences cannot carry gets a row of its own, under
+// its own identity and its own claim.
+//
+// One row per leg, not one row for every law: what a reader wants from a
+// red is which claim broke, and every law on the bundled leg failed the
+// same way. These did not, so each reports for itself.
+func TestPlanRowsGiveEachOwnLegLawItsRow(t *testing.T) {
+	t.Parallel()
+
+	b := bindingsOf(t, mixed(t))
+	rows := model.PlanRows(b)
+
+	byLaw := map[string]projection.CheckPlan{}
+	for _, r := range rows {
+		byLaw[r.ID.Seg] = r
+	}
+	for _, l := range b.OwnLegLaws() {
+		row, planned := byLaw[l.ID]
+		if !planned {
+			// Refused, and the header says why — the alternative is a row
+			// stating a sentence this package invented for somebody
+			// else's law.
+			continue
+		}
+		testkit.NotEqual(t, row.Claim, "",
+			"the law's own sentence, from the catalogue that defines it")
+		testkit.Len(t, row.Binds, 1, "and the law it reports under")
+		testkit.Equal(t, row.Binds[0].Law, l.ID, "which is this one")
 	}
 }
 
