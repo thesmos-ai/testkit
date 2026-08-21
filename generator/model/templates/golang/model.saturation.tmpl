@@ -32,7 +32,7 @@ func init() { //nolint:staticcheck // an empty wardrobe leaves dress unused by d
 	})
 {{- else if eq .Kind "flap" }}
 	dress({{ printf "%q" .Method }}, "flap", func(fx {{ $b.IfaceName }}Fixture, s {{ renderType $b.IfaceRef }}) {{ renderType $b.IfaceRef }} {
-		return &{{ lower $b.IfaceName }}SatFlap{{ .Method }}{ {{ $b.IfaceName }}: s, a: fx.{{ $b.Values.Field }}, b: fx.{{ $b.Values.OtherField }} }
+		return &{{ lower $b.IfaceName }}SatFlap{{ .Method }}{ {{ $b.IfaceName }}: s, a: fx.{{ $b.Values.Field }}(), b: fx.{{ $b.Values.OtherField }}() }
 	})
 {{- else if eq .Kind "wane" }}
 	dress({{ printf "%q" .Method }}, "wane", func(_ {{ $b.IfaceName }}Fixture, s {{ renderType $b.IfaceRef }}) {{ renderType $b.IfaceRef }} {

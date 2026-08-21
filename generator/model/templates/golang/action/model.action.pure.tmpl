@@ -5,6 +5,6 @@ agree.
 {{- define "model.action.pure" -}}
 {{ renderExpr .Ctor }}({{ printf "%q" .Method }},
 				func(s {{ renderType .Iface }}) {{ renderType .Value }} {
-					return s.{{ .Method }}({{ range $i, $arg := .Args }}{{ if $i }}, {{ end }}fx.{{ $arg.Field }}{{ end }})
+					return s.{{ .Method }}({{ range $i, $arg := .Args }}{{ if $i }}, {{ end }}fx.{{ $arg.Field }}(){{ end }})
 				})
 {{- end -}}

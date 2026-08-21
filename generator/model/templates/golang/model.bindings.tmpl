@@ -640,14 +640,14 @@ colliding without anyone noticing.
 	// Two keys, drawn for every key slot: collision density is what makes a
 	// read revisit a write and an overwrite land on held state. A wide key
 	// pool would pass every comparison over a history that never collides.
-	keys := {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{fx.{{ .Keys.Field }}, fx.{{ .Keys.OtherField }}})
+	keys := {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{fx.{{ .Keys.Field }}(), fx.{{ .Keys.OtherField }}()})
 {{- end }}
 {{- if .UsesValues }}
 {{- if .Values.GenFunc }}
 	// Bodies blend the fixture pair with {{ .Values.GenFunc }}'s draws — the
 	// gen= supply, for a domain no reflection walk can spell.
 	bodies := {{ renderExpr (external .ModelPkg "OneOf") }}(
-		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}, fx.{{ .Values.OtherField }}}),
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}(), fx.{{ .Values.OtherField }}()}),
 		{{ .Values.GenFunc }}(),
 	)
 {{- else if .Values.Wide }}
@@ -655,13 +655,13 @@ colliding without anyone noticing.
 	// identical rewrites frequent, the wide arm reaches values no fixture
 	// spells — and nothing in the claims licenses refusing either.
 	bodies := {{ renderExpr (external .ModelPkg "OneOf") }}(
-		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}, fx.{{ .Values.OtherField }}}),
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}(), fx.{{ .Values.OtherField }}()}),
 		{{ renderExpr (external .ModelPkg "Make") }}[{{ renderType .Values.Type }}](),
 	)
 {{- else }}
 	// Bodies keep to the fixture pair —
 	// {{ .Values.WhyNarrow }}.
-	bodies := {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}, fx.{{ .Values.OtherField }}})
+	bodies := {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{fx.{{ .Values.Field }}(), fx.{{ .Values.OtherField }}()})
 {{- end }}
 {{- if .Values.Pin }}
 	// Every drawn value lands on a pooled key: a key rewritten under another

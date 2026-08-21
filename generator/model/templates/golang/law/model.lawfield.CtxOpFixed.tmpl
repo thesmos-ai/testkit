@@ -4,6 +4,6 @@ the context itself, and the one input is the key every other draw revisits.
 */ -}}
 {{- define "model.lawfield.CtxOpFixed" -}}
 {{ .Name }}: func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}) error {
-			return s.{{ .Method }}(ctx, fx.{{ .KeyField }})
+			return s.{{ .Method }}(ctx, fx.{{ .KeyField }}())
 		}
 {{- end -}}

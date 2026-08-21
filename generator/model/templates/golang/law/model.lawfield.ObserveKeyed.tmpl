@@ -5,7 +5,7 @@ before/after comparison needs from a key nothing wrote.
 */ -}}
 {{- define "model.lawfield.ObserveKeyed" -}}
 {{ .Name }}: func(rt *{{ renderExpr (external .ModelPkg "T") }}, s {{ renderType .Iface }}) {{ renderType .Out }} {
-			v, _ := s.{{ .Method }}({{ if .TakesCtx }}rt.Context(), {{ end }}fx.{{ .KeyField }})
+			v, _ := s.{{ .Method }}({{ if .TakesCtx }}rt.Context(), {{ end }}fx.{{ .KeyField }}())
 			return v
 		}
 {{- end -}}

@@ -9,7 +9,7 @@ the drawn slice into the typed call.
 				{{ renderExpr (external .ModelPkg "Custom") }}(func(t *{{ renderExpr (external .ModelPkg "T") }}) []any {
 					return []any{
 {{- range $i, $arg := .Args }}
-						{{ renderExpr (external $a.ModelPkg "SampledFrom") }}([]{{ renderType $arg.Type }}{fx.{{ $arg.Field }}, fx.{{ $arg.Field }}Other}).Draw(t, {{ printf "%q" (printf "%s_arg%d" $a.Method $i) }}),
+						{{ renderExpr (external $a.ModelPkg "SampledFrom") }}([]{{ renderType $arg.Type }}{fx.{{ $arg.Field }}(), fx.{{ $arg.Field }}()Other()}).Draw(t, {{ printf "%q" (printf "%s_arg%d" $a.Method $i) }}),
 {{- end }}
 					}
 				}),

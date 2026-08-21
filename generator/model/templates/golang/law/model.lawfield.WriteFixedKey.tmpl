@@ -5,6 +5,6 @@ other draw revisits.
 */ -}}
 {{- define "model.lawfield.WriteFixedKey" -}}
 {{ .Name }}: func(rt *{{ renderExpr (external .ModelPkg "T") }}, s {{ renderType .Iface }}, v {{ renderType .In }}) error {
-			return s.{{ .Method }}({{ if .TakesCtx }}rt.Context(), {{ end }}fx.{{ .KeyField }}, v)
+			return s.{{ .Method }}({{ if .TakesCtx }}rt.Context(), {{ end }}fx.{{ .KeyField }}(), v)
 		}
 {{- end -}}
