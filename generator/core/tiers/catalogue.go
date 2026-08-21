@@ -143,6 +143,7 @@ const (
 	paramDeleteSentinel      = "shape.mixin.deleteremoves.sentinel"
 	paramLeaseHeld           = "shape.contract.lease.param.held"
 	paramLeaseTimeout        = "shape.contract.lease.param.timeout"
+	paramLifecycleClose      = "shape.mixin.lifecycleafterclose.close"
 	paramLifecycleSentinel   = "shape.mixin.lifecycleafterclose.sentinel"
 	paramTimeoutDuration     = "shape.mixin.timeout.duration"
 	paramTransactionNotFound = "shape.contract.transaction.param.notfound"
@@ -793,6 +794,28 @@ var rules = []Rule{
 		Needs: []string{mixinPoisonable},
 		Fields: []Field{
 			{Name: "Poison", Kind: KindRole, From: "poisonable.induce"},
+			{Name: "Probe", Kind: KindRole, From: roleSelf},
+			{Name: "Reads", Kind: KindDefault},
+		},
+	},
+
+	// The same law by the other road: a closed host is a poisoned host,
+	// and `lifecycleafterclose close=` names the callable that gets it
+	// there. Two rules for one law rather than a second law, because the
+	// claim is the same one — once it reports closed it keeps reporting
+	// closed — and the closure shapes are keyed by law.
+	//
+	// Conditioned on `close=` and not on `sentinel=`. The sentinel is what
+	// the law OBSERVES; close is what fills Poison. Selecting on the
+	// sentinel earns the law on interfaces where the induction cannot be
+	// filled, and a selection one tier makes and the other then refuses is
+	// how a harness comes to carry a door for a law nothing binds.
+	{
+		Law:   lawid.PoisonConsistent,
+		Needs: []string{mixinLifecycleAfter},
+		When:  []Condition{{Param: paramLifecycleClose}},
+		Fields: []Field{
+			{Name: "Poison", Kind: KindRole, From: mixinLifecycleAfter + "." + "close"},
 			{Name: "Probe", Kind: KindRole, From: roleSelf},
 			{Name: "Reads", Kind: KindDefault},
 		},

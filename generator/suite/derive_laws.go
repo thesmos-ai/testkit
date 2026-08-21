@@ -173,11 +173,6 @@ func selectLaws(f Iface) []lawSelection {
 			}
 			record(r.Law, m, mixinSelected(r, m))
 		}
-		for _, rule := range extraRules() {
-			if law, licensed := rule(m); licensed {
-				record(law, m, false)
-			}
-		}
 	}
 	for i := range out {
 		// A single carrier probes implicitly; contract-selected laws
@@ -195,24 +190,6 @@ func mixinSelected(r tiers.Rule, m subject.Method) bool {
 	return slices.ContainsFunc(r.Needs, func(need string) bool {
 		return slices.Contains(m.Mixins, need)
 	})
-}
-
-// extraRule licenses one law from a fact tiers' classification axes
-// cannot see. A row here is the corpus's own derivation formalized;
-// its tiers home waits on the model plugin's migration, because a
-// catalogue row would change the incumbent's emission today.
-type extraRule func(m subject.Method) (law string, licensed bool)
-
-func extraRules() []extraRule {
-	return []extraRule{poisonFromSentinel}
-}
-
-// poisonFromSentinel: a stamped after-close sentinel licenses the
-// poison law — the poisoned state is the closed state, which is the
-// corpus's own derivation ("from the sentinel kv.ErrClosed").
-func poisonFromSentinel(m subject.Method) (string, bool) {
-	_, stamped := m.MixinParam(MixinAfterClose, MixinAfterCloseSentinel)
-	return lawid.PoisonConsistent, stamped
 }
 
 // suiteTabled reports a rule whose selecting mixin this package's own
