@@ -55,16 +55,32 @@ func (s Shipped) Key() string { return s.Pkg + "." + s.Name }
 // for it would report every one of them as alive.
 func ShippedConstructors(engineRoot, corpusRoot string) ([]Shipped, error) {
 	repoRoot := filepath.Dir(engineRoot)
-	pkgs := []struct{ local, dir, callers string }{
-		{"action", filepath.Join(engineRoot, "model", "action"), corpusRoot},
-		{"ref", filepath.Join(engineRoot, "model", "ref"), corpusRoot},
-		{"suite", filepath.Join(engineRoot, "suite"), repoRoot},
-		{"legs", filepath.Join(engineRoot, "legs"), repoRoot},
+	pkgs := []struct {
+		local, dir, callers string
+		types               bool
+	}{
+		{local: "action", dir: filepath.Join(engineRoot, "model", "action"), callers: corpusRoot},
+		{local: "ref", dir: filepath.Join(engineRoot, "model", "ref"), callers: corpusRoot},
+		{local: "suite", dir: filepath.Join(engineRoot, "suite"), callers: repoRoot},
+		{local: "legs", dir: filepath.Join(engineRoot, "legs"), callers: repoRoot},
+
+		// The law packages are censused by TYPE, because a law has no
+		// constructor: a binding writes the struct literal. Every other
+		// gate over these keys on lawid, so a law type carrying no
+		// identifier is one nothing looks at — which is how three
+		// temporal combinators came to ship with no corpus exercise and
+		// nothing proving they can go red.
+		{local: "law", dir: filepath.Join(engineRoot, "model", "law"), callers: corpusRoot, types: true},
+		{
+			local: "timeaware", dir: filepath.Join(engineRoot, "model", "timeaware"),
+			callers: corpusRoot, types: true,
+		},
+		{local: "crash", dir: filepath.Join(engineRoot, "model", "crash"), callers: corpusRoot, types: true},
 	}
 
 	var out []Shipped
 	for _, p := range pkgs {
-		names, err := exportedCtors(p.dir)
+		names, err := exportedAPI(p.dir, p.types)
 		if err != nil {
 			return nil, err
 		}
@@ -80,18 +96,23 @@ func ShippedConstructors(engineRoot, corpusRoot string) ([]Shipped, error) {
 	return out, nil
 }
 
-// exportedCtors is every exported function in a package that returns
-// something — the constructors a generator can call.
+// exportedAPI is every exported function in a package that returns
+// something — the constructors a generator can call — and, where types is
+// set, every exported generic type beside them.
 //
 // Test files are skipped, and so is anything returning nothing: a helper
 // that only asserts is not a constructor, and holding one to this register
 // would be asking why the corpus does not call an assertion.
 //
+// Types only where asked, because only the law packages need it. A law has
+// no constructor — a binding writes the struct literal — so a census of
+// functions would report every one of them as absent.
+//
 // One file at a time rather than through go/parser's directory form, which
 // is deprecated for ignoring build tags. Ignoring them is what this wants:
 // a constructor behind a tag is still shipped, and a census that skipped it
 // would let one hide.
-func exportedCtors(dir string) ([]string, error) {
+func exportedAPI(dir string, types bool) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("gate: read %s for constructors: %w", dir, err)
@@ -113,6 +134,10 @@ func exportedCtors(dir string) ([]string, error) {
 			return nil, fmt.Errorf("gate: parse %s for constructors: %w", path, parseErr)
 		}
 		for _, decl := range file.Decls {
+			if gen, isGen := decl.(*ast.GenDecl); isGen && types {
+				out = append(out, exportedGenericTypes(gen)...)
+				continue
+			}
 			fn, isFunc := decl.(*ast.FuncDecl)
 			switch {
 			case !isFunc, fn.Recv != nil, !fn.Name.IsExported():
@@ -125,6 +150,29 @@ func exportedCtors(dir string) ([]string, error) {
 	}
 	slices.Sort(out)
 	return slices.Compact(out), nil
+}
+
+// exportedGenericTypes is every exported type in the declaration that
+// takes type parameters.
+//
+// Generic, because that is what tells a law from the vocabulary around
+// it: a law is written over the subject it judges, so it takes at least
+// one parameter, while the mode enums and option structs beside it do
+// not. Holding those to a corpus reference would be asking why no fixture
+// spells a constant.
+func exportedGenericTypes(gen *ast.GenDecl) []string {
+	if gen.Tok != token.TYPE {
+		return nil
+	}
+	var out []string
+	for _, spec := range gen.Specs {
+		ts, isType := spec.(*ast.TypeSpec)
+		if !isType || !ts.Name.IsExported() || ts.TypeParams == nil {
+			continue
+		}
+		out = append(out, ts.Name.Name)
+	}
+	return out
 }
 
 // calledNames is every `<local>.<Name>` REFERRED TO under root, skipping
@@ -321,6 +369,30 @@ var UnemittedConstructors = map[string]string{
 	"suite.IsFamily":    "OPEN: the family membership test, unreached for the reason suite.FamilyNames is",
 	"suite.DiffLock":    "OPEN: the lock-file diff a stale checks.lock reports; the corpus's Invariants test renders its own diff, and the two have never been reconciled",
 	"suite.RenderLock":  "OPEN: the lock-file renderer beside suite.DiffLock, unreached for the same reason and settled by the same decision",
+
+	// engine/model/law and its neighbours, censused by type. Every other
+	// gate over these keys on lawid, so a law type carrying no identifier
+	// is one nothing looks at.
+	"law.AfterEvery":      "OPEN: a temporal combinator a consumer writes by hand — after every X, Y must hold. No lawid, so no rule selects it and no census over lawid sees it; no corpus fixture states one, and nothing proves it can go red",
+	"law.EventuallyAfter": "OPEN: the temporal combinator beside law.AfterEvery, unreached for the same reason and settled by the same decision",
+	"law.Never":           "OPEN: the temporal combinator beside law.AfterEvery, unreached for the same reason and settled by the same decision",
+
+	"law.HashChainIntegrityViaErr": "registered as unreachable in gate.UnreachableLaws: selecting it needs a stored-error accessor sitting on a chain interface, which is a fact about the interface where the selector reads one method's stamps",
+	"timeaware.MovesWithTheClock":  "OPEN: a rule DOES select this one and no corpus fixture reaches it, which nothing gates — no census asks whether a rule ever fires on a fixture",
+
+	"law.ClientClassifier": "a function type the session laws take, supplied as a generated closure rather than named — the binding spells the signature, not the type",
+	"law.ClientEvent":      "the trace element the session laws read, built by the runner and never spelled by a binding",
+	"law.StatefulLaw":      "the interface a law implements to be reset between iterations; the laws satisfy it and nothing names it, which is what the reset census asks after instead",
+	"law.Holds":            "a predicate type a supplied door is spelled at; the generated closures spell the signature directly, so nothing names the alias",
+	"law.Produced":         "the produced-handle type a lifted leg speaks; the generated lift spells the signature directly, so nothing names the alias",
+	"law.Budget":           "the repetition knob a search law defaults for itself — KindDefault in the manifests, so no binding fills it and nothing spells the type",
+
+	"law.CheckSIG0":                "the G0 dirty-write detector the snapshot law delegates its extracted history to, called by the law rather than by a binding",
+	"law.CheckSIG1":                "the G1 anomaly detector beside law.CheckSIG0, called by the law rather than by a binding",
+	"law.CheckSIG2":                "the G2 anomaly detector beside law.CheckSIG0, called by the law rather than by a binding",
+	"law.CheckCausalOrder":         "the session guarantee's own check helper, called by the law rather than by a binding",
+	"law.CheckEventualConvergence": "the convergence helper beside law.CheckCausalOrder, called by the law rather than by a binding",
+	"timeaware.NewBarrier":         "the barrier the clocked legs synchronise on, constructed by the runner rather than by generated code",
 
 	"ref.NewAtLeastOnce": reasonQueueOracle,
 	"ref.NewAtMostOnce":  reasonQueueOracle,
