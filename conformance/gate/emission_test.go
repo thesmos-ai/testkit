@@ -145,55 +145,46 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 		"bounded rides the twin floor — the audit's break experiment, kept measurable")
 }
 
-// twinCeiling is the corpus's twin count, ratcheted: 59 references ride the
-// twin floor today, and the number only sinks — an oracle upgrade
-// lowers it, and a derived fixture regressing to the twin raises it past the
-// ceiling and reddens this build by name. Lower the constant with every
-// floor raised; raise it only for a fixture whose floor is argued, as
-// scheduled's is (a schedule beside a firing count derives no map oracle,
-// twins on one clock fire together), as the five session fixtures' are (the
-// subject assigns the version member on write, which no value-storing
-// oracle stamps — causal joined the four when its version= param landed
-// upstream), as the answeringwriter detector fixture's is (a lone
-// writer derives nothing to compare through), as the publisher mode
-// family's are (no store models a delivery relation, and the delivery
-// claims themselves live in the drain-fed laws rather than the reference —
-// publisher-redeliver joined the family when the redeliver role was armed,
-// riding the floor for the family's own reason),
-// as idempotentclose's is (a teardown beside an open-count aggregate
-// derives no store at all), and as atomic's is: the atomic claim is about
-// refused writes, a derived map refuses nothing, and the corpus proved it —
-// the first one-sided draw read as a semantic disagreement on a correct
-// subject, in both the sequential and the Porcupine leg. causal-chain rides
-// the floor for the causal defeat's reason: the claim is an admission
-// policy, and a derived log admits everything. bounded and batched-mixins
-// ride it for the bounded defeat's: the claim clamps what the reader
-// answers, and a derived collection clamps nothing. indexed rides it for a
-// reason of its own: its reader addresses a *position*, and every store
-// oracle addresses a key. A position is a fact about the order the
-// collection is holding its elements in, which no map models — so the twin,
-// which holds them in the same order for the same reason, is the only
-// reference that can answer.
+// twinCeiling is how many corpus references ride the twin floor.
 //
-// The transaction fixture left the floor when its staging writer landed:
-// a run taking a callable derives no oracle, but the keyed write the
-// rollback claim needed pairs with the read, and Get/Put is a map. The
-// oracle upgrade was a side effect of making the law falsifiable, which is
-// the direction this ratchet exists to record.
+// The number only sinks. An oracle upgrade lowers it; a derived fixture
+// regressing to the twin pushes past it and reddens this build by name.
+// Lower the constant in the same commit that lowers the count.
 //
-// The count fell from 92 to 58 in one step, and none of that was earned in
-// the step that banked it. The census had been reading the model tier off
-// the pending emit queue, which the tier stopped writing to when it became
-// a contributor to the harness — so every fixture measured as no laws and
-// no twin, and the ratchet sat un-turnable while real oracle upgrades
-// landed unrecorded. 58 is the first honest reading since; the two
-// isolation fixtures joining the floor in the same step are counted in it.
+// Raise it only for a fixture whose floor is ARGUED, and put the argument
+// in the table. Every row there is a claim about what no store oracle can
+// model, not a gap waiting on somebody's time.
 //
-// 58 became 59 when timeaware gained a model tier. It rides the floor for
-// a reason of its own: its reader answers how long ago a key was seen,
-// which is a fact about the clock rather than about anything stored, and
-// no value-storing oracle models it. The twin ages under the same clock,
-// which is what makes it able to answer at all.
+//	fixture                 why no derived oracle can answer
+//	----------------------- ------------------------------------------
+//	scheduled               a schedule beside a firing count derives no
+//	                        map; twins on one clock fire together
+//	session (5)             the subject assigns the version member on
+//	                        write, which no value-storing oracle stamps
+//	answeringwriter         a lone writer derives nothing to compare
+//	                        through
+//	publisher modes (4)     the delivery laws mirror the whole cycle onto
+//	                        the reference and then read the subject's
+//	                        drain alone, so what stands behind ref
+//	                        changes nothing any check reads
+//	idempotentclose         a teardown beside an open-count aggregate
+//	                        derives no store at all
+//	atomic                  the claim is about refused writes, and a
+//	                        derived map refuses nothing
+//	causal-chain            the claim is an admission policy, and a
+//	                        derived log admits everything
+//	bounded, batched-mixins the claim clamps what a COLLECTION reader
+//	                        answers, and a derived one clamps nothing
+//	indexed                 its reader addresses a position, and every
+//	                        store oracle addresses a key
+//	timeaware               its reader answers how long ago a key was
+//	                        seen, a fact about the clock rather than
+//	                        about anything stored
+//
+// The bounded row is narrower than it reads: a bound over a KEYED read
+// that may say no derives an unbounded oracle and compares hits one way.
+// See [tiers.OracleDefeat], and boundedcache, which is the fixture that
+// does.
 const twinCeiling = 59
 
 // TestTwinFloorOnlySinks is the twin-count ratchet the audit's second item

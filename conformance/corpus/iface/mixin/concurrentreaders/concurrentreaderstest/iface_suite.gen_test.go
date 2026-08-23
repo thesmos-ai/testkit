@@ -43,6 +43,8 @@ import (
 //	Get.Miss — a Mixed whose Get answers for an input nothing wrote
 //
 //	Model.Agrees — a Mixed whose Put reports success and keeps nothing
+//
+//	Model.WriteObservable — a Mixed whose Put reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -72,4 +74,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 0b0219bc9222d05e8bd57638452db9f84c38d65a0ee7f8eb18f55edd1b3136ef
+// testkit:provenance 356b5675dbd13c74e08145c1f2318860ab63677e80a8e9ac55b712cca870db93

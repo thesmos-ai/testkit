@@ -41,6 +41,8 @@ import (
 //	Items.ZeroOnError — a Mixed whose Items answers a believable value beside its error
 //
 //	Model.Agrees — a Mixed whose Add reports success and keeps nothing
+//
+//	Model.Counts — a Mixed whose Items answers zero whatever is held
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -70,4 +72,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a3ef8ef74e957368a651e58797da70c1df5f49fd5575f5082226696d24b59399
+// testkit:provenance 503e3e0a701e0e68a72f314c58573242176d8cd75089f3acb37da4a747f006d4

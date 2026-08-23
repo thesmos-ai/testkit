@@ -46,6 +46,8 @@ import (
 //
 //	Model.Agrees — a Mixed whose Put reports success and keeps nothing
 //
+//	Model.WriteObservable — a Mixed whose Put reports success and keeps nothing
+//
 //	Model.IdempotentWrite — a Mixed whose Put refuses its repeat
 
 // TestMixedInvariants holds this package to what it says about itself.
@@ -76,4 +78,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 34f9dd8e722518fb3a71963e559782b2ce7b56b578470758f640ef048c97295f
+// testkit:provenance 1f3c9b3886a41eb053ebd76b5cd7b08fcfaaddfc45a13b69f36b6d1d3f8c4da7

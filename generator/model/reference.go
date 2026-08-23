@@ -65,6 +65,33 @@ type Reference struct {
 	KeyField string
 }
 
+// evictingReadOf names the method whose miss a bound makes legal: a keyed
+// read answering `(V, bool)`, where absence is an answer rather than a
+// failure. Empty where the interface offers none.
+//
+// The bool half is the whole condition. A read with an error channel
+// cannot say "evicted" without saying which error that is, so the
+// asymmetric comparison would have nothing to key on; a read answering a
+// presence flag says it in a return the action already compares.
+//
+// Comparable, because [action.EvictingReader] constrains its value type
+// where the symmetric reader does not — it compares hits by equality
+// rather than deferring to a differ. A value no `==` accepts leaves the
+// defeat standing, which is the twin and an honest header rather than a
+// generated file that does not compile.
+func evictingReadOf(harness *subject.Projection) string {
+	for i := range harness.Methods {
+		m := &harness.Methods[i]
+		if pseudoShape(m) != shapeReaderWithBool || len(m.Returns) == 0 {
+			continue
+		}
+		if golang.IsComparable(m.Returns[0].Source) {
+			return m.Name
+		}
+	}
+	return ""
+}
+
 // Supplied reports that the directive named the reference.
 func (r Reference) Supplied() bool { return r.SuppliedCtor != nil }
 
@@ -133,6 +160,16 @@ type AdapterMethod struct {
 	// answers a slice, so the body drains rather than returning the call.
 	Op      string
 	Collect bool
+
+	// Folds marks a read whose miss the interface reports as a flag while
+	// the oracle reports it as a sentinel, so the body converts rather than
+	// returning the call.
+	//
+	// The seam is one line and it belongs here rather than at each
+	// comparison: a caller of this interface cannot tell an evicted key from
+	// one nothing wrote, and the oracle's sentinel is the same non-answer
+	// spelled the way a store spells it.
+	Folds bool
 
 	// Reason says why an inert body is inert, for the comment above it.
 	Reason string
@@ -208,10 +245,25 @@ func referenceOf(
 	// A claim that defeats store modeling outranks every remaining
 	// derivation: the twins lag together, where an immediate oracle reads
 	// the claim's own slack as divergence.
+	//
+	// Unless the interface offers a read whose miss is legal, which lifts
+	// the one defeat that is a fact about the read shape rather than about
+	// what the subject does — see [tiers.OracleDefeat].
+	evicting := evictingReadOf(harness)
 	for i := range harness.Methods {
 		for _, mixin := range harness.Methods[i].Mixins {
-			if reason, defeated := tiers.DefeatsOracles(mixin); defeated {
-				return twin(reason)
+			defeat, defeated := tiers.DefeatsOracles(mixin)
+			switch {
+			case !defeated:
+			case defeat.LiftedByEvictingRead && evicting != "":
+				b.EvictingRead = evicting
+			default:
+				// A second claim defeats it outright, so the lift the first
+				// earned is withdrawn with it: the twin compares everything
+				// symmetrically, and a one-sided read beside it would be an
+				// asymmetry against the subject's own factory.
+				b.EvictingRead = ""
+				return twin(defeat.Why)
 			}
 		}
 	}
@@ -528,6 +580,7 @@ func adapterOf(
 			am.Reason = "takes " + wroteQ + " where the oracle holds " + valueQ
 		default:
 			am.Op = op
+			am.Folds = pseudoShape(m) == shapeReaderWithBool
 		}
 		out = append(out, am)
 	}

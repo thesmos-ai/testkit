@@ -24,7 +24,6 @@ package permutationtest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/permutation"
@@ -642,65 +641,19 @@ func (c MixedChecks) applyTo(rc *mixedRunConfig) {
 
 // MixedCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type MixedCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Add/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Mixed, fx MixedFixture)
-	RunWith func(tb testing.TB, sub MixedSubject, fx MixedFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveMixed fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Mixed, fx MixedFixture)
+	RunWith      func(tb testing.TB, sub MixedSubject, fx MixedFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
@@ -734,75 +687,29 @@ var mixedMethods = suite.NewNameSet("Mixed", mixedAdd, mixedItems)
 func (c MixedCheck) bind(
 	fx MixedFixture,
 ) (suite.Check[Mixed], error) {
-	out := suite.Check[Mixed]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Mixed) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub MixedSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	fields += ", Prop, PropAdd"
-	if c.Prop != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
-			return out, err
-		}
-		fn := c.Prop
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+	b := suite.BindRow(suite.Row[Mixed, MixedFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, mixedMethods)
+	b.Offers("Prop, PropAdd")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Mixed]) {
 			model.Check(tb, func(rt *PropT) {
 				fn(rt, sub.New(tb), fx)
 			})
-		}
+		})
 	}
-	if c.PropAdd != nil {
-		bodies++
-		out.ID = suite.MethodID(mixedAdd, c.Name)
-		fn := c.PropAdd
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+	if fn := c.PropAdd; fn != nil {
+		b.Fixed(suite.MethodID(mixedAdd, c.Name),
+			func(tb testing.TB, sub suite.Subject[Mixed]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+				})
 			})
-		}
 	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	return b.Seal(c.Method)
 }
 
 // RunMixed runs every check — the generated ones and any you
@@ -957,6 +864,16 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
+		ix.Model.Counts(): prove.One("a Mixed whose Items answers zero whatever is held",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []permutation.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
 		ix.Model.StreamPermutation(): prove.One("a Mixed whose Items reports success and keeps nothing",
 			func(tb testing.TB) Mixed {
 				return NewMixedStub(tb, WithMixedItems(
@@ -1080,18 +997,10 @@ func GreenMixed(
 	}
 	rc.Fail(t, "GreenMixed")
 	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // A second version check, for the leg idioms the rows above ride. The
@@ -1126,7 +1035,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.CountEqualsReference,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertCounts(tb, sub, fx)
@@ -1312,4 +1221,4 @@ func mixedAssertStreamPermutation(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 2f4a213f8065c6d129e6929f9ccf229b88c78e9bf766cf1fb5537808ea435f27
+// testkit:provenance 6e96b24d76754a53497d07592ab843c0754a896211ad6b9c3b81e32b65e9bd89

@@ -24,14 +24,15 @@ package restrictedpooltest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/restrictedpool"
+	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/engine/legs"
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
+	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
@@ -72,6 +73,7 @@ import (
 //	Put/deadline
 //	Put/nilcontext
 //	Put/smoke
+//	model/store/AUTO-WRITE-OBSERVABLE
 //	model/store/differential
 //
 // A version check, performed by the compiler. If this file was generated
@@ -504,17 +506,18 @@ func (storeVeneer) TrySuite(cfg StoreConfig) (suite.Suite[Store], error) {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var storeIndexPath = map[suite.ID]string{
-	storeCheckIndex.Put.Smoke():       "StoreSuite.Checks.Put.Smoke()",
-	storeCheckIndex.Put.Cancels():     "StoreSuite.Checks.Put.Cancels()",
-	storeCheckIndex.Put.NilContext():  "StoreSuite.Checks.Put.NilContext()",
-	storeCheckIndex.Put.Deadline():    "StoreSuite.Checks.Put.Deadline()",
-	storeCheckIndex.Get.Smoke():       "StoreSuite.Checks.Get.Smoke()",
-	storeCheckIndex.Get.Cancels():     "StoreSuite.Checks.Get.Cancels()",
-	storeCheckIndex.Get.NilContext():  "StoreSuite.Checks.Get.NilContext()",
-	storeCheckIndex.Get.Deadline():    "StoreSuite.Checks.Get.Deadline()",
-	storeCheckIndex.Get.ZeroOnError(): "StoreSuite.Checks.Get.ZeroOnError()",
-	storeCheckIndex.Get.Miss():        "StoreSuite.Checks.Get.Miss()",
-	storeCheckIndex.Model.Agrees():    "StoreSuite.Checks.Model.Agrees()",
+	storeCheckIndex.Put.Smoke():             "StoreSuite.Checks.Put.Smoke()",
+	storeCheckIndex.Put.Cancels():           "StoreSuite.Checks.Put.Cancels()",
+	storeCheckIndex.Put.NilContext():        "StoreSuite.Checks.Put.NilContext()",
+	storeCheckIndex.Put.Deadline():          "StoreSuite.Checks.Put.Deadline()",
+	storeCheckIndex.Get.Smoke():             "StoreSuite.Checks.Get.Smoke()",
+	storeCheckIndex.Get.Cancels():           "StoreSuite.Checks.Get.Cancels()",
+	storeCheckIndex.Get.NilContext():        "StoreSuite.Checks.Get.NilContext()",
+	storeCheckIndex.Get.Deadline():          "StoreSuite.Checks.Get.Deadline()",
+	storeCheckIndex.Get.ZeroOnError():       "StoreSuite.Checks.Get.ZeroOnError()",
+	storeCheckIndex.Get.Miss():              "StoreSuite.Checks.Get.Miss()",
+	storeCheckIndex.Model.Agrees():          "StoreSuite.Checks.Model.Agrees()",
+	storeCheckIndex.Model.WriteObservable(): "StoreSuite.Checks.Model.WriteObservable()",
 }
 
 var storeDropHint = suite.DropHinter(
@@ -624,9 +627,14 @@ func (storeModelChecks) Agrees() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, storeQualifier, suite.SegDifferential)
 }
 
+func (storeModelChecks) WriteObservable() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, storeQualifier, lawid.WriteObservable)
+}
+
 func (storeModelChecks) All() []suite.ID {
 	return []suite.ID{
 		storeModelChecks{}.Agrees(),
+		storeModelChecks{}.WriteObservable(),
 	}
 }
 
@@ -889,66 +897,19 @@ func (c StoreChecks) applyTo(rc *storeRunConfig) {
 
 // StoreCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type StoreCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Put/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
-	Run     func(tb testing.TB, s Store, fx StoreFixture)
-	RunWith func(tb testing.TB, sub StoreSubject, fx StoreFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveStore fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Store, fx StoreFixture)
+	RunWith      func(tb testing.TB, sub StoreSubject, fx StoreFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     StoreDefect
 	ProvenReason string
 	Argued       string
@@ -988,85 +949,37 @@ var storeMethods = suite.NewNameSet("Store", storePut, storeGet)
 func (c StoreCheck) bind(
 	fx StoreFixture,
 ) (suite.Check[Store], error) {
-	out := suite.Check[Store]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, storeMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Store) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub StoreSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	fields += ", Prop, PropPut, PropGet"
-	if c.Prop != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, storeMethods); err != nil {
-			return out, err
-		}
-		fn := c.Prop
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Store]) {
+	b := suite.BindRow(suite.Row[Store, StoreFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, storeMethods)
+	b.Offers("Prop, PropPut, PropGet")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Store]) {
 			model.Check(tb, func(rt *PropT) {
 				fn(rt, sub.New(tb), fx)
 			})
-		}
+		})
 	}
-	if c.PropPut != nil {
-		bodies++
-		out.ID = suite.MethodID(storePut, c.Name)
-		fn := c.PropPut
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Store]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), storeModelValues(fx).Draw(rt, "value"))
+	if fn := c.PropPut; fn != nil {
+		b.Fixed(suite.MethodID(storePut, c.Name),
+			func(tb testing.TB, sub suite.Subject[Store]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), storeModelValues(fx).Draw(rt, "value"))
+				})
 			})
-		}
 	}
-	if c.PropGet != nil {
-		bodies++
-		out.ID = suite.MethodID(storeGet, c.Name)
-		fn := c.PropGet
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Store]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), storeModelKeys(fx).Draw(rt, "key"))
+	if fn := c.PropGet; fn != nil {
+		b.Fixed(suite.MethodID(storeGet, c.Name),
+			func(tb testing.TB, sub suite.Subject[Store]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), storeModelKeys(fx).Draw(rt, "key"))
+				})
 			})
-		}
 	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	return b.Seal(c.Method)
 }
 
 // RunStore runs every check — the generated ones and any you
@@ -1230,6 +1143,16 @@ func storeProofs() prove.Defects[Store] {
 						return
 					}))
 			}),
+		ix.Model.WriteObservable(): prove.One("a Store whose Put reports success and keeps nothing",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ restrictedpool.Key, _ restrictedpool.Body) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
 	}
 }
 
@@ -1343,18 +1266,10 @@ func GreenStore(
 	}
 	rc.Fail(t, "GreenStore")
 	s := storeSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // A second version check, for the leg idioms the rows above ride. The
@@ -1382,6 +1297,19 @@ func storeModelRows(fx StoreFixture) []suite.Check[Store] {
 				storeAssertAgrees(tb, sub, fx)
 			},
 		},
+		{
+			ID:    storeCheckIndex.Model.WriteObservable(),
+			Class: suite.ClassLaws,
+			Claim: "a written value is readable under the key it was written with",
+			Binds: []string{
+				lawid.WriteObservable,
+			},
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Store]) {
+				storeAssertWriteObservable(tb, sub, fx)
+			},
+		},
 	}
 }
 
@@ -1395,8 +1323,6 @@ func storeModelRows(fx StoreFixture) []suite.Check[Store] {
 //	           Body fixture pairs; NewStoreModelReference replaces it
 //	Sequences: Put (compositewriter), Get (reader)
 //	Values:    the fixture pair — go.thesmos.sh/testkit/conformance/corpus/iface/mixin/restrictedpool.Body reaches a type this build cannot prove a wide draw serves
-//	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf needs the key projection, which was not derivable here
 
 // storeModelKeys is the key pool every key slot draws from.
 //
@@ -1495,6 +1421,38 @@ func storeAssertAgrees(
 		storeModelActions(fx))
 }
 
+// storeAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func storeAssertWriteObservable(
+	tb testing.TB,
+	sub suite.Subject[Store],
+	fx StoreFixture,
+) {
+	tb.Helper()
+	values := storeModelValues(fx)
+
+	buildRef, tier := legs.Reference(tb, sub, NewStoreModelReference)
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Store { return sub.New(tb) }, buildRef,
+		storeModelActions(fx),
+		[]law.Law[Store]{
+			law.WriteObservable[restrictedpool.Store, restrictedpool.Body, restrictedpool.Key]{
+				Write: func(rt *model.T, s restrictedpool.Store, v restrictedpool.Body) error {
+					return s.Put(rt.Context(), fx.Key(), v)
+				},
+				Read: func(rt *model.T, s restrictedpool.Store, k restrictedpool.Key) (restrictedpool.Body, error) {
+					return s.Get(rt.Context(), k)
+				},
+				Values: values,
+				KeyOf:  func(restrictedpool.Body) restrictedpool.Key { return fx.Key() },
+			},
+		})
+}
+
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1504,4 +1462,4 @@ func storeAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance a7adeee83f6a637af955c334b7df7679a8910e687edd2e909a7a9cf38b975f90
+// testkit:provenance fef35a290174c5a71b64b115628ffe3551216bdf0d4747bb66b70e2482445b66

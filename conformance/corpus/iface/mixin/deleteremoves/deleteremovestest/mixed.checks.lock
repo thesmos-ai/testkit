@@ -14,4 +14,5 @@ Read/nilcontext	signature/nilcontext	Read returns an error rather than panicking
 Read/smoke	signature/smoke	Read survives a call with a derived key	
 Read/zero-on-error	signature/zero-on-error	Read returns zero alongside any error	
 model/mixed/AUTO-DELETE-RETURNS-NOT-FOUND	model/laws	where the reference reports the miss sentinel, so does the subject	AUTO-DELETE-RETURNS-NOT-FOUND
+model/mixed/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

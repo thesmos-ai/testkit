@@ -46,6 +46,8 @@ import (
 //
 //	Verify.NilContext — a Contract whose Verify forgives a nil context and answers
 //
+//	Model.Counts — a Contract whose Replay answers zero whatever is held
+//
 //	Model.RespectsContext — a Contract whose Verify reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
@@ -76,4 +78,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 059c6d3431285107549bcbb7df876e2e64234ca62d6559760c3c5beb20254b6a
+// testkit:provenance fab7010ab5d87f454332e122527c9c418dfb80491cbe3c3724068a40b0bc0182

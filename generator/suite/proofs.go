@@ -303,6 +303,11 @@ type defectView struct {
 	// assigns its live value to.
 	NamedReturns       []*sdk.EmitReturn
 	ErrSlot, ValueSlot string
+
+	// FlagSlot is the presence flag a keyed read answers beside its value,
+	// empty where the signature has none. See [flagSlot] for why a defect
+	// answering anyway has to fill it.
+	FlagSlot string
 }
 
 // errLocal is the identifier a defect body assigns its planted error to.
@@ -486,6 +491,7 @@ func defectViewOf(
 		Sentinel:      sentinel,
 		Echo:          echo,
 		ValueSlot:     valueSlot(sig),
+		FlagSlot:      flagSlot(sig),
 		Pkg:           pkg,
 		Prove:         Prove,
 		Vocab:         Vocab,
@@ -598,6 +604,44 @@ func valueSlot(sig *golang.Sig) string {
 	}
 	for _, ret := range sig.Returns {
 		if !ret.Error {
+			return ret.Local
+		}
+	}
+	return ""
+}
+
+// flagSlot is the presence flag a read answers beside its value — the
+// `bool` of `Get(ctx, K) (V, bool)` — empty for a signature with none.
+//
+// A defect answering where a correct subject answers nothing has to fill
+// this as well as the value. On a reader with an error channel the value
+// alone is the whole statement: nil error plus a live value IS the
+// invented answer. Here the value slot says nothing on its own — a caller
+// reads the flag and ignores what came with it — so a defect that set
+// only the value would state the claim it was built to break.
+//
+// The first bool AFTER the value slot, rather than the last return or a
+// fixed position. A page read answers `(items, next, more, error)` and
+// its flag is third; a keyed read answers `(V, bool)` and its flag is
+// second. Skipping the value slot is what keeps a reader whose VALUE is a
+// bool — `Enabled(ctx, K) (bool, error)` — from having its own answer
+// overwritten with true, which would state the claim rather than break
+// it. A signature with no bool past the value has no flag, and the
+// value alone is the whole planted statement.
+func flagSlot(sig *golang.Sig) string {
+	if sig == nil {
+		return ""
+	}
+	seenValue := false
+	for _, ret := range sig.Returns {
+		if ret.Error {
+			continue
+		}
+		if !seenValue {
+			seenValue = true
+			continue
+		}
+		if ret.Source != nil && golang.IsBool(ret.Source) {
 			return ret.Local
 		}
 	}

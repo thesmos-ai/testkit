@@ -8,6 +8,7 @@ import (
 
 	"go.thesmos.sh/eidos/sdk"
 
+	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 )
@@ -167,6 +168,20 @@ func lawOf(
 		b.Unbound = append(b.Unbound, Skip{
 			Method: r.Law,
 			Reason: "the catalogue carries no instantiation spec for it",
+		})
+		return nil, false
+	}
+	if r.Law == lawid.CountEqualsReference && b.EvictingRead != "" {
+		// The same refusal the count ACTION gets, for the same reason and
+		// in both places it could be made: the reference is deliberately
+		// unbounded, so it legally holds more than the subject, and a law
+		// asserting the two counts equal fails at the first eviction. The
+		// declared bound is the claim about this count.
+		b.Unbound = append(b.Unbound, Skip{
+			Method: r.Law,
+			Reason: "the reference is unbounded so the bounded read has something to " +
+				"disagree with, which leaves its count legally the larger; the " +
+				"declared bound is what this count is held to",
 		})
 		return nil, false
 	}

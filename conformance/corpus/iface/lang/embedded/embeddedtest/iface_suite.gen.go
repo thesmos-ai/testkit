@@ -24,7 +24,6 @@ package embeddedtest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/embedded"
@@ -418,65 +417,19 @@ func (c BaseChecks) applyTo(rc *baseRunConfig) {
 
 // BaseCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type BaseCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Ping/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Base, fx BaseFixture)
-	RunWith func(tb testing.TB, sub BaseSubject, fx BaseFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveBase fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Base, fx BaseFixture)
+	RunWith      func(tb testing.TB, sub BaseSubject, fx BaseFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     BaseDefect
 	ProvenReason string
 	Argued       string
@@ -496,51 +449,13 @@ var baseMethods = suite.NewNameSet("Base", basePing)
 func (c BaseCheck) bind(
 	fx BaseFixture,
 ) (suite.Check[Base], error) {
-	out := suite.Check[Base]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, baseMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Base) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub BaseSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	b := suite.BindRow(suite.Row[Base, BaseFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, baseMethods)
+	return b.Seal(c.Method)
 }
 
 // RunBase runs every check — the generated ones and any you
@@ -738,18 +653,10 @@ func GreenBase(
 	}
 	rc.Fail(t, "GreenBase")
 	s := baseSuite().With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // Conformance checks for Closer, worked out from its declaration.
@@ -1138,65 +1045,19 @@ func (c CloserChecks) applyTo(rc *closerRunConfig) {
 
 // CloserCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type CloserCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Close/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Closer, fx CloserFixture)
-	RunWith func(tb testing.TB, sub CloserSubject, fx CloserFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveCloser fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Closer, fx CloserFixture)
+	RunWith      func(tb testing.TB, sub CloserSubject, fx CloserFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     CloserDefect
 	ProvenReason string
 	Argued       string
@@ -1216,51 +1077,13 @@ var closerMethods = suite.NewNameSet("Closer", closerClose)
 func (c CloserCheck) bind(
 	fx CloserFixture,
 ) (suite.Check[Closer], error) {
-	out := suite.Check[Closer]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, closerMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Closer) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub CloserSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	b := suite.BindRow(suite.Row[Closer, CloserFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, closerMethods)
+	return b.Seal(c.Method)
 }
 
 // RunCloser runs every check — the generated ones and any you
@@ -1458,18 +1281,10 @@ func GreenCloser(
 	}
 	rc.Fail(t, "GreenCloser")
 	s := closerSuite().With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // Conformance checks for Composed, worked out from its declaration.
@@ -2101,65 +1916,19 @@ func (c ComposedChecks) applyTo(rc *composedRunConfig) {
 
 // ComposedCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type ComposedCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Get/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Composed, fx ComposedFixture)
-	RunWith func(tb testing.TB, sub ComposedSubject, fx ComposedFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveComposed fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Composed, fx ComposedFixture)
+	RunWith      func(tb testing.TB, sub ComposedSubject, fx ComposedFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     ComposedDefect
 	ProvenReason string
 	Argued       string
@@ -2179,51 +1948,13 @@ var composedMethods = suite.NewNameSet("Composed", composedGet, composedPing, co
 func (c ComposedCheck) bind(
 	fx ComposedFixture,
 ) (suite.Check[Composed], error) {
-	out := suite.Check[Composed]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, composedMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Composed) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub ComposedSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	b := suite.BindRow(suite.Row[Composed, ComposedFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, composedMethods)
+	return b.Seal(c.Method)
 }
 
 // RunComposed runs every check — the generated ones and any you
@@ -2498,19 +2229,11 @@ func GreenComposed(
 	}
 	rc.Fail(t, "GreenComposed")
 	s := composedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // testkit: end of generated content.
-// testkit:provenance b1b83982092e9441193c7e1f18d45aab111d44e78297c47eeffd55c2ec36fccf
+// testkit:provenance e514c157db12c9227314ca95c75afae3c73d0af679106a83bff0fde901760dd9

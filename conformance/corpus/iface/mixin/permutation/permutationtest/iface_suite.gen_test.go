@@ -42,6 +42,8 @@ import (
 //
 //	Model.Agrees — a Mixed whose Add reports success and keeps nothing
 //
+//	Model.Counts — a Mixed whose Items answers zero whatever is held
+//
 //	Model.StreamPermutation — a Mixed whose Items reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
@@ -72,4 +74,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance c14bebdc86a9d509f9e60b3b4cc39ee435a5d91e95c6516f9329f0d3e55f6434
+// testkit:provenance 0eb2c2e22c770a5042dcd3620a642691e0df983755204075669e61d7d0b08ab3

@@ -157,11 +157,34 @@ func {{ suite_newFixtureName $.Token }}{{ renderTypeParams $.TypeParams }}(
 // check passes it alone; what a method does with several is a claim only
 // a check written by hand can make.
 {{- end }}
+{{- if not $f.OK }}
+//
+// The zero value, {{ $f.Reason }}.
+//
+// The checks that needed a real one are listed above as declined; the
+// ones left are the ones a zero can answer.
+//
+// To give it one, declare the type's Defaults companion beside it — the
+// type's name with Defaults appended, taking nothing and returning one —
+// and this reads that instead. It is the one place a team has already
+// written down what a valid instance looks like, and a derived guess is
+// only ever plausible where this type has to be correct.
+{{- end }}
 func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $f.Name }}() {{ renderType $f.Type }} { return f.{{ camel $f.Name }} }
 
+{{ if $f.OK -}}
 // {{ $f.OtherName }} is a second {{ camel $f.Name }}, guaranteed to differ from the
 // first — so a check that expects to find nothing is asking about
 // something your implementation has genuinely never been given.
+{{- else -}}
+// {{ $f.OtherName }} is the zero as well, and equal to {{ $f.Name }}: the pair is
+// derived together and neither half could be.
+//
+// Said out loud because the guarantee this accessor carries everywhere
+// else — a second value that differs — is what makes a not-found check
+// mean anything. One comparing a zero against a zero finds something every
+// time while reading exactly as though it had not.
+{{- end }}
 func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $f.OtherName }}() {{ renderType $f.Type }} { return f.{{ camel $f.OtherName }} }
 {{ end }}
 {{- range $p := $.Pools }}

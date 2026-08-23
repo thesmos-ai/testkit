@@ -620,6 +620,15 @@ func (l PublisherDelivers[T, M, Sub]) Check(rt *rapid.T, sut, ref T) error {
 	// conduct contract. The reference's subscriber is subscribed, published
 	// to and drained the same way, so what residue a cycle leaves stays
 	// symmetric across the pair.
+	//
+	// Mirrored, not compared: what the reference delivered is discarded,
+	// and the verdict below reads the subject alone. So which
+	// implementation stands behind ref changes nothing this law decides,
+	// which is why a publisher with a delivery oracle available still sits
+	// on the twin floor. Comparing the two drains — one-sided per mode,
+	// the subject free to deliver more under at-least-once and less under
+	// at-most-once — is what would change that, and it is a different law
+	// from this one.
 	if err := mirror("PublisherDelivers", func() error {
 		refSub, subErr := l.Subscribe(rt, ref)
 		if subErr != nil {

@@ -197,5 +197,5 @@ func (p prop) Fields() string {
 	for _, s := range p.Sugars {
 		names = append(names, s.Field)
 	}
-	return ", " + strings.Join(names, ", ")
+	return strings.Join(names, ", ")
 }

@@ -129,6 +129,11 @@ type ActionArg struct {
 // home for a rule that has one.
 func (a ActionArg) OtherField() string { return a.Field + subject.OtherSuffix }
 
+// evictingReaderCtor is the asymmetric read comparison, swapped in for the
+// symmetric one where a declared bound makes a miss legal. Named here
+// beside the other constructors this tier reaches for by hand.
+const evictingReaderCtor = "EvictingReader"
+
 // actionOf builds one method's action, or says why there is none.
 func actionOf(ctx *sdk.GeneratorContext, b *Bindings, m *subject.Method) (*Action, string) {
 	name := pseudoShape(m)
@@ -181,7 +186,7 @@ func actionOf(ctx *sdk.GeneratorContext, b *Bindings, m *subject.Method) (*Actio
 		TakesCtx: m.TakesContext(),
 	}
 	switch name {
-	case shapeReader, "readernoerror", "pointerreader", "readerwithbool":
+	case shapeReader, "readernoerror", "pointerreader", shapeReaderWithBool:
 		a.Pool = poolKeys
 		a.Key = m.CallArgs()[0].Type
 		a.Value = m.Returns[0].Type

@@ -177,11 +177,16 @@ func MapStoreShapes() []string {
 //
 //nolint:gochecknoglobals,goconst // a lookup table, read-only after init; the
 var mapStoreOps = map[string]string{
-	shapeReader:       "Get",
-	shapeWriter:       "Put",
-	shapeAggregator:   "Count",
-	shapeStreamReader: "List",
-	ShapeCollector:    "Values",
+	shapeReader: "Get",
+	// The same read, answering a presence flag instead of an error. The
+	// oracle reports a miss as its sentinel, so the adapter folds the two
+	// spellings together in one place rather than at every comparison — see
+	// AdapterMethod.Folds.
+	shapeReaderWithBool: "Get",
+	shapeWriter:         "Put",
+	shapeAggregator:     "Count",
+	shapeStreamReader:   "List",
+	ShapeCollector:      "Values",
 }
 
 // KeyedStoreOp returns the [engine/model/ref.KeyedStore] method a shape
@@ -226,6 +231,7 @@ func KeyedStoreMixinOp(mixin string) (string, bool) {
 var (
 	keyedStoreOps = map[string]string{
 		shapeReader:          "Get",
+		shapeReaderWithBool:  "Get",
 		shapeCompositeWriter: "Put",
 		shapeAggregator:      "Count",
 	}
@@ -321,38 +327,68 @@ var historyDrains = map[string]bool{
 // corpus proved it when the convergence law red-lined the derived adapter,
 // whose inert merge can never converge. The twin floor is the honest model
 // both times: two instances driven identically diverge identically.
-func DefeatsOracles(mixin string) (string, bool) {
-	reason, defeated := oracleDefeats[mixin]
-	return reason, defeated
+func DefeatsOracles(mixin string) (OracleDefeat, bool) {
+	defeat, defeated := oracleDefeats[mixin]
+	return defeat, defeated
+}
+
+// OracleDefeat is why a claim defeats store modelling, and what lifts it.
+type OracleDefeat struct {
+	// Why is the reason the header prints beside the twin.
+	Why string
+
+	// LiftedByEvictingRead marks a defeat that holds only while every read
+	// has to answer for everything the subject is holding.
+	//
+	// A bound is the case, and it is one claim over two shapes. A bounded
+	// COLLECTION answers a list and an unbounded oracle answers a longer
+	// one, so the first clamped read is a disagreement and the twin is the
+	// only honest floor. A bounded CACHE answers one key and may say no,
+	// and a subject miss is what eviction looks like rather than a wrong
+	// answer — so comparing hits alone leaves the oracle free to be
+	// unbounded, which is what lets it catch a subject that invented one.
+	//
+	// The defeat is therefore a fact about the stamp and the read shape
+	// together. Recorded here rather than at the reader, so the reason and
+	// the condition that undoes it stay in one place.
+	LiftedByEvictingRead bool
 }
 
 //nolint:gochecknoglobals // a lookup table, read-only after init.
-var oracleDefeats = map[string]string{
+var oracleDefeats = map[string]OracleDefeat{
 	// The accumulates claim is that a repeated write COMPOUNDS, and every
 	// store oracle replaces: the second write to one key leaves the
 	// subject holding a sum and the store holding the last argument, so a
 	// correct subject diverges on the first re-write. Its reader diverges
 	// sooner — an accumulator answers zero for a key nothing added to,
 	// where a store answers a miss. Twins compound together.
-	mixinAccumulates: "the accumulates claim is that a repeated write compounds, " +
-		"and every store oracle replaces",
-	mixinEventually: "the eventually claim lets reads lag writes, which no immediate store models",
-	mixinCRDTMerge:  "the merge relation is the claim, and every store oracle holds it inert",
+	mixinAccumulates: {Why: "the accumulates claim is that a repeated write compounds, " +
+		"and every store oracle replaces"},
+	mixinEventually: {Why: "the eventually claim lets reads lag writes, which no immediate store models"},
+	mixinCRDTMerge:  {Why: "the merge relation is the claim, and every store oracle holds it inert"},
 	// The atomic claim is about refused writes: the subject rejects by policy
 	// and a derived map accepts everything, so the first refusal reads as a
 	// semantic disagreement on a correct subject. Twins share the policy.
-	mixinAtomic: "the atomic claim is about refused writes, and a derived store refuses nothing",
+	mixinAtomic: {Why: "the atomic claim is about refused writes, and a derived store refuses nothing"},
 	// The causal claim is an admission policy — an entry lands only after
 	// its dependencies — and a derived log admits everything, so a correct
 	// subject's first refusal reads as disagreement. Twins share the policy.
 	// (The session fixture reaches the twin through its version stamp
 	// already; this row covers causal claims with no stamp, like the
 	// chain's.)
-	mixinCausal: "the causal claim is an admission policy, and a derived store admits everything",
+	mixinCausal: {Why: "the causal claim is an admission policy, and a derived store admits everything"},
 	// The bounded claim clamps what its reader answers; a derived
 	// collection answers everything it was fed, so a correct subject's
 	// first clamped read counts as disagreement. Twins clamp together.
-	mixinBounded: "the bounded claim clamps what the reader answers, and a derived collection clamps nothing",
+	//
+	// Lifted where the reader answers one key and may say no — see
+	// [OracleDefeat.LiftedByEvictingRead], which sets out the asymmetry
+	// that makes an unbounded oracle usable there.
+	mixinBounded: {
+		Why: "the bounded claim clamps what the reader answers, and a derived " +
+			"collection clamps nothing",
+		LiftedByEvictingRead: true,
+	},
 	// An isolation level is an admission policy before it is anything
 	// else: a store claiming it refuses the operation that would put an
 	// anomaly in its history, and a derived log records whatever it is
@@ -360,8 +396,8 @@ var oracleDefeats = map[string]string{
 	// and — worse — a passive log fed arbitrary draws fabricates the very
 	// anomalies the laws exist to find, failing a subject that did nothing
 	// wrong. Twins share the policy and refuse together.
-	mixinSnapshotIsolation: "the isolation claim is an admission policy, and a derived log records anything",
-	mixinSerializable:      "the serializable claim is an admission policy, and a derived log records anything",
+	mixinSnapshotIsolation: {Why: "the isolation claim is an admission policy, and a derived log records anything"},
+	mixinSerializable:      {Why: "the serializable claim is an admission policy, and a derived log records anything"},
 }
 
 // MapStorePins reports whether the named mixin turns the map oracle into its

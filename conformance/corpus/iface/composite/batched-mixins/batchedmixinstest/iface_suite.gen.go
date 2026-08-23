@@ -24,7 +24,6 @@ package batchedmixinstest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	batchedmixins "go.thesmos.sh/testkit/conformance/corpus/iface/composite/batched-mixins"
@@ -899,65 +898,19 @@ func (c BatchedChecks) applyTo(rc *batchedRunConfig) {
 
 // BatchedCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type BatchedCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Put/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Batched, fx BatchedFixture)
-	RunWith func(tb testing.TB, sub BatchedSubject, fx BatchedFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveBatched fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Batched, fx BatchedFixture)
+	RunWith      func(tb testing.TB, sub BatchedSubject, fx BatchedFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     BatchedDefect
 	ProvenReason string
 	Argued       string
@@ -997,85 +950,37 @@ var batchedMethods = suite.NewNameSet("Batched", batchedPut, batchedRead, batche
 func (c BatchedCheck) bind(
 	fx BatchedFixture,
 ) (suite.Check[Batched], error) {
-	out := suite.Check[Batched]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, batchedMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Batched) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub BatchedSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	fields += ", Prop, PropPut, PropRead"
-	if c.Prop != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, batchedMethods); err != nil {
-			return out, err
-		}
-		fn := c.Prop
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Batched]) {
+	b := suite.BindRow(suite.Row[Batched, BatchedFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, batchedMethods)
+	b.Offers("Prop, PropPut, PropRead")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Batched]) {
 			model.Check(tb, func(rt *PropT) {
 				fn(rt, sub.New(tb), fx)
 			})
-		}
+		})
 	}
-	if c.PropPut != nil {
-		bodies++
-		out.ID = suite.MethodID(batchedPut, c.Name)
-		fn := c.PropPut
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Batched]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), batchedModelValues(fx).Draw(rt, "value"))
+	if fn := c.PropPut; fn != nil {
+		b.Fixed(suite.MethodID(batchedPut, c.Name),
+			func(tb testing.TB, sub suite.Subject[Batched]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), batchedModelValues(fx).Draw(rt, "value"))
+				})
 			})
-		}
 	}
-	if c.PropRead != nil {
-		bodies++
-		out.ID = suite.MethodID(batchedRead, c.Name)
-		fn := c.PropRead
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Batched]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), batchedModelKeys(fx).Draw(rt, "key"))
+	if fn := c.PropRead; fn != nil {
+		b.Fixed(suite.MethodID(batchedRead, c.Name),
+			func(tb testing.TB, sub suite.Subject[Batched]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), batchedModelKeys(fx).Draw(rt, "key"))
+				})
 			})
-		}
 	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	return b.Seal(c.Method)
 }
 
 // RunBatched runs every check — the generated ones and any you
@@ -1418,18 +1323,10 @@ func GreenBatched(
 	}
 	rc.Fail(t, "GreenBatched")
 	s := batchedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // A second version check, for the leg idioms the rows above ride. The
@@ -1480,7 +1377,7 @@ func batchedModelRows(fx BatchedFixture) []suite.Check[Batched] {
 			Binds: []string{
 				lawid.CountEqualsReference,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Batched]) {
 				batchedAssertCounts(tb, sub, fx)
@@ -1515,9 +1412,10 @@ func batchedModelRows(fx BatchedFixture) []suite.Check[Batched] {
 //	Sequences: Put (compositewriter), Read (reader), List (collector)
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf needs the key projection, which was not derivable here
+//	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
 //	           AUTO-PURE-DETERMINISTIC — Call closes over List, which is not a bare pure call
 //	           AUTO-CACHEABLE — Read closes over List, whose shape is collector rather than a keyed reader
+//	           batched differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
 // batchedModelKeys is the key pool every key slot draws from.
 //
@@ -1701,4 +1599,4 @@ func batchedAssertBounded(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance ad1fb9fe3f5d0ab3c454f61421e6a855b757feafa46715ed7f5e7d683099e0e6
+// testkit:provenance 19981195fa4265bebf53c7e679a34a96fabde408463cb278ad176e7995923c1c

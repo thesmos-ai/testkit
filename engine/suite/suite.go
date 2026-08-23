@@ -258,6 +258,32 @@ func Doors[S any](subs ...Subject[S]) map[Capability]any {
 	return out
 }
 
+// Answering returns a copy supplying the given capability doors, keeping
+// whatever this subject already answers for itself.
+//
+// The mirror of prove.Defects.Answering, needed for the same reason from
+// the control's side. The doors in the open half of the registry are facts
+// about the DECLARATION rather than about any one instance, so a control
+// built to be correct-but-different has no separate answer to give — and
+// without this it has none at all. A check declaring a door would then
+// refuse it for being unwired, and a wiring red recorded as "the suite
+// rejected correct code" poisons the one measurement a control exists to
+// make.
+//
+// The subject's own answers win over the lent ones: a control that DOES
+// speak for a door has said something about itself, and borrowing over it
+// would test the run's wiring rather than the control.
+func (s Subject[S]) Answering(doors map[Capability]any) Subject[S] {
+	if len(doors) == 0 {
+		return s
+	}
+	provides := make(map[Capability]any, len(doors)+len(s.Provides))
+	maps.Copy(provides, doors)
+	maps.Copy(provides, s.Provides)
+	s.Provides = provides
+	return s
+}
+
 // perInstance reports the capabilities answered by a subject's own field
 // rather than by the Provide map, and so not lent to another subject.
 //

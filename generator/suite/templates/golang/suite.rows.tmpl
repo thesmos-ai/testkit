@@ -63,66 +63,19 @@ func (c {{ suite_rowsName .IfaceName }}{{ .TypeArgs }}) applyTo(rc *{{ suite_run
 
 // {{ suite_rowName .IfaceName }} is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [{{ renderExpr (external $.Vocab "Row") }}], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type {{ suite_rowName .IfaceName }}{{ renderTypeParams .TypeParams }} struct {
-	// Method groups this check under one of your methods, so it is named
-	// {{ with index .Methods 0 }}{{ .Name }}/<Name> in output{{ end }} and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do{{ if $.Pools }} — override an input and
-	// your check sees the override too{{ end }}.
-	Run     func(tb {{ renderExpr (external "testing" "TB") }}, s {{ suite_subjectType $c }}, {{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }})
-	RunWith func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ .IfaceName }}Subject{{ .TypeArgs }}, {{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }})
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class {{ renderExpr (external $.Vocab "Class") }}
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs {{ renderExpr (external $.Vocab "Caps") }}
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and {{ suite_proveName .IfaceName }} fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb {{ renderExpr (external "testing" "TB") }}, s {{ suite_subjectType $c }}, {{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }})
+	RunWith      func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ .IfaceName }}Subject{{ .TypeArgs }}, {{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }})
+	Class        {{ renderExpr (external $.Vocab "Class") }}
+	Needs        {{ renderExpr (external $.Vocab "Caps") }}
 	ProvenBy     {{ suite_defectTypeName .IfaceName }}{{ .TypeArgs }}
 	ProvenReason string
 	Argued       string
@@ -147,53 +100,15 @@ var {{ suite_methodsVar .Token }} = {{ renderExpr (external $.Vocab "NewNameSet"
 func (c {{ suite_rowName .IfaceName }}{{ .TypeArgs }}) bind(
 	{{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }},
 ) ({{ renderExpr (external $.Vocab "Check") }}[{{ suite_subjectType $c }}], error) {
-	out := {{ renderExpr (external $.Vocab "Check") }}[{{ suite_subjectType $c }}]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = {{ renderExpr (external $.Vocab "ClassHandWritten") }}
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = {{ renderExpr (external $.Vocab "RowID") }}("Run", c.Method, c.Name, {{ suite_methodsVar .Token }}); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb {{ renderExpr (external "testing" "TB") }}, s {{ suite_subjectType $c }}) {
-			run(tb, s, {{ suite_fixtureIdent }})
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = {{ renderExpr (external $.Vocab "HandRowID") }}(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ .IfaceName }}Subject{{ .TypeArgs }}) {
-			rw(tb, sub, {{ suite_fixtureIdent }})
-		}
-	}
+	b := {{ renderExpr (external $.Vocab "BindRow") }}({{ renderExpr (external $.Vocab "Row") }}[{{ suite_subjectType $c }}, {{ .Fixture.TypeName }}{{ .TypeArgs }}]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, {{ suite_fixtureIdent }}, {{ suite_methodsVar .Token }})
 {{- range (slot $c $c.CheckBodiesSlotName).Items }}
 	{{ render . }}
 {{- end }}
-	if err := {{ renderExpr (external $.Vocab "OneBody") }}(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, {{ renderExpr (external "fmt" "Errorf") }}(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = {{ renderExpr (external $.Vocab "Falsify") }}(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	return b.Seal(c.Method)
 }
 {{- end -}}

@@ -142,3 +142,16 @@ func Falsify(row string, hasDefect bool, argued string) (Falsifiability, error) 
 		return Falsifiability{}, nil
 	}
 }
+
+// methodScoped refuses a row that set Method beside a body which fixes its
+// own scope.
+//
+// The two disagree about what the check is called, and taking either would
+// file it somewhere its author would not look for it. Refusing names the
+// field to drop, because that is the shorter of the two edits.
+func methodScoped(row, method string, scoped bool) error {
+	if method == "" || scoped {
+		return nil
+	}
+	return fmt.Errorf("check %q sets Method, but its body fixes its own scope; drop Method", row)
+}

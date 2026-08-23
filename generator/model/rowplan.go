@@ -66,8 +66,23 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 	// The differential is the strongest oracle this tier has, and it runs
 	// with no law registered so nothing competes with it: a disagreement
 	// is what ends the run.
+	//
+	// Not on the twin floor, and the header says so rather than leaving a
+	// reader to notice the row is missing. A twin comparison already rides
+	// every law leg — the actions compare both sides after each call — and
+	// on its own it can only catch nondeterminism or shared state. A row
+	// for it would rerun the weakest half of what those legs already do,
+	// under a claim about a reference comparison it did not make.
+	if b.Reference.Twin() {
+		b.Unbound = append(b.Unbound, Skip{
+			Method: b.qualifier() + " differential",
+			Reason: "the reference is the subject's own factory, whose comparison " +
+				"already rides each law leg's actions; alone it catches " +
+				"nondeterminism and nothing a second instance shares",
+		})
+	}
 	if b.Reference.Derived() || b.Reference.Supplied() {
-		dropped, writer, drops := differentialDefect(b)
+		dropped, writer, why := differentialDefect(b)
 		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
 				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: vocab.SegDifferential,
@@ -75,7 +90,7 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Class: vocab.ClassDifferential,
 			Claim: refClaim,
 			Body:  projection.DifferentialLeg{},
-		}, b, dropped, writer, drops))
+		}, b, dropped, writer, why == "", why))
 	}
 	if why := concLegReason(b); b.Concurrent() && why != "" {
 		b.Unbound = append(b.Unbound, Skip{Method: b.ConcFamily + " linearizability", Reason: why})

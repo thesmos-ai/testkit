@@ -113,6 +113,15 @@ type LawField struct {
 	// a keyed observation revisits.
 	KeyField string
 
+	// MissSym and MissName are the identity a folded read reports for a key
+	// the subject answers `false` for — the declaration's own sentinel where
+	// one is stamped, the run's minted var otherwise.
+	//
+	// Only a folded read carries them. A read with an error channel already
+	// has an identity to report and needs nothing from here.
+	MissSym  *sdk.Expr
+	MissName string
+
 	// Reads are the fixture accessors a quantity carried on the drawn value
 	// is read through — `fx.Entry().Lifetime` beside
 	// `fx.EntryOther().Lifetime` — one per member of the pool the law draws

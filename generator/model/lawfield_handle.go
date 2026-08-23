@@ -13,6 +13,55 @@ import (
 	"go.thesmos.sh/testkit/generator/internal/subject"
 )
 
+// fixedKeyProjection is the key projection for a law whose write takes the
+// key beside the value: every drawn value goes to the fixture's own key,
+// so the projection answers that key whatever it is handed.
+//
+// No key rides inside such a value — the writer takes it as an argument —
+// so a value-to-key projection cannot be derived from the type, and the
+// map oracle's KeyField is empty. The law does not need one derived: it
+// writes and reads the same key, and what it compares is the value that
+// came back.
+//
+// The same restriction [valueOpField] puts on the write, and the two have
+// to agree. That arm anchors a composite write on the fixture key for
+// exactly this reason; if it stops applying, this has to stop with it, or
+// the law would read a key nothing was written to and call a correct
+// subject wrong.
+func fixedKeyProjection(
+	b *Bindings, harness *subject.Projection,
+	r tiers.Rule, f tiers.Field, field *LawField, m, keyed *subject.Method,
+) (*LawField, string) {
+	underivable := f.Name + " needs the key projection, which was not derivable here"
+	if b.Keys.Field == "" || b.Keys.Type == nil {
+		return nil, underivable
+	}
+	if !b.Reference.Derived() {
+		// The twin floor is where a declared claim defeated store
+		// modelling, and "what went in comes back out" IS the store model.
+		// The corpus taught this the first time this arm ran: it bound the
+		// law on the accumulates fixture, whose whole claim is that a
+		// repeated write COMPOUNDS — so the read answers a running total,
+		// the law compared it against the last value written, and a correct
+		// subject failed at step one.
+		return nil, f.Name + " would project every value onto the fixture key, " +
+			"and the reference here is the subject's own factory — so a claim on " +
+			"this interface has already defeated the store model this law is"
+	}
+	role, reason := ruleFieldRole(b, harness, r, fWrite, m, keyed)
+	if reason != "" {
+		return nil, underivable
+	}
+	if pseudoShape(role) != shapeCompositeWriter || len(role.CallArgs()) != 2 {
+		return nil, underivable
+	}
+	field.Key = b.Keys.Type
+	field.KeyField = b.Keys.Field
+	field.KindName = sdk.Kind(LawFieldKindPrefix + "KeyOfFixed")
+	b.LawsUseFixture = true
+	return field, ""
+}
+
 // handleFieldOf fills a handle the generated file constructs and shares.
 func handleFieldOf(
 	b *Bindings, harness *subject.Projection, r tiers.Rule, f tiers.Field,
@@ -42,7 +91,7 @@ func handleFieldOf(
 			field.KindName = sdk.Kind(LawFieldKindPrefix + "KeyOfIdentity")
 			return field, ""
 		}
-		return nil, f.Name + " needs the key projection, which was not derivable here"
+		return fixedKeyProjection(b, harness, r, f, field, m, keyed)
 
 	case "identity-hash":
 		// Identity over the drained element: the hash argument is the value

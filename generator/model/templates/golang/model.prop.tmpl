@@ -56,30 +56,22 @@ A body wanting an accumulated sequence wants this tier's own legs, which
 own sequences on purpose.
 */ -}}
 {{- define "model.prop.dispatch" -}}
-fields += {{ printf "%q" .Fields }}
-	if c.Prop != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = {{ renderExpr (external .Vocab "RowID") }}("Prop", c.Method, c.Name, {{ .MethodsVar }}); err != nil {
-			return out, err
-		}
-		fn := c.Prop
-		out.RunWith = func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}]) {
+b.Offers({{ printf "%q" .Fields }})
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}]) {
 			{{ renderExpr (external .ModelPkg "Check") }}(tb, func(rt *{{ .Alias }}) {
 				fn(rt, sub.New(tb), {{ .FixtureIdent }})
 			})
-		}
+		})
 	}
 {{- range .Sugars }}
-	if c.{{ .Field }} != nil {
-		bodies++
-		out.ID = {{ renderExpr (external $.Vocab "MethodID") }}({{ .MethodConst }}, c.Name)
-		fn := c.{{ .Field }}
-		out.RunWith = func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external $.Vocab "Subject") }}[{{ $.Subject }}]) {
-			{{ renderExpr (external $.ModelPkg "Check") }}(tb, func(rt *{{ $.Alias }}) {
-				fn(rt, sub.New(tb), {{ .Pool }}({{ $.FixtureIdent }}).Draw(rt, {{ printf "%q" .Label }}))
+	if fn := c.{{ .Field }}; fn != nil {
+		b.Fixed({{ renderExpr (external $.Vocab "MethodID") }}({{ .MethodConst }}, c.Name),
+			func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external $.Vocab "Subject") }}[{{ $.Subject }}]) {
+				{{ renderExpr (external $.ModelPkg "Check") }}(tb, func(rt *{{ $.Alias }}) {
+					fn(rt, sub.New(tb), {{ .Pool }}({{ $.FixtureIdent }}).Draw(rt, {{ printf "%q" .Label }}))
+				})
 			})
-		}
 	}
 {{- end }}
 {{- end -}}

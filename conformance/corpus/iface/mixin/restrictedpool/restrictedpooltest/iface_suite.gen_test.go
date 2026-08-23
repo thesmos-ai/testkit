@@ -44,6 +44,8 @@ import (
 //	Get.Miss — a Store whose Get answers for an input nothing wrote
 //
 //	Model.Agrees — a Store whose Put reports success and keeps nothing
+//
+//	Model.WriteObservable — a Store whose Put reports success and keeps nothing
 
 // TestStoreInvariants holds this package to what it says about itself.
 //
@@ -118,4 +120,4 @@ func TestStorePoolProvenance(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 1d384960206997eb6ad21802f8ec5ff1cdf526893edd435268f56c1128335569
+// testkit:provenance 557162b62c537d635bfeb77a2de74dee12090371e6694f75d3d8cab452fb9897

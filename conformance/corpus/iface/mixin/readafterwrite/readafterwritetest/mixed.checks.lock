@@ -10,4 +10,5 @@ Write/deadline	signature/deadline	Write reports an expired deadline as exceeded
 Write/nilcontext	signature/nilcontext	Write returns an error rather than panicking on a nil context	
 Write/smoke	signature/smoke	Write survives a call with derived inputs	
 model/mixed/AUTO-READ-AFTER-WRITE	model/laws	every key reads the same on the subject as on the reference	AUTO-READ-AFTER-WRITE
+model/mixed/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

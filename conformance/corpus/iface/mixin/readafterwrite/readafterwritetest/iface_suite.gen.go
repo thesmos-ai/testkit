@@ -24,7 +24,6 @@ package readafterwritetest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/readafterwrite"
@@ -74,6 +73,7 @@ import (
 //	Write/nilcontext
 //	Write/smoke
 //	model/mixed/AUTO-READ-AFTER-WRITE
+//	model/mixed/AUTO-WRITE-OBSERVABLE
 //	model/mixed/differential
 //
 // Declared on this interface and checked by testkit's model tier rather
@@ -292,18 +292,19 @@ func (mixedVeneer) Suite(fx MixedFixture) suite.Suite[Mixed] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mixedIndexPath = map[suite.ID]string{
-	mixedCheckIndex.Read.Smoke():       "MixedSuite.Checks.Read.Smoke()",
-	mixedCheckIndex.Read.Cancels():     "MixedSuite.Checks.Read.Cancels()",
-	mixedCheckIndex.Read.NilContext():  "MixedSuite.Checks.Read.NilContext()",
-	mixedCheckIndex.Read.Deadline():    "MixedSuite.Checks.Read.Deadline()",
-	mixedCheckIndex.Read.ZeroOnError(): "MixedSuite.Checks.Read.ZeroOnError()",
-	mixedCheckIndex.Read.Miss():        "MixedSuite.Checks.Read.Miss()",
-	mixedCheckIndex.Write.Smoke():      "MixedSuite.Checks.Write.Smoke()",
-	mixedCheckIndex.Write.Cancels():    "MixedSuite.Checks.Write.Cancels()",
-	mixedCheckIndex.Write.NilContext(): "MixedSuite.Checks.Write.NilContext()",
-	mixedCheckIndex.Write.Deadline():   "MixedSuite.Checks.Write.Deadline()",
-	mixedCheckIndex.Model.Agrees():     "MixedSuite.Checks.Model.Agrees()",
-	mixedCheckIndex.Model.ReadsAgree(): "MixedSuite.Checks.Model.ReadsAgree()",
+	mixedCheckIndex.Read.Smoke():            "MixedSuite.Checks.Read.Smoke()",
+	mixedCheckIndex.Read.Cancels():          "MixedSuite.Checks.Read.Cancels()",
+	mixedCheckIndex.Read.NilContext():       "MixedSuite.Checks.Read.NilContext()",
+	mixedCheckIndex.Read.Deadline():         "MixedSuite.Checks.Read.Deadline()",
+	mixedCheckIndex.Read.ZeroOnError():      "MixedSuite.Checks.Read.ZeroOnError()",
+	mixedCheckIndex.Read.Miss():             "MixedSuite.Checks.Read.Miss()",
+	mixedCheckIndex.Write.Smoke():           "MixedSuite.Checks.Write.Smoke()",
+	mixedCheckIndex.Write.Cancels():         "MixedSuite.Checks.Write.Cancels()",
+	mixedCheckIndex.Write.NilContext():      "MixedSuite.Checks.Write.NilContext()",
+	mixedCheckIndex.Write.Deadline():        "MixedSuite.Checks.Write.Deadline()",
+	mixedCheckIndex.Model.Agrees():          "MixedSuite.Checks.Model.Agrees()",
+	mixedCheckIndex.Model.ReadsAgree():      "MixedSuite.Checks.Model.ReadsAgree()",
+	mixedCheckIndex.Model.WriteObservable(): "MixedSuite.Checks.Model.WriteObservable()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -417,10 +418,15 @@ func (mixedModelChecks) ReadsAgree() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.ReadAfterWrite)
 }
 
+func (mixedModelChecks) WriteObservable() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.WriteObservable)
+}
+
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedModelChecks{}.Agrees(),
 		mixedModelChecks{}.ReadsAgree(),
+		mixedModelChecks{}.WriteObservable(),
 	}
 }
 
@@ -683,65 +689,19 @@ func (c MixedChecks) applyTo(rc *mixedRunConfig) {
 
 // MixedCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type MixedCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Read/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Mixed, fx MixedFixture)
-	RunWith func(tb testing.TB, sub MixedSubject, fx MixedFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveMixed fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Mixed, fx MixedFixture)
+	RunWith      func(tb testing.TB, sub MixedSubject, fx MixedFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
@@ -781,85 +741,37 @@ var mixedMethods = suite.NewNameSet("Mixed", mixedRead, mixedWrite)
 func (c MixedCheck) bind(
 	fx MixedFixture,
 ) (suite.Check[Mixed], error) {
-	out := suite.Check[Mixed]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Mixed) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub MixedSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	fields += ", Prop, PropRead, PropWrite"
-	if c.Prop != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
-			return out, err
-		}
-		fn := c.Prop
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+	b := suite.BindRow(suite.Row[Mixed, MixedFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, mixedMethods)
+	b.Offers("Prop, PropRead, PropWrite")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Mixed]) {
 			model.Check(tb, func(rt *PropT) {
 				fn(rt, sub.New(tb), fx)
 			})
-		}
+		})
 	}
-	if c.PropRead != nil {
-		bodies++
-		out.ID = suite.MethodID(mixedRead, c.Name)
-		fn := c.PropRead
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+	if fn := c.PropRead; fn != nil {
+		b.Fixed(suite.MethodID(mixedRead, c.Name),
+			func(tb testing.TB, sub suite.Subject[Mixed]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+				})
 			})
-		}
 	}
-	if c.PropWrite != nil {
-		bodies++
-		out.ID = suite.MethodID(mixedWrite, c.Name)
-		fn := c.PropWrite
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+	if fn := c.PropWrite; fn != nil {
+		b.Fixed(suite.MethodID(mixedWrite, c.Name),
+			func(tb testing.TB, sub suite.Subject[Mixed]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+				})
 			})
-		}
 	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	return b.Seal(c.Method)
 }
 
 // RunMixed runs every check — the generated ones and any you
@@ -1023,6 +935,16 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
+		ix.Model.WriteObservable(): prove.One("a Mixed whose Write reports success and keeps nothing",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedWrite(
+					func(_ context.Context, _ string, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
 	}
 }
 
@@ -1136,18 +1058,10 @@ func GreenMixed(
 	}
 	rc.Fail(t, "GreenMixed")
 	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // A second version check, for the leg idioms the rows above ride. The
@@ -1188,6 +1102,19 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertReadsAgree(tb, sub, fx)
 			},
 		},
+		{
+			ID:    mixedCheckIndex.Model.WriteObservable(),
+			Class: suite.ClassLaws,
+			Claim: "a written value is readable under the key it was written with",
+			Binds: []string{
+				lawid.WriteObservable,
+			},
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertWriteObservable(tb, sub, fx)
+			},
+		},
 	}
 }
 
@@ -1201,8 +1128,6 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           Value fixture pairs; NewMixedModelReference replaces it
 //	Sequences: Read (reader), Write (compositewriter)
 //	Values:    the fixture pair blended with arbitrary draws
-//	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf needs the key projection, which was not derivable here
 
 // mixedModelKeys is the key pool every key slot draws from.
 //
@@ -1330,6 +1255,38 @@ func mixedAssertReadsAgree(
 		})
 }
 
+// mixedAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func mixedAssertWriteObservable(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+	values := mixedModelValues(fx)
+
+	buildRef, tier := legs.Reference(tb, sub, NewMixedModelReference)
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			law.WriteObservable[readafterwrite.Mixed, string, string]{
+				Write: func(rt *model.T, s readafterwrite.Mixed, v string) error {
+					return s.Write(rt.Context(), fx.Key(), v)
+				},
+				Read: func(rt *model.T, s readafterwrite.Mixed, k string) (string, error) {
+					return s.Read(rt.Context(), k)
+				},
+				Values: values,
+				KeyOf:  func(string) string { return fx.Key() },
+			},
+		})
+}
+
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1339,4 +1296,4 @@ func mixedAssertReadsAgree(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 6ec78f4c59d7b3f94266553ec7a3f53ae40f8cc6992cb348c5f7bec01aa3528f
+// testkit:provenance a4cdb23317066d57df17ba0aef1555872dd689ec8547d96cde6b65dcf430134b

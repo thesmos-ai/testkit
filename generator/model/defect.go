@@ -53,9 +53,9 @@ func defectFor(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, 
 	if !ruled {
 		return nil, nil, false, NoRule
 	}
-	defect, over, planted := rule(b, l)
-	if !planted {
-		return nil, nil, false, RuleDeclined
+	defect, over, why := rule(b, l)
+	if why != "" {
+		return nil, nil, false, why
 	}
 	return defect, over, true, ""
 }
@@ -81,8 +81,15 @@ const (
 		"derived reference for the defect to be right about everything else"
 )
 
-// lawDefectRule plants one law's defect from the interface's own stamps.
-type lawDefectRule func(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool)
+// lawDefectRule plants one law's defect from the interface's own stamps,
+// or says why it cannot.
+//
+// The reason is the rule's own and reaches the row's Argued line verbatim.
+// [RuleDeclined] is the catch-all for a rule with nothing more specific to
+// say; a rule that knows exactly what was missing says that instead,
+// because a reader sent to the general answer for a particular gap loses
+// the time twice.
+type lawDefectRule func(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, string)
 
 // lawDefects is the rule table, keyed by law. A law without a row is the
 // honest residue — the domain composites, like the cursor's hand-built
@@ -96,6 +103,7 @@ func lawDefects() map[string]lawDefectRule {
 		lawid.PoisonIdempotentRead:     poisonAnswersTwoWays,
 		lawid.AppenderMonotonicOffsets: appenderFreezes,
 		lawid.TTLExpiry:                ttlKeepsAnswering,
+		lawid.CountEqualsReference:     countMiscounts,
 		// A frozen answer is a subject ignoring the clock, which is
 		// exactly what this claim forbids: the law advances and demands
 		// the reading move, and one pinned to a constant cannot.
@@ -141,15 +149,15 @@ func lawDefects() map[string]lawDefectRule {
 // has no reason to notice. The corpus settled that for the appender
 // already — its law appends through a closure of its own, over a method
 // the sequences never drive.
-func carrierDoesNothing(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool) {
+func carrierDoesNothing(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, string) {
 	m := methodNamed(b, l.carrier.Name)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
 	return projection.AnswersAnyway{
 		Clause: projection.Clause{Text: suite.DropsWriteClause(*m)},
 		Option: projection.OptionName(b.IfaceName, m.Name),
-	}, m, true
+	}, m, ""
 }
 
 // carrierRefusesItsRepeat plants the first call landing and the second
@@ -158,15 +166,15 @@ func carrierDoesNothing(b *Bindings, l *LawBinding) (projection.Defect, *subject
 // A total defect cannot state it: a method that always fails breaks the
 // first call too, which is a different claim, and one that always
 // succeeds is what the law expects.
-func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool) {
+func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, string) {
 	m := methodNamed(b, l.carrier.Name)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
 	return projection.SecondCallErrs{
 		Clause: projection.Clause{Text: m.Name + " refuses its repeat"},
 		Option: projection.OptionName(b.IfaceName, m.Name),
-	}, m, true
+	}, m, ""
 }
 
 // differentialDefect is the rule that proves the reference comparison: a
@@ -176,6 +184,10 @@ func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *su
 // the differential compares the two after every call. That holds for any
 // interface with a writer, whatever it writes, which is what makes this
 // mechanical.
+//
+// Except where the read is evicting, which inverts it — see the rule's
+// first arm, and [action.EvictingReader] for why a miss cannot be a
+// divergence there.
 //
 // It does NOT prove the bundled laws row, and the corpus is where that
 // was settled: with the differential verdict off, whether anything
@@ -187,10 +199,28 @@ func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *su
 // The writer is the one the sequences already drive, so the defect
 // breaks a method the run actually calls. False where nothing writes:
 // there is no dropped write to plant.
-func differentialDefect(b *Bindings) (projection.Defect, *subject.Method, bool) {
+func differentialDefect(b *Bindings) (projection.Defect, *subject.Method, string) {
+	if m := methodNamed(b, b.EvictingRead); b.EvictingRead != "" && m != nil {
+		// Where the read is compared one way, a dropped write is invisible
+		// and this rule would ship a proof that proves nothing: a subject
+		// keeping nothing answers a miss for every key, and a subject miss
+		// is what eviction looks like. The corpus caught it on the first
+		// run — the row claimed Proven and the dropping double sailed
+		// through.
+		//
+		// The direction the comparison CAN see is the other one: a hit the
+		// reference cannot explain. A read answering for everything invents
+		// one on the first key nothing wrote, which is the strongest claim
+		// an asymmetric comparison makes and the only one worth proving
+		// here.
+		return projection.AnswersWithValue{
+			Clause: projection.Clause{Text: m.Name + " answers for a key nothing wrote"},
+			Option: projection.OptionName(b.IfaceName, m.Name),
+		}, m, ""
+	}
 	m := writerCarrier(b)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
 	return projection.AnswersAnyway{
 		// The harness generator's own wording for this double, because it
@@ -198,7 +228,7 @@ func differentialDefect(b *Bindings) (projection.Defect, *subject.Method, bool) 
 		// read as two different defects in a report.
 		Clause: projection.Clause{Text: suite.DropsWriteClause(*m)},
 		Option: projection.OptionName(b.IfaceName, m.Name),
-	}, m, true
+	}, m, ""
 }
 
 // afterCloseOutlives plants the after-close defect: one stamped method
@@ -207,12 +237,12 @@ func differentialDefect(b *Bindings) (projection.Defect, *subject.Method, bool) 
 // Exactly one. A double ignoring Close entirely reddens a law probing
 // any method and proves nothing about whether the probe set is wide
 // enough, which is what the claim is really about.
-func afterCloseOutlives(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+func afterCloseOutlives(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, string) {
 	m := carrierOf(b, func(m *subject.Method) bool { return m.HasMixin(mixinAfterClose) })
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
-	return projection.PartialOutlive{Option: projection.OptionName(b.IfaceName, m.Name)}, m, true
+	return projection.PartialOutlive{Option: projection.OptionName(b.IfaceName, m.Name)}, m, ""
 }
 
 // poisonHeals plants the un-sticky poison the law forbids: the subject
@@ -220,7 +250,7 @@ func afterCloseOutlives(b *Bindings, _ *LawBinding) (projection.Defect, *subject
 //
 // The sentinel is the same declaration that licensed the law, so the
 // defect cannot break the claim by naming a different one.
-func poisonHeals(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+func poisonHeals(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, string) {
 	for i := range b.Methods {
 		m := &b.Methods[i]
 		v, stamped := m.MixinParam(mixinAfterClose, mixinAfterCloseSentinel)
@@ -230,7 +260,7 @@ func poisonHeals(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method
 		return projection.SentinelOnce{
 			Clause:   projection.Clause{Text: m.Name + " reports it once and heals"},
 			Sentinel: projection.Expr(v),
-		}, m, true
+		}, m, ""
 	}
 	// The other road to the same law. `poisonable induce=` stamps the
 	// PROBE, and the law asks only that its answer stay non-nil once the
@@ -239,9 +269,9 @@ func poisonHeals(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method
 	if m := poisonProbe(b); m != nil {
 		return projection.SentinelOnce{
 			Clause: projection.Clause{Text: m.Name + " reports the state once and heals"},
-		}, m, true
+		}, m, ""
 	}
-	return nil, nil, false
+	return nil, nil, RuleDeclined
 }
 
 // poisonProbe is the method the poison mixin is stamped on: the one that
@@ -256,15 +286,15 @@ func poisonProbe(b *Bindings) *subject.Method {
 // one and reads it. A probe that always answers an error breaks exactly
 // that and nothing else: no induction has run, so there is no stickiness
 // to confuse it with.
-func poisonBornFailing(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+func poisonBornFailing(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, string) {
 	m := poisonProbe(b)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
 	return projection.RefusesAlways{
 		Clause: projection.Clause{Text: m.Name + " reports poison on a subject nothing touched"},
 		Option: projection.OptionName(b.IfaceName, m.Name),
-	}, m, true
+	}, m, ""
 }
 
 // poisonAnswersTwoWays plants a probe whose two consecutive reads
@@ -274,15 +304,15 @@ func poisonBornFailing(b *Bindings, _ *LawBinding) (projection.Defect, *subject.
 // compares. A probe that answers clean once and poisoned after breaks
 // the pair without ever being induced, which is what keeps this defect
 // off the other two claims.
-func poisonAnswersTwoWays(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+func poisonAnswersTwoWays(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, string) {
 	m := poisonProbe(b)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
 	return projection.SecondCallErrs{
 		Clause: projection.Clause{Text: m.Name + " answers differently the second time"},
 		Option: projection.OptionName(b.IfaceName, m.Name),
-	}, m, true
+	}, m, ""
 }
 
 // ttlKeepsAnswering plants a store whose entries never lapse: the read
@@ -302,15 +332,15 @@ func poisonAnswersTwoWays(b *Bindings, _ *LawBinding) (projection.Defect, *subje
 // corpus fixtures declare the mixin on their own reader, which is the
 // common shape and exactly why reading the carrier would look right
 // until an interface stamped it somewhere else.
-func ttlKeepsAnswering(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+func ttlKeepsAnswering(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, string) {
 	m := roleNamed(b, mixinTTL, mixinTTLRead)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
 	return projection.AnswersWithValue{
 		Clause: projection.Clause{Text: m.Name + " answers past the lifetime it was given"},
 		Option: projection.OptionName(b.IfaceName, m.Name),
-	}, m, true
+	}, m, ""
 }
 
 // roleNamed is the method a mixin's callable parameter names, nil where
@@ -331,18 +361,48 @@ func roleNamed(b *Bindings, mixin, param string) *subject.Method {
 	return nil
 }
 
+// countMiscounts plants an accounting that answers nothing: the count
+// reports zero however much the subject is holding.
+//
+// Only against a DERIVED reference, and the refusal is the interesting
+// half. This law compares two counts, and where the reference is the
+// subject's own factory both sides are built from the same defect — the
+// planted count answers zero on the left and zero on the right, the law
+// finds them equal, and a row claiming Proven would rest on a proof that
+// cannot fail. Nothing else about the defect would look wrong.
+//
+// So a count over a twin stays Argued and says which of the two it is
+// waiting on. Twenty-three corpus rows sit there, and not one of them is
+// waiting on a rule nobody has written.
+func countMiscounts(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, string) {
+	m := methodNamed(b, l.carrier.Name)
+	if m == nil {
+		return nil, nil, RuleDeclined
+	}
+	if !b.Reference.Derived() {
+		return nil, nil, "this claim compares the subject's count against the " +
+			"reference's, and the reference here is the subject's own factory — so " +
+			"a planted miscount lands on both sides and the two agree; it needs a " +
+			"derived reference to be wrong against"
+	}
+	return projection.AnswersAnyway{
+		Clause: projection.Clause{Text: m.Name + " answers zero whatever is held"},
+		Option: projection.OptionName(b.IfaceName, m.Name),
+	}, m, ""
+}
+
 // appenderFreezes plants the frozen position: every append lands and
 // every one answers the same offset.
-func appenderFreezes(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool) {
+func appenderFreezes(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, string) {
 	// The law's own carrier, not a driven writer: this law appends
 	// through a closure of its own, and the corpus's appender fixture
 	// drives nothing but a reader. A defect over a method the law never
 	// calls is one it cannot notice.
 	m := methodNamed(b, l.carrier.Name)
 	if m == nil {
-		return nil, nil, false
+		return nil, nil, RuleDeclined
 	}
-	return projection.FreezeReturn{Option: projection.OptionName(b.IfaceName, m.Name)}, m, true
+	return projection.FreezeReturn{Option: projection.OptionName(b.IfaceName, m.Name)}, m, ""
 }
 
 // writerCarrier is the driven method a write-shaped defect overrides.

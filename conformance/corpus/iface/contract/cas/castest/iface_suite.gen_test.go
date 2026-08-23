@@ -39,6 +39,8 @@ import (
 //	Get.Deadline — a Contract whose Get ignores the context it is handed
 //
 //	Get.ZeroOnError — a Contract whose Get answers a believable value beside its error
+//
+//	Model.Counts — a Contract whose Get answers zero whatever is held
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -68,4 +70,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 1cb8b7b72c917f3d8da979434aecd6ddc2255a6c7a2b28a2ec8ffc8ce0e35055
+// testkit:provenance d2f8d1dbe4b83479cf4dacbc804ada4ca1e1f619f8c7711be55dcfe3031ac333

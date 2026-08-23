@@ -182,6 +182,14 @@ func resolveArg(
 			// element a cursor's Next yields beside its ok flag.
 			return firstResultType(role)
 		}
+		if pseudoShape(role) == shapeReaderWithBool {
+			// Same reading for the same reason: the flag beside the value
+			// is how this read spells absence, not a second thing the law
+			// observes. Its closure folds the flag away entirely — see
+			// [foldedReadField] — so the law instantiates at the value the
+			// fold hands back.
+			return firstResultType(role)
+		}
 		ref, _, why := resultType(role)
 		return ref, why
 	case "input":

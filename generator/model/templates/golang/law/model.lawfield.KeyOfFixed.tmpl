@@ -1,0 +1,16 @@
+{{- /*
+The key projection for a write that takes its key as an argument.
+
+Every value the law writes goes to the fixture's own key, so the
+projection answers that key and ignores what it is handed. Not a
+degenerate case of a derived projection but a different fact: a value
+whose key is an argument carries no key to project, and the law's claim
+— what went in comes back out — is about the value rather than about
+where it was put.
+
+The parameter is unnamed for that reason. A body reading it would be
+reading a field that is not there.
+*/ -}}
+{{- define "model.lawfield.KeyOfFixed" -}}
+{{ .Name }}: func({{ renderType .Value }}) {{ renderType .Key }} { return fx.{{ .KeyField }}() }
+{{- end -}}

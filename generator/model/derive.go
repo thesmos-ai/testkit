@@ -387,7 +387,19 @@ func bindingsOf(
 			composite = m
 		case tiers.ShapeCollector:
 			collector = m
-		case "readernoerror", "readerwithbool", "pointerreader", "multireader",
+		case shapeReaderWithBool:
+			// A read answering a presence flag is a keyed read like any
+			// other; the oracle models it by folding its miss sentinel into
+			// the flag. It does not outrank a read that answers an error,
+			// which needs no fold and whose miss identity the declaration
+			// can name — so where both stand, that one selects the store.
+			if keyed == nil {
+				keyed = m
+			}
+			if keyFallback == nil {
+				keyFallback = m
+			}
+		case "readernoerror", "pointerreader", "multireader",
 			"lookup", "batchreader":
 			// Key-drawing shapes no oracle reads through: they cannot select
 			// a store, but where nothing else supplies the keys pool, their
@@ -480,6 +492,38 @@ func bindingsOf(
 		if b.contractKeyedRoles[a.Method] && a.Shape == shapeWriter {
 			a.Pool = poolKeys
 		}
+	}
+	// A bound over a keyed read buys an unbounded oracle, and the oracle is
+	// only sound with two things that follow from it.
+	//
+	// The read compares hits and nothing else. A subject miss is what
+	// eviction looks like, the reference has no way to predict which key
+	// died, and holding the two symmetric would fail a correct subject on
+	// its first eviction.
+	//
+	// The count leaves the stream altogether. The reference holds
+	// everything, so its count is legally the larger, and comparing them
+	// fails for the same reason at the same moment. The declared bound is
+	// what measures the count, which is what a bound is for.
+	if b.EvictingRead != "" {
+		kept := b.Actions[:0]
+		for _, a := range b.Actions {
+			switch {
+			case a.Method == b.EvictingRead:
+				a.Ctor = sdk.NewExternal(actionPkg, evictingReaderCtor)
+				kept = append(kept, a)
+			case a.Shape == shapeAggregator:
+				b.Skipped = append(b.Skipped, Skip{
+					Method: a.Method,
+					Reason: "the reference is unbounded, so that the bounded read has " +
+						"something to disagree with — which leaves its count legally the " +
+						"larger, and the declared bound measures the count instead",
+				})
+			default:
+				kept = append(kept, a)
+			}
+		}
+		b.Actions = kept
 	}
 	// The declaration's miss identity, armed on every error-answering
 	// reader: the actions were composed before the reference resolved it,

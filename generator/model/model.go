@@ -156,6 +156,7 @@ const (
 	shapeAggregator      = "aggregator"
 	shapeMultiReader     = "multireader"
 	shapeBatchReader     = "batchreader"
+	shapeReaderWithBool  = "readerwithbool"
 )
 
 // Plugin is the model-tier generator: it turns an interface's classifications
@@ -282,6 +283,18 @@ type Bindings struct {
 	// Reference is the known-good implementation every action compares
 	// against.
 	Reference Reference
+
+	// EvictingRead names the read whose miss the declared bound makes
+	// legal, empty on every interface that declares no bound or offers no
+	// such read.
+	//
+	// Set by the reference derivation, because that is where the defeat it
+	// lifts is judged, and read afterwards by the pass that swaps the
+	// action's comparison for the asymmetric one and drops the count from
+	// the stream. The three go together: an unbounded oracle, hits compared
+	// one way, and no count comparison at all. Any two without the third
+	// fails a correct subject.
+	EvictingRead string
 
 	// Methods is the harness's projection of the interface, in
 	// declaration order.

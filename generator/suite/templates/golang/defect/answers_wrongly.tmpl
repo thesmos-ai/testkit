@@ -41,6 +41,12 @@ of answers-anyway says exactly that with no value to derive.
 			func{{ renderParams .AnonParams }} {{ renderReturns .NamedReturns }} {
 				// A value for a call a correct subject answers nothing for.
 				{{ .ValueSlot }} = {{ renderSample .Echo }}
+{{- if .FlagSlot }}
+				// And the flag that makes it an answer. A caller of this read
+				// consults the flag and ignores what came beside it, so a value
+				// under a false flag is the miss it was meant to contradict.
+				{{ .FlagSlot }} = true
+{{- end }}
 				return
 			}))
 	}){{ template "suite.frag.defect-reason" . }}

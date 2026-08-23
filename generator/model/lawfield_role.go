@@ -49,6 +49,9 @@ func roleFieldOf(
 		// mismatch check above demands it, and a reader whose value no pool
 		// draws (a cache, a persister's load) still compiles.
 		field.Key = role.CallArgs()[0].Type
+		if pseudoShape(role) == shapeReaderWithBool {
+			return foldedReadField(b, f, field, role)
+		}
 		out, _, why := resultType(role)
 		if why != "" {
 			return nil, f.Name + " " + why
@@ -615,6 +618,35 @@ func roleMethod(
 	return nil, "names " + from + ", which nothing resolves"
 }
 
+// foldedReadField fills an observation whose read answers a presence flag
+// rather than an error: the closure calls it and reports the run's miss
+// identity where the flag is false.
+//
+// The laws that observe through this field speak `(V, error)` because most
+// reads do, and a law declaring both shapes would be two laws with one
+// name. The seam is one line and it belongs at the binding, which is the
+// only place that knows which identity this run means by absence.
+//
+// Only where the reference is DERIVED, and the reason is that identity. A
+// derived reference mints a miss var for exactly this, and the two sides
+// of a comparison then report absence the same way. A twin mints nothing,
+// and a fold that invented an error would have the subject and its own
+// factory disagreeing about what a miss is called.
+func foldedReadField(
+	b *Bindings, f tiers.Field, field *LawField, role *subject.Method,
+) (*LawField, string) {
+	if !b.Reference.Derived() {
+		return nil, f.Name + " closes over " + role.Name +
+			", which reports a miss as a flag, and this run has no derived " +
+			"reference to take the miss identity from"
+	}
+	field.Value = role.Returns[0].Type
+	field.MissSym = b.Reference.MissSym
+	field.MissName = b.Reference.MissName
+	field.KindName = sdk.Kind(LawFieldKindPrefix + "ReadFolded")
+	return field, ""
+}
+
 // keyedReadMismatch holds a keyed-read role to the shape its template spells:
 // `(ctx, K) (V, error)` at the pools' own types, so a role of another shape —
 // or of the right shape over other types — renders a closure that fails to
@@ -622,9 +654,11 @@ func roleMethod(
 func keyedReadMismatch(b *Bindings, fieldName string, role *subject.Method, strictValue bool) string {
 	keyQ, _ := b.keyQOf(role)
 	valueQ, _ := b.valueQOf(role)
-	if pseudoShape(role) != shapeReader {
+	// A read answering a presence flag is a keyed read; the closure folds
+	// the flag into the error channel the law speaks. See [foldedReadField].
+	if shape := pseudoShape(role); shape != shapeReader && shape != shapeReaderWithBool {
 		return fieldName + " closes over " + role.Name + ", whose shape is " +
-			pseudoShape(role) + " rather than a keyed reader"
+			shape + " rather than a keyed reader"
 	}
 	// The value half is held to the pool only where the law's own row draws
 	// it: a windowed count reads int beside string pools, lawfully, because

@@ -24,7 +24,6 @@ package transactiontest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/transaction"
@@ -78,6 +77,7 @@ import (
 //	Run/nilcontext
 //	Run/smoke
 //	model/contract/AUTO-TRANSACTION-ROLLBACK
+//	model/contract/AUTO-WRITE-OBSERVABLE
 //	model/contract/differential
 //
 // A version check, performed by the compiler. If this file was generated
@@ -324,6 +324,7 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Get.Miss():                  "ContractSuite.Checks.Get.Miss()",
 	contractCheckIndex.Model.Agrees():              "ContractSuite.Checks.Model.Agrees()",
 	contractCheckIndex.Model.TransactionRollback(): "ContractSuite.Checks.Model.TransactionRollback()",
+	contractCheckIndex.Model.WriteObservable():     "ContractSuite.Checks.Model.WriteObservable()",
 }
 
 var contractDropHint = suite.DropHinter(
@@ -468,10 +469,15 @@ func (contractModelChecks) TransactionRollback() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.TransactionRollback)
 }
 
+func (contractModelChecks) WriteObservable() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.WriteObservable)
+}
+
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
 		contractModelChecks{}.Agrees(),
 		contractModelChecks{}.TransactionRollback(),
+		contractModelChecks{}.WriteObservable(),
 	}
 }
 
@@ -802,65 +808,19 @@ func (c ContractChecks) applyTo(rc *contractRunConfig) {
 
 // ContractCheck is one check you wrote. The body is a plain named
 // function; which field you put it in decides what it is handed.
+//
+// Every field down to Argued is documented on [suite.Row], which is
+// what this becomes when the run binds it. The fields after them are this
+// interface's own — they name the types its methods draw — and are
+// documented here.
 type ContractCheck struct {
-	// Method groups this check under one of your methods, so it is named
-	// Run/<Name> in output and reruns with the rest of that
-	// method's checks. Leave it empty for a check that is not about one
-	// method in particular.
-	Method string
-
-	// Name identifies this check, in output and when dropping it. Keep it
-	// stable: it is what a colleague's Without call refers to.
-	Name string
-
-	// Claim is one sentence saying exactly what this check proves. It is
-	// recorded in the manifest and read out in the report.
-	//
-	// Write only what the body actually establishes. "a second write
-	// leaves the value unchanged" is a promise that something reads the
-	// value back; if the body only checks the write returned no error,
-	// say that instead. Nothing here can catch a claim that is wider
-	// than its check, and a claim nobody verifies is worse than none.
-	Claim string
-
-	// Set exactly one.
-	//
-	// Run is handed one fresh instance, which suits nearly every check.
-	// RunWith is handed something that can build instances, for a claim
-	// one instance cannot state on its own: build two and compare them,
-	// move the clock forward, put one into a failure state.
-	//
-	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do.
-	Run     func(tb testing.TB, s Contract, fx ContractFixture)
-	RunWith func(tb testing.TB, sub ContractSubject, fx ContractFixture)
-
-	// Class groups this check in the report's summary. Optional; checks
-	// you write are grouped as hand-written by default.
-	Class suite.Class
-
-	// Needs says what this check requires from an implementation beyond
-	// being constructed — a clock it can move, a failure it can induce.
-	//
-	// An implementation that cannot supply it fails this check by name,
-	// with the field to fill in named in the message. It never skips: a
-	// check that quietly skipped for want of wiring would look exactly
-	// like one that passed.
-	Needs suite.Caps
-
-	// ProvenBy is an implementation built to break this check and nothing
-	// else. Setting it makes two statements at once — that the check can
-	// fail, and here is the proof — and ProveContract fails unless the
-	// broken implementation really does turn this check red.
-	//
-	// ProvenReason, if set, is text the failure must contain. Use it so
-	// that a broken implementation which fails for some unrelated reason
-	// stops counting as evidence.
-	//
-	// Argued is for when no such implementation can be built: record why,
-	// in a sentence. Set at most one of the two. Setting neither is
-	// allowed and the report says so — the check is unproven, which is
-	// honest, and different from proven.
+	Method       string
+	Name         string
+	Claim        string
+	Run          func(tb testing.TB, s Contract, fx ContractFixture)
+	RunWith      func(tb testing.TB, sub ContractSubject, fx ContractFixture)
+	Class        suite.Class
+	Needs        suite.Caps
 	ProvenBy     ContractDefect
 	ProvenReason string
 	Argued       string
@@ -900,85 +860,37 @@ var contractMethods = suite.NewNameSet("Contract", contractRun, contractPut, con
 func (c ContractCheck) bind(
 	fx ContractFixture,
 ) (suite.Check[Contract], error) {
-	out := suite.Check[Contract]{
-		Claim: c.Claim, Class: c.Class, Needs: c.Needs,
-	}
-	if out.Class == "" {
-		out.Class = suite.ClassHandWritten
-	}
-
-	var err error
-
-	// bodies counts what this row set and the runtime refuses any answer
-	// but one; fields is the listing that refusal offers, which has to
-	// name what THIS interface can set; scoped says the body it set is
-	// one that reads the row's Method. A contributing tier's dispatch
-	// lands below and may move all three.
-	bodies, fields, scoped := 0, "Run, RunWith", false
-	if c.Run != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Run", c.Method, c.Name, contractMethods); err != nil {
-			return out, err
-		}
-		run := c.Run
-		out.Run = func(tb testing.TB, s Contract) {
-			run(tb, s, fx)
-		}
-	}
-	if c.RunWith != nil {
-		bodies++
-		out.ID = suite.HandRowID(c.Name)
-		rw := c.RunWith
-		out.RunWith = func(tb testing.TB, sub ContractSubject) {
-			rw(tb, sub, fx)
-		}
-	}
-	fields += ", Prop, PropPut, PropGet"
-	if c.Prop != nil {
-		scoped = true
-		bodies++
-		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, contractMethods); err != nil {
-			return out, err
-		}
-		fn := c.Prop
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Contract]) {
+	b := suite.BindRow(suite.Row[Contract, ContractFixture]{
+		Method: c.Method, Name: c.Name, Claim: c.Claim,
+		Run: c.Run, RunWith: c.RunWith,
+		Class: c.Class, Needs: c.Needs,
+		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
+	}, fx, contractMethods)
+	b.Offers("Prop, PropPut, PropGet")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Contract]) {
 			model.Check(tb, func(rt *PropT) {
 				fn(rt, sub.New(tb), fx)
 			})
-		}
+		})
 	}
-	if c.PropPut != nil {
-		bodies++
-		out.ID = suite.MethodID(contractPut, c.Name)
-		fn := c.PropPut
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Contract]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), contractModelValues(fx).Draw(rt, "value"))
+	if fn := c.PropPut; fn != nil {
+		b.Fixed(suite.MethodID(contractPut, c.Name),
+			func(tb testing.TB, sub suite.Subject[Contract]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), contractModelValues(fx).Draw(rt, "value"))
+				})
 			})
-		}
 	}
-	if c.PropGet != nil {
-		bodies++
-		out.ID = suite.MethodID(contractGet, c.Name)
-		fn := c.PropGet
-		out.RunWith = func(tb testing.TB, sub suite.Subject[Contract]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), contractModelKeys(fx).Draw(rt, "key"))
+	if fn := c.PropGet; fn != nil {
+		b.Fixed(suite.MethodID(contractGet, c.Name),
+			func(tb testing.TB, sub suite.Subject[Contract]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), contractModelKeys(fx).Draw(rt, "key"))
+				})
 			})
-		}
 	}
-	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
-		return out, err
-	}
-	if c.Method != "" && !scoped {
-		return out, fmt.Errorf(
-			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
-	}
-	if out.Falsifiable, err = suite.Falsify(c.Name, c.ProvenBy != nil, c.Argued); err != nil {
-		return out, err
-	}
-	return out, nil
+	return b.Seal(c.Method)
 }
 
 // RunContract runs every check — the generated ones and any you
@@ -1179,6 +1091,16 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}),
+		ix.Model.WriteObservable(): prove.One("a Contract whose Put reports success and keeps nothing",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ string, _ transaction.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
 	}
 }
 
@@ -1292,18 +1214,10 @@ func GreenContract(
 	}
 	rc.Fail(t, "GreenContract")
 	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range suite.Doors(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[suite.Capability]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	prove.Green(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	prove.Green(t, s.Checks,
+		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
 // A second version check, for the leg idioms the rows above ride. The
@@ -1344,6 +1258,19 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertTransactionRollback(tb, sub, fx)
 			},
 		},
+		{
+			ID:    contractCheckIndex.Model.WriteObservable(),
+			Class: suite.ClassLaws,
+			Claim: "a written value is readable under the key it was written with",
+			Binds: []string{
+				lawid.WriteObservable,
+			},
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertWriteObservable(tb, sub, fx)
+			},
+		},
 	}
 }
 
@@ -1359,8 +1286,6 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not driven:
 //	           Run — takes no stamped value type where the values pool draws go.thesmos.sh/testkit/conformance/corpus/iface/contract/transaction.Value
-//	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf needs the key projection, which was not derivable here
 
 // contractModelKeys is the key pool every key slot draws from.
 //
@@ -1503,6 +1428,38 @@ func contractAssertTransactionRollback(
 		})
 }
 
+// contractAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func contractAssertWriteObservable(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+	values := contractModelValues(fx)
+
+	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Contract { return sub.New(tb) }, buildRef,
+		contractModelActions(fx),
+		[]law.Law[Contract]{
+			law.WriteObservable[transaction.Contract, transaction.Value, string]{
+				Write: func(rt *model.T, s transaction.Contract, v transaction.Value) error {
+					return s.Put(rt.Context(), fx.Key(), v)
+				},
+				Read: func(rt *model.T, s transaction.Contract, k string) (transaction.Value, error) {
+					return s.Get(rt.Context(), k)
+				},
+				Values: values,
+				KeyOf:  func(transaction.Value) string { return fx.Key() },
+			},
+		})
+}
+
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1512,4 +1469,4 @@ func contractAssertTransactionRollback(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance b3dda13a01176c91ed083fc995e89f1492e1129768ac7f0ad05b9512a2a9808c
+// testkit:provenance 6780466b455bb5298c1ca26922db5a9b73d1c97ae838ef1306a7fb408d9fe1cc

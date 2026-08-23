@@ -66,14 +66,15 @@ func TestMapStoreOpsAreDetectorShapes(t *testing.T) {
 	}
 }
 
-// TestKeyedStoreDelegation pins the keyed oracle's rows: the three shapes it
+// TestKeyedStoreDelegation pins the keyed oracle's rows: the four shapes it
 // models, the census over them, and the one mixin-assigned method whose
 // semantics no signature carries.
 func TestKeyedStoreDelegation(t *testing.T) {
 	t.Parallel()
 
 	for shape, op := range map[string]string{
-		"reader": "Get", "compositewriter": "Put", "aggregator": "Count",
+		"reader": "Get", "readerwithbool": "Get",
+		"compositewriter": "Put", "aggregator": "Count",
 	} {
 		got, ok := tiers.KeyedStoreOp(shape)
 		testkit.True(t, ok, shape+" has a keyed-oracle row")
@@ -82,7 +83,10 @@ func TestKeyedStoreDelegation(t *testing.T) {
 	_, ok := tiers.KeyedStoreOp("writer")
 	testkit.False(t, ok, "a plain writer has no row — a keyed store cannot place a keyless value")
 
-	testkit.Equal(t, len(tiers.KeyedStoreShapes()), 3, "the census names exactly the modeled shapes")
+	// Two reads share the Get row and they are not the same delegation: the
+	// bool-answering one folds the oracle's miss sentinel into its flag,
+	// which the adapter does rather than this table. See AdapterMethod.Folds.
+	testkit.Equal(t, len(tiers.KeyedStoreShapes()), 4, "the census names exactly the modeled shapes")
 
 	op, ok := tiers.KeyedStoreMixinOp("deleteremoves")
 	testkit.True(t, ok, "deleteremoves assigns its carrier a method")
@@ -122,12 +126,21 @@ func TestOracleRefinements(t *testing.T) {
 	testkit.False(t, tiers.DrainsHistory("noduplicates"), "a deduped collection is holdings, not history")
 
 	for _, mixin := range []string{"eventually", "crdtmerge"} {
-		reason, defeated := tiers.DefeatsOracles(mixin)
+		defeat, defeated := tiers.DefeatsOracles(mixin)
 		testkit.True(t, defeated, mixin+" puts the subject beyond any immediate store model")
-		testkit.True(t, reason != "", mixin+"'s header prints the reason")
+		testkit.True(t, defeat.Why != "", mixin+"'s header prints the reason")
+		testkit.False(t, defeat.LiftedByEvictingRead,
+			mixin+" is defeated by what the subject DOES, which no read shape undoes")
 	}
 	_, defeated := tiers.DefeatsOracles("idempotent")
 	testkit.False(t, defeated, "idempotent claims nothing about immediacy")
+
+	// The one conditional defeat: a bound over a collection is final, and a
+	// bound over a keyed read that may say no is not. See [tiers.OracleDefeat].
+	bound, defeated := tiers.DefeatsOracles("bounded")
+	testkit.True(t, defeated, "a bound defeats the store model by default")
+	testkit.True(t, bound.LiftedByEvictingRead,
+		"and a reader that may legally say no lifts it")
 
 	testkit.True(t, tiers.MapStorePins("sticky"), "sticky pins the first resolution")
 	testkit.False(t, tiers.MapStorePins("idempotent"), "other mixins leave the map latest-write-wins")

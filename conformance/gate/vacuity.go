@@ -542,47 +542,36 @@ var VacuityDebt = map[string]VacuityRow{
 			"defect this rule is for, and here the discard is the subject",
 	},
 	"zero-expectation conformance/corpus": {
-		// 312 -> 314: the cursor producer arm's Open and the pool stats
-		// role's Stats each take only a context, which lands at its zero
-		// exactly as this row's reason describes.
+		// The ceiling is the sum of a per-fixture debt, and every entry
+		// below is one context parameter landing at its zero — the class
+		// this row's Why describes, not a second kind of finding.
 		//
-		// 314 -> 319: the roledtypes fixture, added so the pool
-		// derivation is exercised by this gate rather than by the
-		// validated packs alone. Its Put and Get each take a context,
-		// and the five findings are that context at its zero — the same
-		// class, attributed by removing the fixture and watching the
-		// count return to 314.
+		// Each was attributed the same way: remove the fixture, run this
+		// gate, and watch the count drop by the number in the column. Add a
+		// row when you add a fixture, and do the subtraction rather than
+		// guessing it.
 		//
-		// 319 -> 322: the seededreader fixture, added so the seed seam is
-		// exercised by this gate — a harness receiving its corpus because
-		// nothing on the interface writes. Its Lookup and Len each take a
-		// context, attributed the same way.
-		//
-		// 322 -> 324: the accumulates fixture, added because eidos
-		// registered the mixin and this gate asks for a fixture per
-		// classification. Its Add and Total each take a context, which
-		// lands at its zero exactly as this row's reason describes —
-		// attributed by removing the fixture and watching the count
-		// return to 322.
-		//
-		// 324 -> 325: the batch-writer fixture gained the reader role
-		// eidos added for it, so `mode=atomic` has something to be
-		// observed through. Its Get takes a context, which lands at its
-		// zero exactly as this row's reason describes.
-		//
-		// 325 -> 330: the restrictedpool fixture, added because pool
-		// provenance had no fixture at all — the hostile member every
-		// derived pool carries reached no draw, and no corpus package had
-		// both a config a run can replace and a tier that draws from one.
-		// Its Put and Get each take a context, attributed by removing the
-		// fixture and watching the count return to 325.
-		//
-		// 330 -> 333: the ttlperwrite fixture, added because the corpus
-		// carried a lifetime only as a directive constant — no fixture
-		// declared one as a field on the value, which is the shape a
-		// defect can reach for. Its Put and Read take a context, and its
-		// Entry carries one more.
-		Ceiling: 333,
+		//	fixture                 debt  what carries it
+		//	----------------------- ----  ---------------------------------
+		//	cursor, pool             2    Open and Stats take a context and
+		//	                              nothing else
+		//	roledtypes               5    Put and Get, so the pool derivation
+		//	                              is exercised here and not only by
+		//	                              the validated packs
+		//	seededreader             3    Lookup and Len, so the seed seam is
+		//	                              exercised by a harness that
+		//	                              receives its corpus
+		//	accumulates              2    Add and Total
+		//	batch-writer             1    Get, the reader role that gives
+		//	                              mode=atomic something to observe
+		//	restrictedpool           5    Put and Get, the only fixture with
+		//	                              both a replaceable config and a
+		//	                              tier that draws from one
+		//	ttlperwrite              3    Put and Read, and one more on Entry
+		//	boundedcache             6    Put, Get and Len — a bound over a
+		//	                              keyed store rather than a
+		//	                              collection
+		Ceiling: 339,
 		Why: "what is left of the generated stub's zero arguments after pinning every one a " +
 			"literal can be written for: a context, an interface, a variadic tail, a type " +
 			"from a package the run never read. Those are handed in at their zero and the " +

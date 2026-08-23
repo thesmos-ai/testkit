@@ -1,0 +1,18 @@
+{{- /*
+Read, for a subject that reports absence as a flag rather than an error.
+
+The laws observing through this field speak (V, error) because most reads
+do; this one folds the flag into that channel at the binding, which is
+the only place that knows what this run calls a miss. The identity is the
+reference's own, so the subject and the oracle it is compared against
+report absence as the same error rather than as two private ones.
+*/ -}}
+{{- define "model.lawfield.ReadFolded" -}}
+{{ .Name }}: func(rt *{{ renderExpr (external .ModelPkg "T") }}, s {{ renderType .Iface }}, k {{ renderType .Key }}) ({{ renderType .Value }}, error) {
+			held, ok := s.{{ .Method }}({{ if .TakesCtx }}rt.Context(), {{ end }}k)
+			if !ok {
+				return held, {{ if .MissSym }}{{ renderExpr .MissSym }}{{ else }}{{ .MissName }}{{ end }}
+			}
+			return held, nil
+		}
+{{- end -}}

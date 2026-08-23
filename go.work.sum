@@ -7,10 +7,12 @@ go.thesmos.sh/eidos v1.14.1/go.mod h1:hafUOhbpdIaExBAuwnvHfA92BYgjLWcgEa4PwVs6PO
 go.thesmos.sh/eidos/backend/golang v1.7.0/go.mod h1:Uc72o6ZjTQt5eGYZCoyEY2tfRDPlS7xe3OT5nvAWxCc=
 go.thesmos.sh/eidos/eidostest v1.3.0/go.mod h1:DMTWJl/FhEdu+aKIZXQDYYbx0/Yyfrn7Vm37/ZVlxQA=
 go.thesmos.sh/eidos/eidostest v1.6.2/go.mod h1:JlcDGbtPTdsuuT2LhBUBTxCkr564xLG3Wan6Uw+lXIU=
+go.thesmos.sh/eidos/eidostest v1.14.0/go.mod h1:pXnnM3qQMTY6z6zN/uPdPVbIs1WRJGfqz0fe3nEjDmQ=
 go.thesmos.sh/eidos/frontend/golang v1.6.3/go.mod h1:ePcMH+Mkg1jW8qd1Ag4cBq9bOmdekSziYH6C6Vt+r/Y=
 go.thesmos.sh/eidos/plugins v1.7.2/go.mod h1:5j+F9QC/Hl2HXuS3lRemq2xkaIXBr/P+fXGe46LDR0A=
 go.thesmos.sh/testkit v0.10.0/go.mod h1:dkDWLbVV1I6La+iXpc3b7HzbrxZ77EX4c6vr6AdeJfw=
 go.yaml.in/yaml/v3 v3.0.4 h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=
+golang.org/x/mod v0.38.0/go.mod h1:V6Xz0pq8TQ3dGqVQ1FVHuelZpAL0uNhSkk9ogYP3c40=
 golang.org/x/net v0.57.0 h1:K5+3DljvIuDG9/Jv9rvyMywYNFCQ9RSUY6OOTTkT+tE=
 golang.org/x/net v0.57.0/go.mod h1:KpXc8iv+r3XplLAG/f7Jsf9RPszJzdR0f58q9vGOuEU=
 golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=

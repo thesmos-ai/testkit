@@ -14,4 +14,5 @@ Run/deadline	signature/deadline	Run reports an expired deadline as exceeded
 Run/nilcontext	signature/nilcontext	Run returns an error rather than panicking on a nil context	
 Run/smoke	signature/smoke	Run survives a call with a derived body	
 model/contract/AUTO-TRANSACTION-ROLLBACK	model/laws	a transaction whose body errs leaves none of its writes visible	AUTO-TRANSACTION-ROLLBACK
+model/contract/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/contract/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

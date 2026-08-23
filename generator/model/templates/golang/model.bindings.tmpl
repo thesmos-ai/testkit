@@ -186,6 +186,15 @@ func (r *{{ $b.Reference.TypeName }}) {{ .Sig.Name }}({{ template "model.params"
 	}
 	return out, nil
 }
+{{ else if and .Op .Folds }}
+// {{ .Sig.Name }} folds the oracle's miss into the presence flag this
+// interface answers with. Absence is an answer here rather than a failure,
+// and the oracle spells the same non-answer as a store does — so the two
+// spellings meet once, in this line, instead of at every comparison.
+func (r *{{ $b.Reference.TypeName }}) {{ .Sig.Name }}({{ template "model.params" .Sig }}) {{ template "model.results" .Sig }} {
+	held, err := r.store.{{ .Op }}({{ range $i, $p := .Sig.Params }}{{ if $i }}, {{ end }}{{ $p.Name }}{{ end }})
+	return held, err == nil
+}
 {{ else if .Op }}
 func (r *{{ $b.Reference.TypeName }}) {{ .Sig.Name }}({{ template "model.params" .Sig }}) {{ template "model.results" .Sig }} {
 	return r.store.{{ .Op }}({{ range $i, $p := .Sig.Params }}{{ if $i }}, {{ end }}{{ $p.Name }}{{ end }})

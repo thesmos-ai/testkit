@@ -196,17 +196,9 @@ func {{ suite_greenName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 		{{- if and .DrawsFixture .SeedsCorpus }}, {{ end }}
 		{{- if .SeedsCorpus }}{{ suite_corpusName .Token }}({{ if .Pools }}rc.cfg{{ end }}){{ end -}}
 	).With(rc.Extra...).Without(rc.Drops...)
-	// The doors the run answers, so a control is refused for being wrong
-	// rather than for being unwired — a wiring red recorded as "the suite
-	// rejected correct code" would poison the measurement it exists for.
-	for door, answer := range {{ renderExpr (external $.Vocab "Doors") }}(rc.Subjects...) {
-		if control.Provides == nil {
-			control.Provides = map[{{ renderExpr (external $.Vocab "Capability") }}]any{}
-		}
-		if _, answered := control.Provides[door]; !answered {
-			control.Provides[door] = answer
-		}
-	}
-	{{ renderExpr (external $.Prove "Green") }}(t, s.Checks, control)
+	// Lent the doors the run answers, so a control is refused for being
+	// wrong rather than for being unwired. Answering says why.
+	{{ renderExpr (external $.Prove "Green") }}(t, s.Checks,
+		control.Answering({{ renderExpr (external $.Vocab "Doors") }}(rc.Subjects...)))
 }
 {{- end -}}

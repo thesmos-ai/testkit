@@ -63,8 +63,8 @@ func TestARuleWithNoTargetDeclines(t *testing.T) {
 	_, _, planted, _ := defectFor(bare, &LawBinding{ID: lawid.PoisonConsistent})
 	testkit.False(t, planted, "no stamped sentinel, so no sentinel to heal from")
 
-	_, _, drops := differentialDefect(bare)
-	testkit.False(t, drops, "and nothing writes, so there is no dropped write to plant")
+	_, _, why := differentialDefect(bare)
+	testkit.True(t, why != "", "and nothing writes, so there is no dropped write to plant")
 }
 
 // The poison defect names the sentinel the declaration stamped.

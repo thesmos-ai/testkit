@@ -69,10 +69,10 @@ func TestTheBodyListingNamesTheFieldsBesideIt(t *testing.T) {
 	t.Parallel()
 
 	p := prop{Sugars: []PropSugar{{Field: "PropPut"}, {Field: "PropGet"}}}
-	testkit.Equal(t, p.Fields(), ", Prop, PropPut, PropGet",
+	testkit.Equal(t, p.Fields(), "Prop, PropPut, PropGet",
 		"the un-sugared body first, then every sugar, appended to the harness generator's own")
 
 	bare := prop{}
-	testkit.Equal(t, bare.Fields(), ", Prop",
+	testkit.Equal(t, bare.Fields(), "Prop",
 		"an interface with no drawable method still offers the un-sugared body")
 }

@@ -51,6 +51,8 @@ import (
 //	Get.Miss — a Contract whose Get answers for an input nothing wrote
 //
 //	Model.Agrees — a Contract whose Put reports success and keeps nothing
+//
+//	Model.WriteObservable — a Contract whose Put reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -80,4 +82,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance d3dc56e3326b40f3e63e927e4d73f4d5c371e068a5385da9dcc45199ed1cd87c
+// testkit:provenance 1f598c9caa5dacd586e5df6247afadcfc2a877d83f6ce6e63bf4e81fe6fbf1bc
