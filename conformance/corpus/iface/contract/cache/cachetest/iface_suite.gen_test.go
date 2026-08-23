@@ -7,141 +7,40 @@
 package cachetest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/cache"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/cache/cachetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		cachetest.ContractSuite.Suite(cachetest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[cachetest.Contract] {
-	ix := cachetest.ContractSuite.Checks
-	return prove.Defects[cachetest.Contract]{
-		ix.Lookup.Smoke(): prove.One("a Contract whose Lookup panics",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractLookup(
-					func(_ context.Context, _ string) (cache.Value, error) {
-						panic("planted: Lookup panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Lookup.Cancels(): prove.One("a Contract whose Lookup ignores the context it is handed",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractLookup(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Lookup.NilContext(): prove.One("a Contract whose Lookup forgives a nil context and answers",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractLookup(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Lookup.Deadline(): prove.One("a Contract whose Lookup ignores the context it is handed",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractLookup(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Lookup.ZeroOnError(): prove.One("a Contract whose Lookup answers a believable value beside its error",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractLookup(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = cache.Value{Key: "other-value"}
-						err = errors.New("planted: Lookup refused with a believable value")
-						return
-					}))
-			}),
-		ix.Fetch.Smoke(): prove.One("a Contract whose Fetch panics",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractFetch(
-					func(_ context.Context, _ string) (cache.Value, error) {
-						panic("planted: Fetch panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Fetch.Cancels(): prove.One("a Contract whose Fetch ignores the context it is handed",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractFetch(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Fetch.NilContext(): prove.One("a Contract whose Fetch forgives a nil context and answers",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractFetch(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Fetch.Deadline(): prove.One("a Contract whose Fetch ignores the context it is handed",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractFetch(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Fetch.ZeroOnError(): prove.One("a Contract whose Fetch answers a believable value beside its error",
-			func(tb testing.TB) cachetest.Contract {
-				return cachetest.NewContractStub(tb, cachetest.WithContractFetch(
-					func(_ context.Context, _ string) (r0 cache.Value, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = cache.Value{Key: "other-value"}
-						err = errors.New("planted: Fetch refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Lookup.Smoke — a Contract whose Lookup panics
+//
+//	Lookup.Cancels — a Contract whose Lookup ignores the context it is handed
+//
+//	Lookup.NilContext — a Contract whose Lookup forgives a nil context and answers
+//
+//	Lookup.Deadline — a Contract whose Lookup ignores the context it is handed
+//
+//	Lookup.ZeroOnError — a Contract whose Lookup answers a believable value beside its error
+//
+//	Fetch.Smoke — a Contract whose Fetch panics
+//
+//	Fetch.Cancels — a Contract whose Fetch ignores the context it is handed
+//
+//	Fetch.NilContext — a Contract whose Fetch forgives a nil context and answers
+//
+//	Fetch.Deadline — a Contract whose Fetch ignores the context it is handed
+//
+//	Fetch.ZeroOnError — a Contract whose Fetch answers a believable value beside its error
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -171,4 +70,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8be0bab924efb6a0f12212ff2bb6cc5f50b38409ec0da584ed96feaf33cfcaf9
+// testkit:provenance c34770f52d1e3eb80a37fd8ab70d16a6b12fbf73575e603c572b3e5ac2f881bd

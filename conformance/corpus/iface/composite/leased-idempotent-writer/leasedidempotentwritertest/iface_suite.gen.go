@@ -8,6 +8,7 @@ package leasedidempotentwritertest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -673,8 +674,15 @@ func (c LeasedWriterCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, leasedWriterMethods); err != nil {
 			return out, err
@@ -692,10 +700,10 @@ func (c LeasedWriterCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -747,11 +755,116 @@ func RunLeasedWriter(
 		rc.Subjects...)
 }
 
-// ProveLeasedWriter runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// leasedWriterProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveLeasedWriter(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func leasedWriterProofs() prove.Defects[LeasedWriter] {
+	ix := LeasedWriterSuite.Checks
+	return prove.Defects[LeasedWriter]{
+		ix.Acquire.Smoke(): prove.One("a LeasedWriter whose Acquire panics",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterAcquire(
+					func(_ context.Context, _ string) error {
+						panic("planted: Acquire panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Acquire.Cancels(): prove.One("a LeasedWriter whose Acquire ignores the context it is handed",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Acquire.NilContext(): prove.One("a LeasedWriter whose Acquire forgives a nil context and answers",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Acquire.Deadline(): prove.One("a LeasedWriter whose Acquire ignores the context it is handed",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Release.Smoke(): prove.One("a LeasedWriter whose Release panics",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterRelease(
+					func(_ context.Context, _ string) error {
+						panic("planted: Release panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Release.Cancels(): prove.One("a LeasedWriter whose Release ignores the context it is handed",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterRelease(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Release.NilContext(): prove.One("a LeasedWriter whose Release forgives a nil context and answers",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterRelease(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Release.Deadline(): prove.One("a LeasedWriter whose Release ignores the context it is handed",
+			func(tb testing.TB) LeasedWriter {
+				return NewLeasedWriterStub(tb, WithLeasedWriterRelease(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Acquire.Idempotent(): prove.One("a LeasedWriter whose Acquire fails on the second call",
+			func(tb testing.TB) LeasedWriter {
+				called := false
+				return NewLeasedWriterStub(tb, WithLeasedWriterAcquire(
+					func(_ context.Context, _ string) (err error) {
+						if called {
+							err = errors.New("planted: Acquire refuses its repeat")
+							return
+						}
+						called = true
+						return
+					}))
+			}),
+	}
+}
+
+// ProveLeasedWriter runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveLeasedWriter(t, LeasedWriterHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -761,23 +874,40 @@ func RunLeasedWriter(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunLeasedWriter does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveLeasedWriter(
-	t *testing.T, checks LeasedWriterChecks,
+	t *testing.T, opts ...LeasedWriterRunOpt,
 ) {
 	t.Helper()
+	var rc leasedWriterRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := leasedWriterNewFixture()
-	bound := make([]suite.Check[LeasedWriter], 0, len(checks))
-	defects := prove.Defects[LeasedWriter]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveLeasedWriter")
+	s := leasedWriterSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := leasedWriterProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveLeasedWriter: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -787,8 +917,14 @@ func ProveLeasedWriter(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9f65e13b4f304f25f51c35467ba30f75dfd6e0d7c2d31a3e938b4f0da696dc03
+// testkit:provenance 4f207dd557e7a4627b8220aafe9c07c02ce3b185e0020c22b13d7884d3ee3a20

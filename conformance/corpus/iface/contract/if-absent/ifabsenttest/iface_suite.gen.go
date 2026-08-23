@@ -562,8 +562,15 @@ func (c ContractCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, contractMethods); err != nil {
 			return out, err
@@ -581,10 +588,10 @@ func (c ContractCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -636,11 +643,76 @@ func RunContract(
 		rc.Subjects...)
 }
 
-// ProveContract runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// contractProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveContract(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func contractProofs() prove.Defects[Contract] {
+	ix := ContractSuite.Checks
+	return prove.Defects[Contract]{
+		ix.Put.Smoke(): prove.One("a Contract whose Put panics",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ ifabsent.Value) error {
+						panic("planted: Put panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Put.Cancels(): prove.One("a Contract whose Put ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ ifabsent.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Put.NilContext(): prove.One("a Contract whose Put forgives a nil context and answers",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ ifabsent.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Put.Deadline(): prove.One("a Contract whose Put ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ ifabsent.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Put.Conflict(): prove.One("a Contract whose Put accepts a duplicate as though it were new",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ ifabsent.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+	}
+}
+
+// ProveContract runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveContract(t, ContractHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -650,23 +722,40 @@ func RunContract(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunContract does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveContract(
-	t *testing.T, checks ContractChecks,
+	t *testing.T, opts ...ContractRunOpt,
 ) {
 	t.Helper()
+	var rc contractRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := contractNewFixture()
-	bound := make([]suite.Check[Contract], 0, len(checks))
-	defects := prove.Defects[Contract]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveContract")
+	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := contractProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveContract: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -676,8 +765,14 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance d2bfafef9d6239aad57c610549c5f81a89c4cb5b6e4cce553e4cd484a1774347
+// testkit:provenance 8f6ea9aeb8a08ea2b695f5d4dc4e7c6c689559f6ae492ee037bc0063f0ed95c0

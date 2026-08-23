@@ -6,11 +6,13 @@ package eventuallytest_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/eventually"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/eventually/eventuallytest"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // eventually is the model tier's — AUTO-EVENTUAL-CONVERGENCE states it — so the
@@ -24,9 +26,41 @@ import (
 func TestMixedContract(t *testing.T) {
 	t.Parallel()
 
-	eventuallytest.RunMixed(t,
-		eventuallytest.MixedHarness[*eventuallytest.InMemory]{Name: "in-memory", New: eventuallytest.NewInMemory},
-	)
+	eventuallytest.RunMixed(t, inMemory("in-memory"))
+}
+
+// TestMixedChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestMixedChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	eventuallytest.ProveMixed(t, inMemory("in-memory"))
+}
+
+// inMemory is the replica every leg builds, and the answer to the one
+// question convergence cannot ask the shape.
+func inMemory(name string) eventuallytest.MixedHarness[*eventuallytest.InMemory] {
+	return eventuallytest.MixedHarness[*eventuallytest.InMemory]{
+		Name: name, New: eventuallytest.NewInMemory,
+		// AUTO-EVENTUAL-CONVERGENCE compares what the replicas settled on
+		// against the join of what they held before the exchange, and the
+		// join is the domain's: a set unions, a counter sums, a
+		// last-writer-wins register keeps the later stamp.
+		Provide: map[suite.Capability]any{"merge": mergeItems},
+	}
+}
+
+// mergeItems is the join over two replicas' settled state.
+//
+// A set union, because Items answers the settled keys in sorted order and
+// Sync copies the peer's items in wholesale: two replicas that have
+// exchanged hold the union of what each held. Sorted and deduplicated so
+// the result is spelled the way Items spells it, which is what the
+// convergence comparison is against.
+func mergeItems(a, b []string) []string {
+	joined := slices.Concat(a, b)
+	slices.Sort(joined)
+	return slices.Compact(joined)
 }
 
 // Dropping a check is written against the typed index rather than a string, so
@@ -36,7 +70,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 	t.Parallel()
 
 	eventuallytest.RunMixed(t,
-		eventuallytest.MixedHarness[*eventuallytest.InMemory]{Name: "in-memory", New: eventuallytest.NewInMemory},
+		inMemory("in-memory"),
 		eventuallytest.MixedSuite.Without(eventuallytest.MixedSuite.Checks.Publish.Smoke()),
 	)
 }

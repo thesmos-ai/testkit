@@ -23,14 +23,18 @@ import (
 // and both need a line in Subject. A structure describing "a field"
 // could express none of it, which is how the clock first went in as a
 // bare value nothing read.
-// One capability, because one is what this tier's checks ask for. Every
-// other leg provokes what it needs through methods the interface already
-// declares — the poison law calls the failing method, the lifecycle law
-// calls Close — and a field for a state the checks reach without it is a
-// field a consumer fills for nothing.
+// Two capabilities, because two are what this tier's checks ask for. A
+// clocked law moves time, and a crash schedule needs the process to be
+// built again over the medium the prior one left. Every other leg
+// provokes what it needs through methods the interface already declares —
+// the poison law calls the failing method, the lifecycle law calls
+// Close — and a field for a state the checks reach without it is a field
+// a consumer fills for nothing.
 const (
-	KindClockDoor     sdk.Kind = "model.door.clock"
-	KindClockLowering sdk.Kind = "model.lowering.clock"
+	KindClockDoor       sdk.Kind = "model.door.clock"
+	KindClockLowering   sdk.Kind = "model.lowering.clock"
+	KindRecoverDoor     sdk.Kind = "model.door.recover"
+	KindRecoverLowering sdk.Kind = "model.lowering.recover"
 )
 
 // door is what every contribution to the harness needs and no template
@@ -45,8 +49,9 @@ type door struct {
 	Vocab string
 
 	// Clock is the controllable clock's package, empty for a capability
-	// that does not involve one.
-	Clock string
+	// that does not involve one, and LegsPkg the bridge whose narrowing
+	// the crash seam's lowering reaches for.
+	Clock, LegsPkg string
 
 	// Subject is the interface as the harness file spells it, from
 	// [suite.Contract.SubjectType]. Taken rather than derived because the
@@ -69,6 +74,20 @@ type ClockLowering struct{ door }
 // Kind returns the template this contribution renders through.
 func (*ClockLowering) Kind() sdk.Kind { return KindClockLowering }
 
+// RecoverDoor is the constructor pair a crash schedule needs a consumer
+// to supply: the process built again over the medium the prior instance
+// left. RecoverLowering carries whichever is set onto the runtime.
+type RecoverDoor struct{ door }
+
+// Kind returns the template this contribution renders through.
+func (*RecoverDoor) Kind() sdk.Kind { return KindRecoverDoor }
+
+// RecoverLowering is [RecoverDoor]'s other half.
+type RecoverLowering struct{ door }
+
+// Kind returns the template this contribution renders through.
+func (*RecoverLowering) Kind() sdk.Kind { return KindRecoverLowering }
+
 // doorsFor is every field this interface's rows need, each with the line
 // that carries it.
 //
@@ -84,21 +103,28 @@ func (*ClockLowering) Kind() sdk.Kind { return KindClockLowering }
 // value that goes nowhere, which is what the harness carried for a clock
 // before either existed.
 func doorsFor(b *Bindings, subject string) (fields, lowerings []sdk.EmitNode) {
-	d := door{Vocab: VocabPkg, Clock: ClockPkg, Subject: subject}
-	for _, r := range b.Rows {
-		if !needsClock(r) {
-			continue
-		}
+	d := door{Vocab: VocabPkg, Clock: ClockPkg, LegsPkg: LegsPkg, Subject: subject}
+	if anyRowNeeds(b, vocab.CapClock) {
 		fields = append(fields, &ClockDoor{door: d})
 		lowerings = append(lowerings, &ClockLowering{door: d})
-		break
+	}
+	if anyRowNeeds(b, vocab.CapRecover) {
+		fields = append(fields, &RecoverDoor{door: d})
+		lowerings = append(lowerings, &RecoverLowering{door: d})
 	}
 	return fields, lowerings
 }
 
-// needsClock reports that a row is built on a clock the run controls.
-func needsClock(r projection.CheckPlan) bool {
-	return slices.ContainsFunc(r.Needs, func(n projection.NeedPlan) bool {
-		return n.Capability == vocab.CapClock
+// anyRowNeeds reports that some row this tier planned demands the given
+// door of the harness.
+//
+// One pass per capability rather than one switch over every row: the
+// contributions land in a fixed order this way, and a generated harness
+// whose fields reshuffle between runs is a diff nobody can review.
+func anyRowNeeds(b *Bindings, c vocab.Capability) bool {
+	return slices.ContainsFunc(b.Rows, func(r projection.CheckPlan) bool {
+		return slices.ContainsFunc(r.Needs, func(n projection.NeedPlan) bool {
+			return n.Capability == c
+		})
 	})
 }

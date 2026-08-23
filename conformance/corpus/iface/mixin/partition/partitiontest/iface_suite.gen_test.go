@@ -7,137 +7,40 @@
 package partitiontest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/partition/partitiontest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		partitiontest.MixedSuite.Suite(partitiontest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[partitiontest.Mixed] {
-	ix := partitiontest.MixedSuite.Checks
-	return prove.Defects[partitiontest.Mixed]{
-		ix.Put.Smoke(): prove.One("a Mixed whose Put panics",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedPut(
-					func(_ context.Context, _ string, _ string, _ string) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Mixed whose Put ignores the context it is handed",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedPut(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Mixed whose Put forgives a nil context and answers",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedPut(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Mixed whose Put ignores the context it is handed",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedPut(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Read.Smoke(): prove.One("a Mixed whose Read panics",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedRead(
-					func(_ context.Context, _ string, _ string) (string, error) {
-						panic("planted: Read panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Read.Cancels(): prove.One("a Mixed whose Read ignores the context it is handed",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedRead(
-					func(_ context.Context, _ string, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Read.NilContext(): prove.One("a Mixed whose Read forgives a nil context and answers",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedRead(
-					func(_ context.Context, _ string, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Read.Deadline(): prove.One("a Mixed whose Read ignores the context it is handed",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedRead(
-					func(_ context.Context, _ string, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Read.ZeroOnError(): prove.One("a Mixed whose Read answers a believable value beside its error",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedRead(
-					func(_ context.Context, _ string, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Read refused with a believable value")
-						return
-					}))
-			}),
-		ix.Put.Partition(): prove.One("a Mixed whose Put reports success and keeps nothing",
-			func(tb testing.TB) partitiontest.Mixed {
-				return partitiontest.NewMixedStub(tb, partitiontest.WithMixedPut(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Put.Smoke — a Mixed whose Put panics
+//
+//	Put.Cancels — a Mixed whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Mixed whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Mixed whose Put ignores the context it is handed
+//
+//	Read.Smoke — a Mixed whose Read panics
+//
+//	Read.Cancels — a Mixed whose Read ignores the context it is handed
+//
+//	Read.NilContext — a Mixed whose Read forgives a nil context and answers
+//
+//	Read.Deadline — a Mixed whose Read ignores the context it is handed
+//
+//	Read.ZeroOnError — a Mixed whose Read answers a believable value beside its error
+//
+//	Put.Partition — a Mixed whose Put reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -167,4 +70,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 57154c5dd16870e35e29d166c9e22c3768a76caf6e6e3acc1510ea79d21dc2c6
+// testkit:provenance 7195842fdfcf58bec97b06124e51307f41c8f9780b08434f762d85adac7d1a33

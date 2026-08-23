@@ -73,3 +73,17 @@ func contextErr(ctx context.Context) error {
 	}
 	return ctx.Err()
 }
+
+// Reopen is the crash seam: a store over the medium prior left behind.
+//
+// No Close first, and that is the whole point — a crash is the goodbye
+// that never happens, so nothing gets flushed on the way out. What
+// survives is what was already in the map, which is this fake's medium
+// in the same sense a file is a real store's.
+//
+// A fresh mutex over a shared map, because the lock belongs to the
+// process and the map does not. Only one incarnation is live at a time,
+// so the two never contend.
+func Reopen(prior *InMemory) *InMemory {
+	return &InMemory{values: prior.values}
+}

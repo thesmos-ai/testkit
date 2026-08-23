@@ -44,7 +44,7 @@ func TestMultiAggregatorContractWithoutSmoke(t *testing.T) {
 func TestMultiAggregatorChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	multiaggregatortest.ProveMultiAggregator(t, multiAggregatorChecks)
+	multiaggregatortest.ProveMultiAggregator(t, inMemory("in-memory"), multiAggregatorChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

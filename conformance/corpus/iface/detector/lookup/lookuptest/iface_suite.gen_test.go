@@ -9,44 +9,20 @@ package lookuptest_test
 import (
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/lookup"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/lookup/lookuptest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestLookupProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveLookup.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestLookupProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		lookuptest.LookupSuite.Suite(lookuptest.DefaultLookupFixture()).Checks,
-		lookupProofs())
-}
-
-// lookupProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveLookup
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func lookupProofs() prove.Defects[lookuptest.Lookup] {
-	ix := lookuptest.LookupSuite.Checks
-	return prove.Defects[lookuptest.Lookup]{
-		ix.Inspect.Smoke(): prove.One("a Lookup whose Inspect panics",
-			func(tb testing.TB) lookuptest.Lookup {
-				return lookuptest.NewLookupStub(tb, lookuptest.WithLookupInspect(
-					func(_ string) (lookup.Value, lookup.Meta, bool) {
-						panic("planted: Inspect panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Inspect.Smoke — a Lookup whose Inspect panics
 
 // TestLookupInvariants holds this package to what it says about itself.
 //
@@ -76,4 +52,4 @@ func TestLookupInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 189e895819dbdde3ebd433ea4afd404b6ce88d4673ae5d0af8e0ecc4f1483d18
+// testkit:provenance d74dda61114db3acd76e9ec307016540ad39df7ea33513ae81c7a6781998edcc

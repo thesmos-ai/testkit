@@ -87,6 +87,18 @@ type {{ $.Fixture.TypeName }}{{ renderTypeParams $.TypeParams }} struct {
 	{{ camel $f.Name }} {{ renderType $f.Type }}
 	{{ camel $f.OtherName }} {{ renderType $f.Type }}
 {{- end }}
+{{- range $p := $.Pools }}
+
+	// {{ camel $p.Field }} is the whole {{ $p.Role }} pool this run drew,
+	// which is not the same as the two members above: a DERIVED pool
+	// carries a hostile member the transforms added, and a pool you passed
+	// carries exactly what you passed. See {{ $p.Field }}.
+	{{ camel $p.Field }} []{{ renderType $p.Type }}
+
+	// {{ camel $p.Field }}Given records that the run passed this pool
+	// rather than taking the derived one. See {{ $p.Field }}Derived.
+	{{ camel $p.Field }}Given bool
+{{- end }}
 }
 
 // {{ $.Fixture.CtorName }} is what a run with no config draws.
@@ -103,9 +115,19 @@ func {{ suite_newFixtureName $.Token }}{{ renderTypeParams $.TypeParams }}(
 	{{- if $.Pools }}cfg {{ suite_configName $.IfaceName }}{{ $.TypeArgs }}{{ end -}}
 ) {{ $.Fixture.TypeName }}{{ $.TypeArgs }} {
 {{- if $.Pools }}
+	// Read BEFORE the defaults land, because that is the only moment the
+	// two are distinguishable. Afterwards every pool is full and nothing
+	// can tell which was whose.
+{{- range $p := $.Pools }}
+	{{ camel $p.Field }}Given := len(cfg.{{ $p.Field }}) > 0
+{{- end }}
 	cfg = cfg.orDefault()
 {{- end }}
 	return {{ $.Fixture.TypeName }}{{ $.TypeArgs }}{
+{{- range $p := $.Pools }}
+		{{ camel $p.Field }}:      cfg.{{ $p.Field }},
+		{{ camel $p.Field }}Given: {{ camel $p.Field }}Given,
+{{- end }}
 {{- range $.Fixture.Fields }}
 {{- if .OK }}
 		{{ camel .Name }}: {{ if .Pool }}cfg.{{ .Pool }}[0]{{ else if .Companion }}{{ renderExpr .Companion }}(){{ else }}{{ template "suite.value" (.Choose false) }}{{ end }},
@@ -130,6 +152,36 @@ func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $f.Name }}() {{ renderType 
 // first — so a check that expects to find nothing is asking about
 // something your implementation has genuinely never been given.
 func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $f.OtherName }}() {{ renderType $f.Type }} { return f.{{ camel $f.OtherName }} }
+{{ end }}
+{{- range $p := $.Pools }}
+// {{ $p.Field }} is every {{ $p.Role }} this run draws from, which is more
+// than the pair above.
+//
+// The pair is what a fixed call sequence needs: one value and a second
+// guaranteed to differ. This is what a DRAWN sequence needs, and the
+// difference is the hostile member — a control sequence, a broken rune —
+// that the transforms add to a pool derived from the type and that a pool
+// you passed does not carry.
+//
+// Which is the whole provenance rule, and it needs no flag: a derived
+// pool is a guess and attacking a guess costs nothing, while a pool you
+// passed is a statement about what the implementation accepts. Pass one
+// and the hostile member is simply not in it.
+func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $p.Field }}() []{{ renderType $p.Type }} {
+	return f.{{ camel $p.Field }}
+}
+
+// {{ $p.Field }}Derived reports that this run took the {{ $p.Role }} pool as
+// derived rather than as one you supplied.
+//
+// The hostile member above is one value. This is what licenses reaching
+// past it: a derived pool is a guess from the type, and a tier may widen a
+// guess as far as it likes because nobody has said what the implementation
+// accepts. A pool you passed IS that statement, and probing past it reds
+// correct code against inputs you ruled out.
+func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $p.Field }}Derived() bool {
+	return !f.{{ camel $p.Field }}Given
+}
 {{ end }}
 
 {{- if .Pools }}

@@ -7,137 +7,40 @@
 package roledtypestest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/roledtypes"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/roledtypes/roledtypestest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestStoreProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveStore.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestStoreProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		roledtypestest.StoreSuite.Suite(roledtypestest.DefaultStoreFixture()).Checks,
-		storeProofs())
-}
-
-// storeProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveStore
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func storeProofs() prove.Defects[roledtypestest.Store] {
-	ix := roledtypestest.StoreSuite.Checks
-	return prove.Defects[roledtypestest.Store]{
-		ix.Put.Smoke(): prove.One("a Store whose Put panics",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStorePut(
-					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Store whose Put ignores the context it is handed",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStorePut(
-					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Store whose Put forgives a nil context and answers",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStorePut(
-					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Store whose Put ignores the context it is handed",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStorePut(
-					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.Smoke(): prove.One("a Store whose Get panics",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStoreGet(
-					func(_ context.Context, _ roledtypes.Key) (roledtypes.Payload, error) {
-						panic("planted: Get panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Get.Cancels(): prove.One("a Store whose Get ignores the context it is handed",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStoreGet(
-					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Get.NilContext(): prove.One("a Store whose Get forgives a nil context and answers",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStoreGet(
-					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Get.Deadline(): prove.One("a Store whose Get ignores the context it is handed",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStoreGet(
-					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.ZeroOnError(): prove.One("a Store whose Get answers a believable value beside its error",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStoreGet(
-					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = roledtypes.Payload{Body: "other-payload"}
-						err = errors.New("planted: Get refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Miss(): prove.One("a Store whose Get answers for an input nothing wrote",
-			func(tb testing.TB) roledtypestest.Store {
-				return roledtypestest.NewStoreStub(tb, roledtypestest.WithStoreGet(
-					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = roledtypes.Payload{Body: "other-payload"}
-						return
-					}))
-			}),
-	}
-}
+//	Put.Smoke — a Store whose Put panics
+//
+//	Put.Cancels — a Store whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Store whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Store whose Put ignores the context it is handed
+//
+//	Get.Smoke — a Store whose Get panics
+//
+//	Get.Cancels — a Store whose Get ignores the context it is handed
+//
+//	Get.NilContext — a Store whose Get forgives a nil context and answers
+//
+//	Get.Deadline — a Store whose Get ignores the context it is handed
+//
+//	Get.ZeroOnError — a Store whose Get answers a believable value beside its error
+//
+//	Get.Miss — a Store whose Get answers for an input nothing wrote
 
 // TestStoreInvariants holds this package to what it says about itself.
 //
@@ -167,4 +70,4 @@ func TestStoreInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 6a472824464108a7a7c34dcdac339008d2cf167adcd84b0af2c54bc50f55f9f9
+// testkit:provenance 8555f6d7c7dac017c6a239d86e4a196596286eeb28c90ca8595c5542293f5261

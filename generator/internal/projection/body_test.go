@@ -120,6 +120,7 @@ func bodyStrengths() []strengthCase {
 		{"read after two writes", projection.WriteWriteRead{}, suite.StrengthObserved},
 		{"law leg", projection.LawLeg{}, suite.StrengthDifferential},
 		{"differential leg", projection.DifferentialLeg{}, suite.StrengthDifferential},
+		{"concurrent leg", projection.ConcurrentLeg{}, suite.StrengthDifferential},
 		{"sim leg", projection.SimLeg{}, suite.StrengthDifferential},
 	}
 }

@@ -35,6 +35,7 @@ package prove
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -68,6 +69,31 @@ type Defect[S any] struct {
 // fail.
 type Defects[S any] map[suite.ID]Defect[S]
 
+// Answering returns a copy in which every defect supplies the given
+// capability doors, leaving whatever a defect already answered for itself.
+//
+// A defect stands in for a real subject, and the doors in the open half of
+// the registry are facts about the DECLARATION rather than about any one
+// instance — see [suite.Doors]. So a planted defect has no separate answer
+// to give, and without this it has none at all: it is built by a generated
+// proofs map that never met the harness, so a check declaring a door could
+// only ever red on wiring. [Red] refuses that red; this is what stops it
+// arising.
+func (d Defects[S]) Answering(doors map[suite.Capability]any) Defects[S] {
+	if len(doors) == 0 {
+		return d
+	}
+	out := make(Defects[S], len(d))
+	for id, defect := range d {
+		provides := make(map[suite.Capability]any, len(doors)+len(defect.Provides))
+		maps.Copy(provides, doors)
+		maps.Copy(provides, defect.Provides)
+		defect.Provides = provides
+		out[id] = defect
+	}
+	return out
+}
+
 // One names a planted defect by its constructor — the sugar every
 // generated proofs file writes its map with. The tb reaches the
 // constructor because a defect over a real medium registers cleanup.
@@ -98,12 +124,38 @@ func Red[S any](t *testing.T, checks []suite.Check[S], id suite.ID, defect Defec
 		t.Fatalf("this proof names %q, which the check set does not hold; "+
 			"a proof for a deleted check is dead weight — delete it too", id)
 	}
+	if msg := redGate(checks[i], defect.Subject); msg != "" {
+		t.Error(msg)
+		return
+	}
 	failed, msg := caught(checks[i], defect.Subject)
 	if problem := redProblem(id, defect, failed, msg); problem != "" {
 		t.Error(problem)
 		return
 	}
 	scrubBucket(t, id)
+}
+
+// redGate returns the refusal for a defect that cannot take the check,
+// empty when it can.
+//
+// The counterpart of [greenGate], and needed for the same reason from the
+// other side: an unarmed defect reds on wiring, and a wiring red is not
+// evidence that the check can catch anything. Left ungated, a check
+// needing a capability earns its Proven stamp from a subject that never
+// reached the claim — which is the exact failure the Reason substring
+// exists to catch, in the one case no reason is written for.
+//
+// It rides [suite.CanRun], the runner's own gate, so the proof judges a
+// defect exactly as the run judges a subject.
+func redGate[S any](c suite.Check[S], sub suite.Subject[S]) string {
+	ok, why := suite.CanRun(c, sub)
+	if ok {
+		return ""
+	}
+	return fmt.Sprintf("the defect %q cannot take %s:\n%s\n"+
+		"  arm the defect's subject — it stands in for a real one, and a\n"+
+		"  defect that reds on wiring proves nothing about the claim", sub.Name, c.ID, why)
 }
 
 // redProblem judges the catch: empty when the check rejected the defect

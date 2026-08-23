@@ -64,7 +64,10 @@ func (u *unlatched) Err() error {
 func TestPoisonAccessorChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	poisonaccessortest.ProvePoisonAccessor(t, latches)
+	poisonaccessortest.ProvePoisonAccessor(t, poisonaccessortest.PoisonAccessorHarness[*poisonaccessortest.InMemory]{
+		Name: "in-memory",
+		New:  poisonaccessortest.NewInMemory,
+	}, latches)
 }
 
 func TestPoisonAccessorContract(t *testing.T) {

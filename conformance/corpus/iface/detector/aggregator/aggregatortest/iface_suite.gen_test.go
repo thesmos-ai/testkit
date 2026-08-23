@@ -7,90 +7,30 @@
 package aggregatortest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/aggregator/aggregatortest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestAggregatorProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveAggregator.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestAggregatorProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		aggregatortest.AggregatorSuite.Suite().Checks,
-		aggregatorProofs())
-}
-
-// aggregatorProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveAggregator
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func aggregatorProofs() prove.Defects[aggregatortest.Aggregator] {
-	ix := aggregatortest.AggregatorSuite.Checks
-	return prove.Defects[aggregatortest.Aggregator]{
-		ix.Count.Smoke(): prove.One("an Aggregator whose Count panics",
-			func(tb testing.TB) aggregatortest.Aggregator {
-				return aggregatortest.NewAggregatorStub(tb, aggregatortest.WithAggregatorCount(
-					func(_ context.Context) (int, error) {
-						panic("planted: Count panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Count.Cancels(): prove.One("an Aggregator whose Count ignores the context it is handed",
-			func(tb testing.TB) aggregatortest.Aggregator {
-				return aggregatortest.NewAggregatorStub(tb, aggregatortest.WithAggregatorCount(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Count.NilContext(): prove.One("an Aggregator whose Count forgives a nil context and answers",
-			func(tb testing.TB) aggregatortest.Aggregator {
-				return aggregatortest.NewAggregatorStub(tb, aggregatortest.WithAggregatorCount(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Count.Deadline(): prove.One("an Aggregator whose Count ignores the context it is handed",
-			func(tb testing.TB) aggregatortest.Aggregator {
-				return aggregatortest.NewAggregatorStub(tb, aggregatortest.WithAggregatorCount(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Count.ZeroOnError(): prove.One("an Aggregator whose Count answers a believable value beside its error",
-			func(tb testing.TB) aggregatortest.Aggregator {
-				return aggregatortest.NewAggregatorStub(tb, aggregatortest.WithAggregatorCount(
-					func(_ context.Context) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Count refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Count.Smoke — an Aggregator whose Count panics
+//
+//	Count.Cancels — an Aggregator whose Count ignores the context it is handed
+//
+//	Count.NilContext — an Aggregator whose Count forgives a nil context and answers
+//
+//	Count.Deadline — an Aggregator whose Count ignores the context it is handed
+//
+//	Count.ZeroOnError — an Aggregator whose Count answers a believable value beside its error
 
 // TestAggregatorInvariants holds this package to what it says about itself.
 //
@@ -120,4 +60,4 @@ func TestAggregatorInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 30620ffe38bd9a596d47782c42dbec8c77a83daf8baf5e102b2d51ed0a36634d
+// testkit:provenance 6f610604f9725f69842ca8aaf20e4a1e072ed772a2c207da7ab06c3c644d4a04

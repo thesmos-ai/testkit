@@ -45,15 +45,18 @@ var ActionCtors = map[string]any{
 	"StreamConsumer":  action.StreamConsumer[any, string, string],
 	"VoidLifecycle":   action.VoidLifecycle[any],
 	"Writer":          action.Writer[any, string],
+	"WriterRecording": action.WriterRecording[any, string],
 
 	// The contract-role rows: constructors the role table re-points to,
 	// held here the same way the shape rows are. The family members with
 	// no row are argued refusals in the tiers table's own comment.
-	"Updater":        action.Updater[any, string],
-	"Upserter":       action.Upserter[any, string],
-	"CompareAndSwap": action.CompareAndSwap[any, string],
-	"ChainAppend":    action.ChainAppend[any, string],
-	"TwoPhase":       action.TwoPhase[any, string],
+	"Updater":              action.Updater[any, string],
+	"Upserter":             action.Upserter[any, string],
+	"CompareAndSwap":       action.CompareAndSwap[any, string],
+	"ChainAppend":          action.ChainAppend[any, string],
+	"ChainAppendRecording": action.ChainAppendRecording[any, string, string],
+	"TwoPhase":             action.TwoPhase[any, string],
+	"Pool":                 action.Pool[any, string],
 }
 
 // HasMethod reports whether the named method exists on the given type,

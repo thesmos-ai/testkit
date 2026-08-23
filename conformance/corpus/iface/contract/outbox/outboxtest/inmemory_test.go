@@ -43,7 +43,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	outboxtest.ProveContract(t, contractChecks)
+	outboxtest.ProveContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

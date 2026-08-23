@@ -7,83 +7,30 @@
 package totaltest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/total/totaltest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		totaltest.MixedSuite.Suite(totaltest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[totaltest.Mixed] {
-	ix := totaltest.MixedSuite.Checks
-	return prove.Defects[totaltest.Mixed]{
-		ix.Classify.Smoke(): prove.One("a Mixed whose Classify panics",
-			func(tb testing.TB) totaltest.Mixed {
-				return totaltest.NewMixedStub(tb, totaltest.WithMixedClassify(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Classify panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Classify.Cancels(): prove.One("a Mixed whose Classify ignores the context it is handed",
-			func(tb testing.TB) totaltest.Mixed {
-				return totaltest.NewMixedStub(tb, totaltest.WithMixedClassify(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Classify.NilContext(): prove.One("a Mixed whose Classify forgives a nil context and answers",
-			func(tb testing.TB) totaltest.Mixed {
-				return totaltest.NewMixedStub(tb, totaltest.WithMixedClassify(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Classify.Deadline(): prove.One("a Mixed whose Classify ignores the context it is handed",
-			func(tb testing.TB) totaltest.Mixed {
-				return totaltest.NewMixedStub(tb, totaltest.WithMixedClassify(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Normalize.Smoke(): prove.One("a Mixed whose Normalize panics",
-			func(tb testing.TB) totaltest.Mixed {
-				return totaltest.NewMixedStub(tb, totaltest.WithMixedNormalize(
-					func(_ string) string {
-						panic("planted: Normalize panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Classify.Smoke — a Mixed whose Classify panics
+//
+//	Classify.Cancels — a Mixed whose Classify ignores the context it is handed
+//
+//	Classify.NilContext — a Mixed whose Classify forgives a nil context and answers
+//
+//	Classify.Deadline — a Mixed whose Classify ignores the context it is handed
+//
+//	Normalize.Smoke — a Mixed whose Normalize panics
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -113,4 +60,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 374ab0a72539cf5c686df7adedf214c320622c3a3d62f0fc145d67d836c28b26
+// testkit:provenance 11e7a1e3b0c00d8bd5ce3f023ce65619b1ef7f1e352f924ae4ebe5d1ed593cdb

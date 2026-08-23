@@ -7,47 +7,22 @@
 package readerwithbooltest_test
 
 import (
-	"context"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/readerwithbool"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/readerwithbool/readerwithbooltest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestReaderWithBoolProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveReaderWithBool.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestReaderWithBoolProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		readerwithbooltest.ReaderWithBoolSuite.Suite(readerwithbooltest.DefaultReaderWithBoolFixture()).Checks,
-		readerWithBoolProofs())
-}
-
-// readerWithBoolProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveReaderWithBool
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func readerWithBoolProofs() prove.Defects[readerwithbooltest.ReaderWithBool] {
-	ix := readerwithbooltest.ReaderWithBoolSuite.Checks
-	return prove.Defects[readerwithbooltest.ReaderWithBool]{
-		ix.Load.Smoke(): prove.One("a ReaderWithBool whose Load panics",
-			func(tb testing.TB) readerwithbooltest.ReaderWithBool {
-				return readerwithbooltest.NewReaderWithBoolStub(tb, readerwithbooltest.WithReaderWithBoolLoad(
-					func(_ context.Context, _ string) (readerwithbool.Value, bool) {
-						panic("planted: Load panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Load.Smoke — a ReaderWithBool whose Load panics
 
 // TestReaderWithBoolInvariants holds this package to what it says about itself.
 //
@@ -77,4 +52,4 @@ func TestReaderWithBoolInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance f9da94ba832f17bfd25a9d8914a381a14df798f0d93aa59c3b616ca76b517d2f
+// testkit:provenance f9d07efc64f175cec8fcff5097207afa6fe70d2a41c122c7e0703bec7181e18c

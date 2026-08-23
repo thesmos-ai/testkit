@@ -1,0 +1,27 @@
+{{- /*
+model.door.recover — the crash seam, as the harness carries it.
+
+Rendered into the harness generator's fields region. A constructor over
+the PRIOR instance rather than over the subject, because the medium
+belongs to the instance: every check runs in parallel and owns its own
+world, so a recovery constructor with nothing but the subject to go on
+could only reopen a world it shares with everybody else.
+
+The pair mirrors New and Start for the same reason those are a pair:
+reopening a real medium usually wants the test's lifetime to clean up
+after.
+*/ -}}
+{{- define "model.door.recover" -}}
+	// Recover builds the process again over the medium the prior instance
+	// left behind — no Close first, because a crash is the goodbye that
+	// never happens. Checks that kill the process need it, and fail
+	// naming this field when it is nil. StartRecover is its Start-shaped
+	// sibling, for a reopen that also needs the test's lifetime; set at
+	// most one of the two.
+	//
+	// If your implementation keeps everything in memory, it has no medium
+	// to recover and this is the wrong answer: list the check in Excuse
+	// instead, which reports it as excused rather than as passed.
+	Recover      func(prior T) T
+	StartRecover func(tb {{ renderExpr (external "testing" "TB") }}, prior T) T
+{{- end -}}

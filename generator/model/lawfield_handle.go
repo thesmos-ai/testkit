@@ -5,6 +5,7 @@ package model
 
 import (
 	"go.thesmos.sh/eidos/lang/golang"
+	"go.thesmos.sh/eidos/plugins/annotator/shape"
 	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit/core/lawid"
@@ -152,6 +153,30 @@ func handleFieldOf(
 		field.KindName = sdk.Kind(LawFieldKindPrefix + "VersionStamp")
 		return field, ""
 
+	case handleWriteLog:
+		// The write log a drain claim is judged against: what a collection
+		// should hold is what went into it, and the action stream is the
+		// only party that knows. The same recording the chain's history
+		// takes, resolved off the write rather than off an append role — a
+		// mixin declares no contract and names no partner, so the write is
+		// found by what it carries.
+		drainRole, reason := ruleFieldRole(b, harness, r, fDrain, m, keyed)
+		if reason != "" {
+			return nil, f.Name + " " + reason
+		}
+		elem, why := drainedElem(b, drainRole)
+		if why != "" {
+			return nil, f.Name + " " + why
+		}
+		writer, why := writeOfDrained(b, harness, drainRole)
+		if why != "" {
+			return nil, f.Name + " " + why
+		}
+		field.Method = writer
+		field.Value = elem
+		field.KindName = sdk.Kind(LawFieldKindPrefix + "HistoryRef")
+		return field, ""
+
 	case handleHistoryLog:
 		// The append-recording history: a property-level log of every
 		// successful append the sequences drove, cleared by the runner each
@@ -175,6 +200,59 @@ func handleFieldOf(
 		return field, ""
 	}
 	return nil, f.Name + " needs the " + f.From + " handle, which this build does not construct"
+}
+
+// writeOfDrained names the driven method that puts the drained element
+// in, and why none does.
+//
+// Matched on what the method carries rather than on its name or its
+// position: an interface may declare several writes, and the one whose
+// value is what the drain yields is the one whose record the claim is
+// about. Two of them writing the same element is refused rather than
+// resolved — a log filled by one of two writes states a claim about half
+// the history and reads as a claim about all of it.
+//
+// Driven, too: a method with no action never runs, so a log riding it
+// would be empty on every draw and the claim would hold over nothing.
+func writeOfDrained(b *Bindings, harness *subject.Projection, drain *subject.Method) (string, string) {
+	want, why := drainedQName(b, drain)
+	if why != "" {
+		return "", why
+	}
+	var found string
+	for i := range harness.Methods {
+		write := &harness.Methods[i]
+		if pseudoShape(write) != shapeWriter || b.actionFor(write.Name) == nil {
+			continue
+		}
+		if q, stamped := b.valueQOf(write); !stamped || q != want {
+			continue
+		}
+		if found != "" {
+			return "", "reads what was written, and " + found + " and " + write.Name +
+				" both write " + want + " — which of them the claim is about is not derivable"
+		}
+		found = write.Name
+	}
+	if found == "" {
+		return "", "reads what was written, and no driven method here writes " + want
+	}
+	return found, ""
+}
+
+// drainedQName is [drainedElem]'s answer as the stamp spells it, for
+// comparing against what a write carries — the reference the other
+// returns is a rendering, and two spellings of one type render alike
+// without being equal values.
+func drainedQName(b *Bindings, m *subject.Method) (string, string) {
+	if returnsSlice(m) {
+		return shape.QName(shape.GoSliceElem(m.Returns[0].Source)), ""
+	}
+	q, stamped := b.valueQOf(m)
+	if !stamped || q == "" {
+		return "", "drains " + m.Name + ", which streams elements no stamp names"
+	}
+	return q, ""
 }
 
 // hashElem resolves the identity hash's element: the drained element of the

@@ -7,76 +7,28 @@
 package timeouttest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/timeout/timeouttest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		timeouttest.MixedSuite.Suite(timeouttest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[timeouttest.Mixed] {
-	ix := timeouttest.MixedSuite.Checks
-	return prove.Defects[timeouttest.Mixed]{
-		ix.Slow.Smoke(): prove.One("a Mixed whose Slow panics",
-			func(tb testing.TB) timeouttest.Mixed {
-				return timeouttest.NewMixedStub(tb, timeouttest.WithMixedSlow(
-					func(_ context.Context, _ string) error {
-						panic("planted: Slow panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Slow.Cancels(): prove.One("a Mixed whose Slow ignores the context it is handed",
-			func(tb testing.TB) timeouttest.Mixed {
-				return timeouttest.NewMixedStub(tb, timeouttest.WithMixedSlow(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Slow.NilContext(): prove.One("a Mixed whose Slow forgives a nil context and answers",
-			func(tb testing.TB) timeouttest.Mixed {
-				return timeouttest.NewMixedStub(tb, timeouttest.WithMixedSlow(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Slow.Deadline(): prove.One("a Mixed whose Slow ignores the context it is handed",
-			func(tb testing.TB) timeouttest.Mixed {
-				return timeouttest.NewMixedStub(tb, timeouttest.WithMixedSlow(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-	}
-}
+//	Slow.Smoke — a Mixed whose Slow panics
+//
+//	Slow.Cancels — a Mixed whose Slow ignores the context it is handed
+//
+//	Slow.NilContext — a Mixed whose Slow forgives a nil context and answers
+//
+//	Slow.Deadline — a Mixed whose Slow ignores the context it is handed
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -106,4 +58,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 7d8269aa0d9407eda3417851e449aa6e5b17bbe4ff17d23f140f5d6a30c6dcbd
+// testkit:provenance e9b9a13743cc4e989e7f36d7e582db524d436bb47cd737bb13aa88b3fbec7e8a

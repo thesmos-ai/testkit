@@ -11,6 +11,7 @@ import (
 
 	"pgregory.net/rapid"
 
+	"go.thesmos.sh/testkit/engine/model/history"
 	"go.thesmos.sh/testkit/engine/model/law"
 )
 
@@ -180,15 +181,35 @@ func TestStreamStableOrder(t *testing.T) {
 	})
 }
 
+// writeLog is the run's record of what went in, which is what the two
+// drain laws judge a drain against. Unpartitioned, under the empty key
+// the generated recording write records against.
+func writeLog(written ...string) *history.History[string, string] {
+	h := history.New[string, string]()
+	for _, w := range written {
+		h.Record("", w)
+	}
+	return h
+}
+
+// intLog is [writeLog] over the int element the streamSUT cases draw.
+func intLog(written ...int) *history.History[string, int] {
+	h := history.New[string, int]()
+	for _, w := range written {
+		h.Record("", w)
+	}
+	return h
+}
+
 func TestStreamPermutation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("drain that permutes expected passes", func(t *testing.T) {
 		t.Parallel()
 		l := law.StreamPermutation[[]string, string, string]{
-			Drain:    func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
-			Expected: func(_ *rapid.T, _ []string) []string { return []string{"a", "b", "c"} },
-			Hash:     func(v string) string { return v },
+			Drain:   func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
+			History: writeLog("a", "b", "c"),
+			Hash:    func(v string) string { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, []string{"c", "a", "b"}, nil); err != nil {
@@ -200,9 +221,9 @@ func TestStreamPermutation(t *testing.T) {
 	t.Run("length mismatch flagged", func(t *testing.T) {
 		t.Parallel()
 		l := law.StreamPermutation[[]string, string, string]{
-			Drain:    func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
-			Expected: func(_ *rapid.T, _ []string) []string { return []string{"a", "b"} },
-			Hash:     func(v string) string { return v },
+			Drain:   func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
+			History: writeLog("a", "b"),
+			Hash:    func(v string) string { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, []string{"a"}, nil); err == nil {
@@ -214,9 +235,9 @@ func TestStreamPermutation(t *testing.T) {
 	t.Run("element mismatch flagged", func(t *testing.T) {
 		t.Parallel()
 		l := law.StreamPermutation[[]string, string, string]{
-			Drain:    func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
-			Expected: func(_ *rapid.T, _ []string) []string { return []string{"a", "b"} },
-			Hash:     func(v string) string { return v },
+			Drain:   func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
+			History: writeLog("a", "b"),
+			Hash:    func(v string) string { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, []string{"a", "x"}, nil); err == nil {
@@ -232,9 +253,9 @@ func TestStreamOverMatch(t *testing.T) {
 	t.Run("drain containing required passes", func(t *testing.T) {
 		t.Parallel()
 		l := law.StreamOverMatch[[]string, string, string]{
-			Drain:    func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
-			Required: func(_ *rapid.T, _ []string) []string { return []string{"a", "b"} },
-			Hash:     func(v string) string { return v },
+			Drain:   func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
+			History: writeLog("a", "b"),
+			Hash:    func(v string) string { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, []string{"a", "b", "c", "d"}, nil); err != nil {
@@ -246,9 +267,9 @@ func TestStreamOverMatch(t *testing.T) {
 	t.Run("missing required element flagged", func(t *testing.T) {
 		t.Parallel()
 		l := law.StreamOverMatch[[]string, string, string]{
-			Drain:    func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
-			Required: func(_ *rapid.T, _ []string) []string { return []string{"a", "b"} },
-			Hash:     func(v string) string { return v },
+			Drain:   func(_ *rapid.T, s []string) ([]string, error) { return s, nil },
+			History: writeLog("a", "b"),
+			Hash:    func(v string) string { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, []string{"a", "c"}, nil); err == nil {
@@ -260,9 +281,9 @@ func TestStreamOverMatch(t *testing.T) {
 	t.Run("drain error is vacuous", func(t *testing.T) {
 		t.Parallel()
 		l := law.StreamOverMatch[[]string, string, string]{
-			Drain:    func(_ *rapid.T, _ []string) ([]string, error) { return nil, errors.New("nope") },
-			Required: func(_ *rapid.T, _ []string) []string { return []string{"a"} },
-			Hash:     func(v string) string { return v },
+			Drain:   func(_ *rapid.T, _ []string) ([]string, error) { return nil, errors.New("nope") },
+			History: writeLog("a"),
+			Hash:    func(v string) string { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, nil, nil); !law.Holds(err) {
@@ -425,9 +446,9 @@ func TestStreamLawDrainFailures(t *testing.T) {
 		t.Parallel()
 		s := &streamSUT{drainErr: errors.New("closed")}
 		l := law.StreamPermutation[*streamSUT, int, int]{
-			Drain:    s.drain,
-			Expected: func(*rapid.T, *streamSUT) []int { return []int{1} },
-			Hash:     func(v int) int { return v },
+			Drain:   s.drain,
+			History: intLog(1),
+			Hash:    func(v int) int { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, s, s); !law.Holds(err) {
@@ -524,9 +545,9 @@ func TestStreamLawViolations(t *testing.T) {
 		t.Parallel()
 		s := &streamSUT{items: []int{1, 2}}
 		l := law.StreamPermutation[*streamSUT, int, int]{
-			Drain:    s.drain,
-			Expected: func(*rapid.T, *streamSUT) []int { return []int{1, 2, 3} },
-			Hash:     func(v int) int { return v },
+			Drain:   s.drain,
+			History: intLog(1, 2, 3),
+			Hash:    func(v int) int { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, s, s); err == nil {
@@ -539,9 +560,9 @@ func TestStreamLawViolations(t *testing.T) {
 		t.Parallel()
 		s := &streamSUT{items: []int{1, 2}}
 		l := law.StreamPermutation[*streamSUT, int, int]{
-			Drain:    s.drain,
-			Expected: func(*rapid.T, *streamSUT) []int { return []int{1, 3} },
-			Hash:     func(v int) int { return v },
+			Drain:   s.drain,
+			History: intLog(1, 3),
+			Hash:    func(v int) int { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, s, s); err == nil {
@@ -554,9 +575,9 @@ func TestStreamLawViolations(t *testing.T) {
 		t.Parallel()
 		s := &streamSUT{items: []int{2, 1}}
 		l := law.StreamPermutation[*streamSUT, int, int]{
-			Drain:    s.drain,
-			Expected: func(*rapid.T, *streamSUT) []int { return []int{1, 2} },
-			Hash:     func(v int) int { return v },
+			Drain:   s.drain,
+			History: intLog(1, 2),
+			Hash:    func(v int) int { return v },
 		}
 		rapid.Check(t, func(rt *rapid.T) {
 			if err := l.Check(rt, s, s); err != nil {

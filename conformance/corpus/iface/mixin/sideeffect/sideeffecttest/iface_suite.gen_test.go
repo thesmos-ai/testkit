@@ -7,146 +7,42 @@
 package sideeffecttest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/sideeffect/sideeffecttest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		sideeffecttest.MixedSuite.Suite(sideeffecttest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[sideeffecttest.Mixed] {
-	ix := sideeffecttest.MixedSuite.Checks
-	return prove.Defects[sideeffecttest.Mixed]{
-		ix.Touch.Smoke(): prove.One("a Mixed whose Touch panics",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedTouch(
-					func(_ context.Context, _ string) error {
-						panic("planted: Touch panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Touch.Cancels(): prove.One("a Mixed whose Touch ignores the context it is handed",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedTouch(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Touch.NilContext(): prove.One("a Mixed whose Touch forgives a nil context and answers",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedTouch(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Touch.Deadline(): prove.One("a Mixed whose Touch ignores the context it is handed",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedTouch(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Observed.Smoke(): prove.One("a Mixed whose Observed panics",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedObserved(
-					func(_ context.Context, _ string) (int, error) {
-						panic("planted: Observed panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Observed.Cancels(): prove.One("a Mixed whose Observed ignores the context it is handed",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedObserved(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Observed.NilContext(): prove.One("a Mixed whose Observed forgives a nil context and answers",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedObserved(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Observed.Deadline(): prove.One("a Mixed whose Observed ignores the context it is handed",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedObserved(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Observed.ZeroOnError(): prove.One("a Mixed whose Observed answers a believable value beside its error",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedObserved(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Observed refused with a believable value")
-						return
-					}))
-			}),
-		ix.Touch.Sideeffect(): prove.One("a Mixed whose Touch reports success and keeps nothing",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedTouch(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-		ix.Observed.Miss(): prove.One("a Mixed whose Observed answers for an input nothing wrote",
-			func(tb testing.TB) sideeffecttest.Mixed {
-				return sideeffecttest.NewMixedStub(tb, sideeffecttest.WithMixedObserved(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
-						return
-					}))
-			}),
-	}
-}
+//	Touch.Smoke — a Mixed whose Touch panics
+//
+//	Touch.Cancels — a Mixed whose Touch ignores the context it is handed
+//
+//	Touch.NilContext — a Mixed whose Touch forgives a nil context and answers
+//
+//	Touch.Deadline — a Mixed whose Touch ignores the context it is handed
+//
+//	Observed.Smoke — a Mixed whose Observed panics
+//
+//	Observed.Cancels — a Mixed whose Observed ignores the context it is handed
+//
+//	Observed.NilContext — a Mixed whose Observed forgives a nil context and answers
+//
+//	Observed.Deadline — a Mixed whose Observed ignores the context it is handed
+//
+//	Observed.ZeroOnError — a Mixed whose Observed answers a believable value beside its error
+//
+//	Touch.Sideeffect — a Mixed whose Touch reports success and keeps nothing
+//
+//	Observed.Miss — a Mixed whose Observed answers for an input nothing wrote
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -176,4 +72,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8cc6c16880df45b87227624a8bb12a34ad4137bef720c122c3392274f37b4b7a
+// testkit:provenance a1136511b482dfb3fc2b90503667bf176f45f9477170fcc0e68ef0da3129cbf7

@@ -45,7 +45,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	publisheratleastoncetest.ProveContract(t, contractChecks)
+	publisheratleastoncetest.ProveContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

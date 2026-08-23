@@ -41,7 +41,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	sm.ProveMixed(t, mixedChecks)
+	sm.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

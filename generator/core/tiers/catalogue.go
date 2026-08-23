@@ -189,6 +189,7 @@ const (
 	fieldPut        = "Put"
 	fieldRead       = "Read"
 	fieldReplay     = "Replay"
+	fieldHistory    = "History"
 	fieldSentinel   = "Sentinel"
 	fieldValues     = "Values"
 	fieldWrite      = "Write"
@@ -227,6 +228,7 @@ const (
 	handleKeyOf    = "key-projection"
 	handleFactory  = "subject-factory"
 	handleHistory  = "history"
+	handleWriteLog = "write-log"
 	handleClock    = "clock"
 	handleIdentity = "identity-hash"
 	handleOrder    = "natural-order"
@@ -333,7 +335,7 @@ func anomaly(law, claim string) Rule {
 			// name: a subject that cannot report its own history cannot be
 			// asked about isolation at all, so this law does not bind without
 			// one rather than binding against a fiction.
-			{Name: "History", Kind: KindSupplied, From: "history"},
+			{Name: fieldHistory, Kind: KindSupplied, From: "history"},
 		},
 	}
 }
@@ -648,7 +650,7 @@ var rules = []Rule{
 		Needs: []string{mixinOverMatch},
 		Fields: []Field{
 			{Name: fieldDrain, Kind: KindRole, From: roleSelf},
-			{Name: "Required", Kind: KindSupplied, From: "required"},
+			{Name: fieldHistory, Kind: KindHandle, From: handleWriteLog},
 			{Name: fieldHash, Kind: KindHandle, From: handleIdentity},
 		},
 	},
@@ -657,7 +659,7 @@ var rules = []Rule{
 		Needs: []string{mixinPermutation},
 		Fields: []Field{
 			{Name: fieldDrain, Kind: KindRole, From: roleSelf},
-			{Name: "Expected", Kind: KindSupplied, From: "expected"},
+			{Name: fieldHistory, Kind: KindHandle, From: handleWriteLog},
 			{Name: fieldHash, Kind: KindHandle, From: handleIdentity},
 		},
 	},
@@ -920,7 +922,7 @@ var rules = []Rule{
 		Needs: []string{contractChain},
 		Fields: []Field{
 			{Name: fieldReplay, Kind: KindRole, From: "chain.replay"},
-			{Name: "History", Kind: KindHandle, From: handleHistory},
+			{Name: fieldHistory, Kind: KindHandle, From: handleHistory},
 		},
 	},
 	{

@@ -31,6 +31,7 @@ const (
 	KindCountProbe      BodyKind = BodyKindPrefix + "count-probe"
 	KindLawLeg          BodyKind = BodyKindPrefix + "law-leg"
 	KindDifferentialLeg BodyKind = BodyKindPrefix + "differential-leg"
+	KindConcurrentLeg   BodyKind = BodyKindPrefix + "concurrent-leg"
 	KindSimLeg          BodyKind = BodyKindPrefix + "sim-leg"
 	KindHookFires       BodyKind = BodyKindPrefix + "hook-fires"
 	KindNonZeroAnswer   BodyKind = BodyKindPrefix + "non-zero-answer"
@@ -235,6 +236,15 @@ type DifferentialLeg struct {
 	// check only names the assert function the model file exports.
 	AssertFunc string
 }
+
+// ConcurrentLeg delegates to legs.Concurrent: workers driving one
+// instance at once, the recorded history checked against the model this
+// interface's shape selects.
+//
+// No fields. Which model, which ops and which sentinels are facts the
+// model tier already derived, and the plan carries the claim rather than
+// the wiring — the same split every other leg body makes.
+type ConcurrentLeg struct{}
 
 // SimKind names a sim-tier leg; the values are the runtime's own
 // segment constants, so the sim vocabulary keeps one home.
@@ -482,6 +492,11 @@ func (LawLeg) Strength() suite.Strength { return suite.StrengthDifferential }
 // Strength reports that the differential leg judges against a reference.
 func (DifferentialLeg) Strength() suite.Strength { return suite.StrengthDifferential }
 
+// Strength reports that the concurrent leg judges against a model: the
+// verdict is a search for a serialisation of the recorded history, which
+// is the strongest reading this vocabulary has.
+func (ConcurrentLeg) Strength() suite.Strength { return suite.StrengthDifferential }
+
 // Strength reports that a sim leg judges a crash against an oracle.
 func (SimLeg) Strength() suite.Strength { return suite.StrengthDifferential }
 
@@ -518,6 +533,9 @@ func (LawLeg) BodyKind() BodyKind { return KindLawLeg }
 // BodyKind names the template that renders the differential leg.
 func (DifferentialLeg) BodyKind() BodyKind { return KindDifferentialLeg }
 
+// BodyKind names the template that renders the linearizability leg.
+func (ConcurrentLeg) BodyKind() BodyKind { return KindConcurrentLeg }
+
 // BodyKind names the template that renders the sim leg.
 func (SimLeg) BodyKind() BodyKind { return KindSimLeg }
 
@@ -553,6 +571,7 @@ func BodyKinds() []BodyKind {
 		CountProbe{}.BodyKind(),
 		LawLeg{}.BodyKind(),
 		DifferentialLeg{}.BodyKind(),
+		ConcurrentLeg{}.BodyKind(),
 		SimLeg{}.BodyKind(),
 		HookFires{}.BodyKind(),
 		NonZeroAnswer{}.BodyKind(),

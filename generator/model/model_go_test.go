@@ -93,6 +93,11 @@ func TestGoTemplates(t *testing.T) {
 				"purevar":            true,
 				"predicatevar":       true,
 				"twophase":           true,
+				// The two-role cycle is the other contract-role re-point
+				// that consumes its sibling: the pool's get takes a value
+				// and its put hands it back, and the claims are about the
+				// round trip rather than either call.
+				"cycle": true,
 			}
 			testkit.True(t, known || pseudo[shape],
 				name+" names the "+shape+" shape, which the catalogue drives")

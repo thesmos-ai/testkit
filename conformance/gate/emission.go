@@ -18,8 +18,10 @@ import (
 	"go.thesmos.sh/eidos/sink"
 
 	"go.thesmos.sh/testkit/core/brand"
+	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator"
 	"go.thesmos.sh/testkit/generator/model"
+	"go.thesmos.sh/testkit/generator/suite"
 )
 
 // Emitted is what the model tier actually asserted for one interface: the
@@ -32,7 +34,51 @@ type Emitted struct {
 
 	// Laws are the bound identifiers; Twin reports the reference floor.
 	Laws []string
-	Twin bool
+
+	// Linearizable reports that the concurrency family the shape selected
+	// actually reached a row — the leg rendered rather than being refused
+	// for something the declaration does not supply.
+	Linearizable bool
+
+	// ConcFamily is the concurrency model this interface's shape selects —
+	// "kv", "lease", "cas", "append", "session" — empty where none does.
+	//
+	// Measured because the derivation runs and nothing renders it: a
+	// fixture whose shape picks a family owes a linearizability leg, and
+	// until one is emitted the selection is work the generator does and
+	// throws away. A census that cannot see the family cannot count what
+	// the corpus is owed.
+	ConcFamily string
+	Twin       bool
+
+	// SimPair reports that this interface's shape gives the crash schedule
+	// a write to acknowledge and a read to collect the debt, and Recovery
+	// that the leg over them actually reached a row.
+	//
+	// Both, because the gap between them is the interesting number: a pair
+	// that derives and no row is a claim the shape supports and the run
+	// declines, and the header owes a reason for every one.
+	SimPair  bool
+	Recovery bool
+
+	// Refusals are the header lines this tier owes a reader: one per claim
+	// a rule reached and the run could not state, worded where the refusal
+	// was decided.
+	//
+	// Measured because a refusal that reaches no header is the one absence
+	// nothing in the output shows. The row is not planned, so no manifest
+	// row goes missing and no check reports; the claim simply is not made,
+	// and a reader has no way to tell that from a claim nobody thought of.
+	Refusals map[string]string
+
+	// PropSugars are the drawn-input row fields this interface offers a
+	// consumer, one per method the tier can already draw an argument for.
+	//
+	// Measured rather than assumed: the un-sugared Prop is always offered
+	// and the sugared fields are what make it worth using, so a fixture
+	// whose sugars quietly stop being derived is a surface that got
+	// smaller with nothing to show for it.
+	PropSugars []string
 
 	// Dir is the fixture's corpus-relative directory and IfaceName its bare
 	// interface name — together what the unarmed-door census needs to find
@@ -90,7 +136,7 @@ func Emission(ctx context.Context, root string, patterns ...string) ([]Emitted, 
 // caring about.
 func emittedFrom(pipe *pipeline.Pipeline) []Emitted {
 	out := make([]Emitted, 0, 128)
-	for origin, b := range sdk.PendingByOrigin[*model.Bindings](pipe.Store().Emit()) {
+	for origin, b := range bindingsByOrigin(pipe) {
 		e := Emitted{Fixture: b.IfaceName, IfaceName: b.IfaceName, Twin: b.Reference.Twin()}
 		if iface, ok := origin.(*sdk.Interface); ok {
 			e.Fixture = iface.Package + "." + iface.Name
@@ -114,6 +160,26 @@ func emittedFrom(pipe *pipeline.Pipeline) []Emitted {
 				e.Unarmed[l.ID] = append(e.Unarmed[l.ID], l.Unarmed...)
 			}
 		}
+		e.ConcFamily = b.ConcFamily
+		e.SimPair = b.Sim()
+		for _, u := range b.Unbound {
+			if e.Refusals == nil {
+				e.Refusals = map[string]string{}
+			}
+			e.Refusals[u.Method] = u.Reason
+		}
+		for _, r := range b.Rows {
+			switch r.ID.Seg {
+			case vocab.SegLinearizable:
+				e.Linearizable = true
+			case vocab.SegRecovery:
+				e.Recovery = true
+			}
+		}
+		for _, s := range model.PropSugarsOf(b) {
+			e.PropSugars = append(e.PropSugars, s.Field)
+		}
+		sort.Strings(e.PropSugars)
 		e.SentinelStamped = b.Reference.MissSym != nil && b.Reference.Derived()
 		for _, a := range b.Actions {
 			if a.Sentinel != nil {
@@ -125,6 +191,34 @@ func emittedFrom(pipe *pipeline.Pipeline) []Emitted {
 		out = append(out, e)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Fixture < out[j].Fixture })
+	return out
+}
+
+// bindingsByOrigin reads each interface's model tier off the region it is
+// contributed into.
+//
+// Not from the pending emits: the model tier stopped queueing its bindings
+// when it became a contributor to the harness, because a queued emit value
+// always renders into a file and this tier emits none. The bindings reach
+// the store as one more declaration under the harness's decls region, and
+// that is where a census has to look for them.
+//
+// This gate read the pending queue for a while after the move, and measured
+// nothing: every fixture reported no laws, so every stamped classification
+// read as bound nowhere and every reference read as not a twin. A census
+// that measures nothing reports the whole corpus as covered by nobody,
+// which is the failure mode [runCorpus] names and the one a gate can least
+// afford.
+func bindingsByOrigin(pipe *pipeline.Pipeline) map[sdk.Node]*model.Bindings {
+	out := map[sdk.Node]*model.Bindings{}
+	for origin, c := range sdk.PendingByOrigin[*suite.Contract](pipe.Store().Emit()) {
+		for _, item := range c.Decls().Items {
+			if b, ok := item.(*model.Bindings); ok {
+				out[origin] = b
+				break
+			}
+		}
+	}
 	return out
 }
 

@@ -42,7 +42,7 @@ func TestStreamContractWithoutSmoke(t *testing.T) {
 func TestStreamChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	embeddedforeigntest.ProveStream(t, streamChecks)
+	embeddedforeigntest.ProveStream(t, inMemory("in-memory"), streamChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

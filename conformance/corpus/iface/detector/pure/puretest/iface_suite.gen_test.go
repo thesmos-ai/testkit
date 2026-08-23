@@ -11,41 +11,18 @@ import (
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/pure/puretest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestPureProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProvePure.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestPureProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		puretest.PureSuite.Suite().Checks,
-		pureProofs())
-}
-
-// pureProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProvePure
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func pureProofs() prove.Defects[puretest.Pure] {
-	ix := puretest.PureSuite.Checks
-	return prove.Defects[puretest.Pure]{
-		ix.Describe.Smoke(): prove.One("a Pure whose Describe panics",
-			func(tb testing.TB) puretest.Pure {
-				return puretest.NewPureStub(tb, puretest.WithPureDescribe(
-					func() string {
-						panic("planted: Describe panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Describe.Smoke — a Pure whose Describe panics
 
 // TestPureInvariants holds this package to what it says about itself.
 //
@@ -75,4 +52,4 @@ func TestPureInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance b285eb4775d271b1d27c44b6362a56840396abf0ed3c4ce857fd1f3ed1d65dc9
+// testkit:provenance 0f69e275c138af8974cd2356aace36b9c21dcb137396edc9f6da576a88c6adda

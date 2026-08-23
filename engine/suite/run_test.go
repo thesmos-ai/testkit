@@ -394,6 +394,33 @@ func TestApplyRapidEnv(t *testing.T) {
 	}
 }
 
+// TestDoors pins what a defect or a control may borrow from a run's
+// subjects: the open-set answers, which are facts about the declaration,
+// and not the three per-instance arms.
+func TestDoors(t *testing.T) {
+	t.Parallel()
+
+	first := aSubject()
+	first.Provides = map[Capability]any{"less": "first", CapClock: "not a constructor"}
+	second := aSubject()
+	second.Provides = map[Capability]any{"less": "second", "stats": 7}
+
+	doors := Doors(first, second)
+
+	if got := doors["less"]; got != "first" {
+		t.Errorf("the first answer wins, got %v", got)
+	}
+	if got := doors["stats"]; got != 7 {
+		t.Errorf("a door only the second subject answers still arrives, got %v", got)
+	}
+	if doors[CapClock] != nil {
+		t.Error("a clock is built by a constructor, not lifted off another subject")
+	}
+	if Doors[sut]() != nil {
+		t.Error("no subjects is no doors")
+	}
+}
+
 // TestCanRun pins the exported gate across every capability arm: an armed
 // subject passes, a bare one is refused naming the field that arms it, and
 // the refusal never teaches a drop — outside a run a drop is not the fix.

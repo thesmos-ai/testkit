@@ -7,87 +7,30 @@
 package ifabsenttest_test
 
 import (
-	"context"
 	"testing"
 
-	ifabsent "go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-absent"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-absent/ifabsenttest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		ifabsenttest.ContractSuite.Suite(ifabsenttest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[ifabsenttest.Contract] {
-	ix := ifabsenttest.ContractSuite.Checks
-	return prove.Defects[ifabsenttest.Contract]{
-		ix.Put.Smoke(): prove.One("a Contract whose Put panics",
-			func(tb testing.TB) ifabsenttest.Contract {
-				return ifabsenttest.NewContractStub(tb, ifabsenttest.WithContractPut(
-					func(_ context.Context, _ ifabsent.Value) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Contract whose Put ignores the context it is handed",
-			func(tb testing.TB) ifabsenttest.Contract {
-				return ifabsenttest.NewContractStub(tb, ifabsenttest.WithContractPut(
-					func(_ context.Context, _ ifabsent.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Contract whose Put forgives a nil context and answers",
-			func(tb testing.TB) ifabsenttest.Contract {
-				return ifabsenttest.NewContractStub(tb, ifabsenttest.WithContractPut(
-					func(_ context.Context, _ ifabsent.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Contract whose Put ignores the context it is handed",
-			func(tb testing.TB) ifabsenttest.Contract {
-				return ifabsenttest.NewContractStub(tb, ifabsenttest.WithContractPut(
-					func(_ context.Context, _ ifabsent.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Put.Conflict(): prove.One("a Contract whose Put accepts a duplicate as though it were new",
-			func(tb testing.TB) ifabsenttest.Contract {
-				return ifabsenttest.NewContractStub(tb, ifabsenttest.WithContractPut(
-					func(_ context.Context, _ ifabsent.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Put.Smoke — a Contract whose Put panics
+//
+//	Put.Cancels — a Contract whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Contract whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Contract whose Put ignores the context it is handed
+//
+//	Put.Conflict — a Contract whose Put accepts a duplicate as though it were new
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -117,4 +60,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a1c07ad1eb1dbdafae1963a93740a8b0dff07daee37898059c8df933769d5766
+// testkit:provenance 8a3c5e1e19b4edb7229d3b08d0404ecdb401d8e48eddf173d3619676494ceb22

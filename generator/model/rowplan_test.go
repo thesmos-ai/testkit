@@ -19,6 +19,13 @@ import (
 // clocked law's row was what opened the clock, so the row and the field
 // had to be worked out together. This tier contributes the field itself
 // now, so it can plan the row that needs it.
+//
+// Two families, not one. Every row that judges the subject against
+// something modelling it reports under model; the crash row reports
+// under sim, because it judges the subject against its own
+// acknowledgements across a seam nothing else in the run crosses, and a
+// report grouping the two would put a lost write beside a disagreeing
+// reference.
 func TestPlanRowsFollowsWhatBound(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +34,8 @@ func TestPlanRowsFollowsWhatBound(t *testing.T) {
 
 	testkit.True(t, len(rows) > 0, "an interface binding laws owes rows")
 	for _, r := range rows {
-		testkit.Equal(t, r.ID.Family, vocab.FamilyModel,
-			"every row this tier plans reports under its own family")
+		testkit.Contains(t, []string{vocab.FamilyModel, vocab.FamilySim}, r.ID.Family,
+			"every row this tier plans reports under one of the two families it owns")
 		testkit.NotEqual(t, r.Claim, "", "and states a claim a reader can disagree with")
 		testkit.True(t, r.Body != nil,
 			"and carries a body kind, or nothing can render it")

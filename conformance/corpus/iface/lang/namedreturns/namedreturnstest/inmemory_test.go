@@ -41,7 +41,7 @@ func TestServiceContractSuppression(t *testing.T) {
 func TestServiceChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	namedreturnstest.ProveService(t, serviceChecks)
+	namedreturnstest.ProveService(t, inMemory("in-memory"), serviceChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

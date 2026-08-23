@@ -11,55 +11,22 @@ import (
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/nocontext/nocontexttest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestCalculatorProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveCalculator.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestCalculatorProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		nocontexttest.CalculatorSuite.Suite(nocontexttest.DefaultCalculatorFixture()).Checks,
-		calculatorProofs())
-}
-
-// calculatorProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveCalculator
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func calculatorProofs() prove.Defects[nocontexttest.Calculator] {
-	ix := nocontexttest.CalculatorSuite.Checks
-	return prove.Defects[nocontexttest.Calculator]{
-		ix.Add.Smoke(): prove.One("a Calculator whose Add panics",
-			func(tb testing.TB) nocontexttest.Calculator {
-				return nocontexttest.NewCalculatorStub(tb, nocontexttest.WithCalculatorAdd(
-					func(_ int, _ int) int {
-						panic("planted: Add panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Divide.Smoke(): prove.One("a Calculator whose Divide panics",
-			func(tb testing.TB) nocontexttest.Calculator {
-				return nocontexttest.NewCalculatorStub(tb, nocontexttest.WithCalculatorDivide(
-					func(_ int, _ int) (int, error) {
-						panic("planted: Divide panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Reset.Smoke(): prove.One("a Calculator whose Reset panics",
-			func(tb testing.TB) nocontexttest.Calculator {
-				return nocontexttest.NewCalculatorStub(tb, nocontexttest.WithCalculatorReset(
-					func() {
-						panic("planted: Reset panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Add.Smoke — a Calculator whose Add panics
+//
+//	Divide.Smoke — a Calculator whose Divide panics
+//
+//	Reset.Smoke — a Calculator whose Reset panics
 
 // TestCalculatorInvariants holds this package to what it says about itself.
 //
@@ -89,4 +56,4 @@ func TestCalculatorInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 44dc751a79485a999e81d9df76677a3c7c9315f93bcdd79d5864a5589db2a856
+// testkit:provenance e626ba9e92a39742144e7932a9014ec21f51cd3f003830e2d7f244be4bda5c54

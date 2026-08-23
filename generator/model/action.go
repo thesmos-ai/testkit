@@ -59,9 +59,18 @@ type Action struct {
 	// it ignores it.
 	TakesCtx bool
 
-	// Records marks the append the no-drops law watches: the closure logs
-	// every successful call into the property's append history.
-	Records bool
+	// Records marks the write a drain claim is judged against: the run's
+	// log is handed to the constructor, which files every call both sides
+	// accepted. Partitioned says that constructor also takes the
+	// projection naming which partition to file it under.
+	//
+	// The log rides the constructor rather than a closure inside the
+	// write, because the closure is handed the subject and then the
+	// reference — a log filled from inside it holds every write twice,
+	// which a membership check cannot see and a count reads as every
+	// element having been dropped.
+	Records     bool
+	Partitioned bool
 
 	// Sentinel is the declaration's stamped miss identity, armed on the
 	// error-answering reader shapes: where both sides err, the pair must
@@ -76,6 +85,18 @@ type Action struct {
 	// begin filled. Value carries the handle type.
 	TxCommit, TxRollback       string
 	TxCommitCtx, TxRollbackCtx bool
+
+	// Partner is the sibling a two-role cycle returns to — the pool's put
+	// beside its get — with PartnerCtx saying whether that call forwards
+	// the run's context.
+	//
+	// The pair is one action because the claims about it are about the
+	// CYCLE: a pool is balanced when every value taken comes back, and a
+	// walk that draws a get and a put independently is never at rest
+	// between steps, so a leak-free law checked there reports an
+	// outstanding value as a leak on a correct subject.
+	Partner    string
+	PartnerCtx bool
 }
 
 // ActionPkg is the engine constructors' import path, for the option a
@@ -285,9 +306,13 @@ func contractActionsOf(b *Bindings, harness *subject.Projection) {
 					continue
 				}
 				consumed := tiers.ContractActionConsumes(contract, role)
-				if len(consumed) == 0 {
+				switch len(consumed) {
+				case 0:
 					a.Ctor = sdk.NewExternal(actionPkg, ctor)
 					a.Shape = contract + "." + role
+					continue
+				case 1:
+					cycleActionOf(b, a, ctor, contract, role, roles[consumed[0]])
 					continue
 				}
 				commit, rollback := roles[consumed[0]], roles[consumed[1]]
@@ -314,6 +339,35 @@ func contractActionsOf(b *Bindings, harness *subject.Projection) {
 			}
 		}
 	}
+}
+
+// cycleActionOf folds a two-role pair into the one action that drives the
+// cycle, and drops the partner's standalone action.
+//
+// The pool's get and put, today. Independently they are two writes the
+// walk interleaves, and every claim the contract states is about the
+// round trip: a value taken is outstanding until it comes back, so a pool
+// driven by separate actions is never at rest and the leak-free law reads
+// a legitimately-held value as a leak. Driven as a cycle, the pool is
+// quiescent after every action, which is where the claim holds.
+//
+// A partner that answers no action, or a primary that yields nothing to
+// hand back, leaves both standing: two ordinary actions state less than
+// the cycle does, and nothing at all states nothing.
+func cycleActionOf(
+	b *Bindings, a *Action, ctor, contract, role string, partner *subject.Method,
+) {
+	if partner == nil || b.actionFor(partner.Name) == nil {
+		return
+	}
+	a.Ctor = sdk.NewExternal(actionPkg, ctor)
+	a.KindName = sdk.Kind(ActionKindPrefix + "cycle")
+	a.Shape = contract + "." + role
+	a.Pool = ""
+	a.Partner, a.PartnerCtx = partner.Name, partner.TakesContext()
+	b.dropAction(partner.Name, "driven through the "+a.Method+" cycle — a "+
+		"standalone "+partner.Name+" would leave the pool holding values "+
+		"no get took, and the balance claims are about the round trip")
 }
 
 // appendActionOf answers the driven offset-answering append of an appender

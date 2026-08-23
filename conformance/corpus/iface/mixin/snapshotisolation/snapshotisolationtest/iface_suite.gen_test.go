@@ -2,202 +2,55 @@
 //
 // Source:    corpus/iface/mixin/snapshotisolation/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/...
+// Command:   testkit run ./corpus/iface/mixin/snapshotisolation/... ./corpus/iface/mixin/serializable/...
 
 package snapshotisolationtest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/snapshotisolation"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/snapshotisolation/snapshotisolationtest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		snapshotisolationtest.MixedSuite.Suite(snapshotisolationtest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[snapshotisolationtest.Mixed] {
-	ix := snapshotisolationtest.MixedSuite.Checks
-	return prove.Defects[snapshotisolationtest.Mixed]{
-		ix.Record.Smoke(): prove.One("a Mixed whose Record panics",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedRecord(
-					func(_ context.Context, _ snapshotisolation.Entry) error {
-						panic("planted: Record panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Record.Cancels(): prove.One("a Mixed whose Record ignores the context it is handed",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedRecord(
-					func(_ context.Context, _ snapshotisolation.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Record.NilContext(): prove.One("a Mixed whose Record forgives a nil context and answers",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedRecord(
-					func(_ context.Context, _ snapshotisolation.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Record.Deadline(): prove.One("a Mixed whose Record ignores the context it is handed",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedRecord(
-					func(_ context.Context, _ snapshotisolation.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.History.Smoke(): prove.One("a Mixed whose History panics",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedHistory(
-					func(_ context.Context) ([]snapshotisolation.Entry, error) {
-						panic("planted: History panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.History.Cancels(): prove.One("a Mixed whose History ignores the context it is handed",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedHistory(
-					func(_ context.Context) (r0 []snapshotisolation.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.History.NilContext(): prove.One("a Mixed whose History forgives a nil context and answers",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedHistory(
-					func(_ context.Context) (r0 []snapshotisolation.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.History.Deadline(): prove.One("a Mixed whose History ignores the context it is handed",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedHistory(
-					func(_ context.Context) (r0 []snapshotisolation.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.History.ZeroOnError(): prove.One("a Mixed whose History answers a believable value beside its error",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedHistory(
-					func(_ context.Context) (r0 []snapshotisolation.Entry, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = []snapshotisolation.Entry{{Txn: 7}}
-						err = errors.New("planted: History refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Smoke(): prove.One("a Mixed whose Get panics",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedGet(
-					func(_ context.Context, _ string) (snapshotisolation.Entry, error) {
-						panic("planted: Get panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Get.Cancels(): prove.One("a Mixed whose Get ignores the context it is handed",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 snapshotisolation.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Get.NilContext(): prove.One("a Mixed whose Get forgives a nil context and answers",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 snapshotisolation.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Get.Deadline(): prove.One("a Mixed whose Get ignores the context it is handed",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 snapshotisolation.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.ZeroOnError(): prove.One("a Mixed whose Get answers a believable value beside its error",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 snapshotisolation.Entry, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = snapshotisolation.Entry{Txn: 7}
-						err = errors.New("planted: Get refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Miss(): prove.One("a Mixed whose Get answers for an input nothing wrote",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 snapshotisolation.Entry, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = snapshotisolation.Entry{Txn: 7}
-						return
-					}))
-			}),
-		ix.Model.Agrees(): prove.One("a Mixed whose Record reports success and keeps nothing",
-			func(tb testing.TB) snapshotisolationtest.Mixed {
-				return snapshotisolationtest.NewMixedStub(tb, snapshotisolationtest.WithMixedRecord(
-					func(_ context.Context, _ snapshotisolation.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Record.Smoke — a Mixed whose Record panics
+//
+//	Record.Cancels — a Mixed whose Record ignores the context it is handed
+//
+//	Record.NilContext — a Mixed whose Record forgives a nil context and answers
+//
+//	Record.Deadline — a Mixed whose Record ignores the context it is handed
+//
+//	History.Smoke — a Mixed whose History panics
+//
+//	History.Cancels — a Mixed whose History ignores the context it is handed
+//
+//	History.NilContext — a Mixed whose History forgives a nil context and answers
+//
+//	History.Deadline — a Mixed whose History ignores the context it is handed
+//
+//	History.ZeroOnError — a Mixed whose History answers a believable value beside its error
+//
+//	Get.Smoke — a Mixed whose Get panics
+//
+//	Get.Cancels — a Mixed whose Get ignores the context it is handed
+//
+//	Get.NilContext — a Mixed whose Get forgives a nil context and answers
+//
+//	Get.Deadline — a Mixed whose Get ignores the context it is handed
+//
+//	Get.ZeroOnError — a Mixed whose Get answers a believable value beside its error
+//
+//	Get.Miss — a Mixed whose Get answers for an input nothing wrote
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -227,4 +80,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 6049a2b84882a951914b2314fdaebbf0404bb7fcb7baaf99bcfa1d22bd68bbb5
+// testkit:provenance 71b3aad538004d349900a55c1da3183e9ac6cd618bb90d687fd251b0a63230a0

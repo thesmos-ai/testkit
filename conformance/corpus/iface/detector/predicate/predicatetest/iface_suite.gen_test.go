@@ -11,41 +11,18 @@ import (
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/predicate/predicatetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestPredicateProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProvePredicate.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestPredicateProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		predicatetest.PredicateSuite.Suite().Checks,
-		predicateProofs())
-}
-
-// predicateProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProvePredicate
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func predicateProofs() prove.Defects[predicatetest.Predicate] {
-	ix := predicatetest.PredicateSuite.Checks
-	return prove.Defects[predicatetest.Predicate]{
-		ix.IsEmpty.Smoke(): prove.One("a Predicate whose IsEmpty panics",
-			func(tb testing.TB) predicatetest.Predicate {
-				return predicatetest.NewPredicateStub(tb, predicatetest.WithPredicateIsEmpty(
-					func() bool {
-						panic("planted: IsEmpty panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	IsEmpty.Smoke — a Predicate whose IsEmpty panics
 
 // TestPredicateInvariants holds this package to what it says about itself.
 //
@@ -75,4 +52,4 @@ func TestPredicateInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance e9d1ad4c92cb1857fc790d6f6522f79732cdd54e05647dd07d8b2c19c4414118
+// testkit:provenance 16948028d8a160a5157904ca8024969ed65f9ac96db49ef83e93b84bb25f0caf

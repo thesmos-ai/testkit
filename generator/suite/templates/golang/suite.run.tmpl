@@ -58,11 +58,33 @@ func {{ suite_runName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 		rc.Subjects...)
 }
 
-// {{ suite_proveName .IfaceName }} runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+{{ if .Provable }}
+// {{ suite_proofsName .Token }} is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { {{ suite_proveName .IfaceName }}(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func {{ suite_proofsName .Token }}() {{ renderExpr (external $.Prove "Defects") }}[{{ suite_subjectType $c }}] {
+	ix := {{ suite_veneerVar .IfaceName }}.Checks
+	return {{ renderExpr (external $.Prove "Defects") }}[{{ suite_subjectType $c }}]{
+{{- range $d := .Defects.Rows }}
+		ix.{{ $d.Group }}.{{ $d.Accessor }}(): {{ render $d }},
+{{- end }}
+	}
+}
+{{ end }}
+// {{ suite_proveName .IfaceName }} runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		{{ suite_proveName .IfaceName }}(t, {{ suite_harnessName .IfaceName }}[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -72,35 +94,46 @@ func {{ suite_runName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments {{ suite_runName .IfaceName }} does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func {{ suite_proveName .IfaceName }}{{ renderTypeParams .TypeParams }}(
-	t *{{ renderExpr (external "testing" "T") }}, checks {{ suite_rowsName .IfaceName }}{{ .TypeArgs }},
-	{{- if .Pools }} cfg ...{{ suite_configName .IfaceName }}{{ .TypeArgs }},{{ end }}
+	t *{{ renderExpr (external "testing" "T") }}, opts ...{{ suite_runOptName .IfaceName }}{{ .TypeArgs }},
 ) {
 	t.Helper()
-{{- if .Pools }}
-	if len(cfg) > 1 {
-		t.Fatalf("{{ suite_proveName .IfaceName }}: %d configs passed; pass at most one", len(cfg))
+	var rc {{ suite_runConfigName .Token }}{{ .TypeArgs }}
+	for _, o := range opts {
+		o.applyTo(&rc)
 	}
-	var c {{ suite_configName .IfaceName }}{{ .TypeArgs }}
-	if len(cfg) == 1 {
-		c = cfg[0]
-	}
-{{- end }}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
-	{{ suite_fixtureIdent }} := {{ suite_newFixtureName .Token }}{{ .TypeArgs }}({{ if .Pools }}c{{ end }})
-	bound := make([]{{ renderExpr (external $.Vocab "Check") }}[{{ suite_subjectType $c }}], 0, len(checks))
-	defects := {{ renderExpr (external $.Prove "Defects") }}[{{ suite_subjectType $c }}]{}
-	for _, row := range checks {
+	{{ suite_fixtureIdent }} := {{ suite_newFixtureName .Token }}{{ .TypeArgs }}({{ if .Pools }}rc.cfg{{ end }})
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind({{ suite_fixtureIdent }}))
+	}
+	rc.Fail(t, "{{ suite_proveName .IfaceName }}")
+	s := {{ suite_suiteName .Token }}{{ .TypeArgs }}(
+		{{- if .DrawsFixture }}{{ suite_fixtureIdent }}{{ end }}
+		{{- if and .DrawsFixture .SeedsCorpus }}, {{ end }}
+		{{- if .SeedsCorpus }}{{ suite_corpusName .Token }}({{ if .Pools }}rc.cfg{{ end }}){{ end -}}
+	).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := {{ renderExpr (external $.Vocab "Doors") }}(rc.Subjects...)
+	defects := {{ if .Provable }}{{ suite_proofsName .Token }}(){{ else }}{{ renderExpr (external $.Prove "Defects") }}[{{ suite_subjectType $c }}]{}{{ end }}
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind({{ suite_fixtureIdent }})
 		if err != nil {
 			t.Fatalf("{{ suite_proveName .IfaceName }}: %v", err)
 		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
-		}
-		sub, err := row.ProvenBy.Subject({{ if .Seeded }}{{ suite_corpusName .Token }}({{ if .Pools }}c{{ end }}){{ end }})
+		sub, err := row.ProvenBy.Subject({{ if .Seeded }}{{ suite_corpusName .Token }}({{ if .Pools }}rc.cfg{{ end }}){{ end }})
 		if err != nil {
 			t.Fatalf("{{ suite_proveName .IfaceName }}: check %q: defect: %v", bd.ID, err)
 		}
@@ -108,6 +141,12 @@ func {{ suite_proveName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	{{ renderExpr (external $.Prove "All") }}(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	{{ renderExpr (external $.Prove "All") }}(t, s.Checks, defects.Answering(doors))
 }
 {{- end -}}

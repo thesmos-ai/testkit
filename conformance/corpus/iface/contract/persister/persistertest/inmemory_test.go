@@ -38,7 +38,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	persistertest.ProveContract(t, contractChecks)
+	persistertest.ProveContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -46,6 +46,10 @@ func TestContractChecksCanFail(t *testing.T) {
 func inMemory(name string) persistertest.ContractHarness[*persistertest.InMemory] {
 	return persistertest.ContractHarness[*persistertest.InMemory]{
 		Name: name, New: persistertest.NewInMemory,
+		// The crash seam. The map outlives the instance holding it, which
+		// is what makes a rebuild over it mean anything: an acknowledged
+		// write is still there when the process that took it is not.
+		Recover: persistertest.Reopen,
 	}
 }
 
@@ -61,6 +65,20 @@ var contractChecks = persistertest.ContractChecks{
 		),
 		ProvenReason: "carrying what was filed under it",
 	},
+	{
+		Name:  "answers-every-value-put-accepted",
+		Claim: "Get returns whatever value Put accepted, for every value the run draws",
+		// The drawn-input form of the row above, and the difference is
+		// the point: that one asks about the fixture's one value, and
+		// this one asks about every value the pool can produce — the
+		// adversarial half of it included, which is where a store that
+		// mangles what it stores gets caught.
+		PropPut: answersEveryValuePutAccepted,
+		ProvenBy: persistertest.BrokenContract(
+			"a store that files every write under one key", newOneSlotForEverything,
+		),
+		ProvenReason: "want the value Put accepted",
+	},
 }
 
 // --- Bodies -------------------------------------------------------------------
@@ -75,6 +93,30 @@ func readsBackWhatPutWrote(
 	got, err := s.Get(tb.Context(), written.Key)
 	testkit.NoError(tb, err, "the written key is found")
 	testkit.Equal(tb, got, written, "carrying what was filed under it")
+}
+
+// answersEveryValuePutAccepted is the PropPut body: the value arrives
+// drawn from the same pool the generated model legs draw from, so an
+// override set on the run reaches this property too.
+//
+// Reported through the *PropT rather than a testing.TB, which is what
+// makes a failure shrink: the run narrows a counterexample by replaying
+// its draws, and a failure raised outside that is one it cannot narrow.
+func answersEveryValuePutAccepted(
+	rt *persistertest.PropT, s persister.Contract, v persister.Value,
+) {
+	if err := s.Put(rt.Context(), v); err != nil {
+		// Not a failure. A store is entitled to refuse a value, and this
+		// claim is about the ones it accepted.
+		return
+	}
+	got, err := s.Get(rt.Context(), v.Key)
+	if err != nil {
+		rt.Fatalf("Get(%q) = %v, want the value Put accepted", v.Key, err)
+	}
+	if got != v {
+		rt.Fatalf("Get(%q) = %+v, want the value Put accepted, %+v", v.Key, got, v)
+	}
 }
 
 // --- Planted defects ----------------------------------------------------------

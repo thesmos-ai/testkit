@@ -28,6 +28,17 @@ func TestMixedContract(t *testing.T) {
 	)
 }
 
+// TestMixedChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestMixedChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	sideeffecttest.ProveMixed(
+		t,
+		sideeffecttest.MixedHarness[*sideeffecttest.InMemory]{Name: "in-memory", New: sideeffecttest.NewInMemory},
+	)
+}
+
 // Dropping a check is written against the typed index rather than a string, so
 // a check that is renamed or stops being emitted breaks this compile instead of
 // silently declining nothing.

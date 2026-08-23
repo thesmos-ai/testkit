@@ -17,7 +17,6 @@ import (
 // argue its absence in gate.AdapterDebt, and a fixture that gained one must
 // delete its row — a stale excuse reads as debt that was already paid.
 func TestEveryAdapterDebtIsRealAndRegistered(t *testing.T) {
-	skipUntilModelRelinked(t)
 	t.Parallel()
 
 	pkgs, err := gate.Walk(corpusRoot)

@@ -40,7 +40,7 @@ func TestStoreContractSuppression(t *testing.T) {
 func TestStoreChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	receivercollisiontest.ProveStore(t, storeChecks)
+	receivercollisiontest.ProveStore(t, inMemory("in-memory"), storeChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

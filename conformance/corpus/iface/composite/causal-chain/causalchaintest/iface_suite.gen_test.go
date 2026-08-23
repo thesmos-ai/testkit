@@ -7,128 +7,38 @@
 package causalchaintest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	causalchain "go.thesmos.sh/testkit/conformance/corpus/iface/composite/causal-chain"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/composite/causal-chain/causalchaintest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestLogProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveLog.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestLogProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		causalchaintest.LogSuite.Suite(causalchaintest.DefaultLogFixture()).Checks,
-		logProofs())
-}
-
-// logProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveLog
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func logProofs() prove.Defects[causalchaintest.Log] {
-	ix := causalchaintest.LogSuite.Checks
-	return prove.Defects[causalchaintest.Log]{
-		ix.Append.Smoke(): prove.One("a Log whose Append panics",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogAppend(
-					func(_ context.Context, _ causalchain.Entry) error {
-						panic("planted: Append panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Append.Cancels(): prove.One("a Log whose Append ignores the context it is handed",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogAppend(
-					func(_ context.Context, _ causalchain.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Append.NilContext(): prove.One("a Log whose Append forgives a nil context and answers",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogAppend(
-					func(_ context.Context, _ causalchain.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Append.Deadline(): prove.One("a Log whose Append ignores the context it is handed",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogAppend(
-					func(_ context.Context, _ causalchain.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Replay.Smoke(): prove.One("a Log whose Replay panics",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogReplay(
-					func(_ context.Context) ([]causalchain.Entry, error) {
-						panic("planted: Replay panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Replay.Cancels(): prove.One("a Log whose Replay ignores the context it is handed",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogReplay(
-					func(_ context.Context) (r0 []causalchain.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Replay.NilContext(): prove.One("a Log whose Replay forgives a nil context and answers",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogReplay(
-					func(_ context.Context) (r0 []causalchain.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Replay.Deadline(): prove.One("a Log whose Replay ignores the context it is handed",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogReplay(
-					func(_ context.Context) (r0 []causalchain.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Replay.ZeroOnError(): prove.One("a Log whose Replay answers a believable value beside its error",
-			func(tb testing.TB) causalchaintest.Log {
-				return causalchaintest.NewLogStub(tb, causalchaintest.WithLogReplay(
-					func(_ context.Context) (r0 []causalchain.Entry, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = []causalchain.Entry{{ID: "other-"}}
-						err = errors.New("planted: Replay refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Append.Smoke — a Log whose Append panics
+//
+//	Append.Cancels — a Log whose Append ignores the context it is handed
+//
+//	Append.NilContext — a Log whose Append forgives a nil context and answers
+//
+//	Append.Deadline — a Log whose Append ignores the context it is handed
+//
+//	Replay.Smoke — a Log whose Replay panics
+//
+//	Replay.Cancels — a Log whose Replay ignores the context it is handed
+//
+//	Replay.NilContext — a Log whose Replay forgives a nil context and answers
+//
+//	Replay.Deadline — a Log whose Replay ignores the context it is handed
+//
+//	Replay.ZeroOnError — a Log whose Replay answers a believable value beside its error
 
 // TestLogInvariants holds this package to what it says about itself.
 //
@@ -158,4 +68,4 @@ func TestLogInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 00fa55c106dd74e39f84a1dad758a299decb87c7e15783e7b09416d7a1d1086e
+// testkit:provenance c2562925425123650c0b68be33944f508c1b739efe74f27ee8f053cad0729d68

@@ -55,17 +55,34 @@ func TestCensusCarriesNoRetiredConstructor(t *testing.T) {
 	// table re-points them after the shape chose, and they are in use for
 	// exactly as long as a row says so.
 	for key, ctor := range tiers.ContractActionRows() {
-		fn, shipped := gate.ActionCtors[ctor]
-		testkit.True(t, shipped, key+"'s constructor "+ctor+" is in the census")
-		if shipped {
-			testkit.Equal(t, reflect.TypeOf(fn).Kind(), reflect.Func,
-				ctor+" is a function")
-		}
-		reached[ctor] = true
+		reached[ctor] = shippedCtor(t, key, ctor)
+	}
+	// The recording rows reach a third set: a law reading the run's write
+	// log swaps the shape's constructor for the one that files what it
+	// wrote, and those are in use for exactly as long as a row says so.
+	for shape, ctor := range tiers.RecordingActionRows() {
+		reached[ctor] = shippedCtor(t, shape, ctor)
 	}
 	for name := range gate.ActionCtors {
 		testkit.True(t, reached[name], name+" is reached by some detector's row")
 	}
+}
+
+// shippedCtor holds one table row to a real constructor, and reports that
+// it reached one.
+//
+// Shared by the two row loops because the demand is one: a table naming a
+// constructor the engine does not ship renders a call to nothing, and the
+// generated file is where that would be discovered.
+func shippedCtor(t *testing.T, key, ctor string) bool {
+	t.Helper()
+	fn, shipped := gate.ActionCtors[ctor]
+	testkit.True(t, shipped, key+"'s constructor "+ctor+" is in the census")
+	if !shipped {
+		return false
+	}
+	testkit.Equal(t, reflect.TypeOf(fn).Kind(), reflect.Func, ctor+" is a function")
+	return true
 }
 
 // TestEveryMapStoreOpIsAMethod holds the oracle delegation rows to the shipped

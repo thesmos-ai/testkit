@@ -38,7 +38,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	ttltest.ProveMixed(t, mixedChecks)
+	ttltest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -46,6 +46,10 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) ttltest.MixedHarness[*ttltest.InMemory] {
 	return ttltest.MixedHarness[*ttltest.InMemory]{
 		Name: name, New: ttltest.NewInMemory,
+		// The crash seam. The map outlives the instance holding it, which
+		// is what makes a rebuild over it mean anything: an acknowledged
+		// write is still there when the process that took it is not.
+		Recover: ttltest.Reopen,
 		// The aging check advances a clock, and one the subject does not
 		// read is one it can advance forever without the subject
 		// noticing — so the door is a constructor rather than a setter.

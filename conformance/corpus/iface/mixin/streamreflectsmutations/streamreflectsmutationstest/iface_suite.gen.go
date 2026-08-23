@@ -9,6 +9,7 @@ package streamreflectsmutationstest
 import (
 	"context"
 	"fmt"
+	"iter"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/streamreflectsmutations"
@@ -691,6 +692,26 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropAdd is Prop with Add's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Add, so leave Method empty.
+	PropAdd func(rt *PropT, s Mixed, value string)
+
+	// PropRemove is Prop with Remove's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Remove, so leave Method empty.
+	PropRemove func(rt *PropT, s Mixed, value string)
 }
 
 // mixedMethods is the interface's method names, used to catch a typo in
@@ -715,8 +736,15 @@ func (c MixedCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
 			return out, err
@@ -734,10 +762,44 @@ func (c MixedCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop, PropAdd, PropRemove"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropAdd != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedAdd, c.Name)
+		fn := c.PropAdd
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if c.PropRemove != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedRemove, c.Name)
+		fn := c.PropRemove
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -789,11 +851,120 @@ func RunMixed(
 		rc.Subjects...)
 }
 
-// ProveMixed runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// mixedProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveMixed(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func mixedProofs() prove.Defects[Mixed] {
+	ix := MixedSuite.Checks
+	return prove.Defects[Mixed]{
+		ix.Stream.Smoke(): prove.One("a Mixed whose Stream panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStream(
+					func(_ context.Context) iter.Seq2[string, error] {
+						panic("planted: Stream panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Add.Smoke(): prove.One("a Mixed whose Add panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ string) error {
+						panic("planted: Add panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Add.Cancels(): prove.One("a Mixed whose Add ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Add.NilContext(): prove.One("a Mixed whose Add forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Add.Deadline(): prove.One("a Mixed whose Add ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Remove.Smoke(): prove.One("a Mixed whose Remove panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRemove(
+					func(_ context.Context, _ string) error {
+						panic("planted: Remove panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Remove.Cancels(): prove.One("a Mixed whose Remove ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRemove(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Remove.NilContext(): prove.One("a Mixed whose Remove forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRemove(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Remove.Deadline(): prove.One("a Mixed whose Remove ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRemove(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Model.StreamReflectsMutations(): prove.One("a Mixed whose Stream reports success and keeps nothing",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStream(
+					func(_ context.Context) (r0 iter.Seq2[string, error]) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+	}
+}
+
+// ProveMixed runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveMixed(t, MixedHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -803,23 +974,40 @@ func RunMixed(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunMixed does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveMixed(
-	t *testing.T, checks MixedChecks,
+	t *testing.T, opts ...MixedRunOpt,
 ) {
 	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := mixedNewFixture()
-	bound := make([]suite.Check[Mixed], 0, len(checks))
-	defects := prove.Defects[Mixed]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := mixedProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveMixed: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -829,8 +1017,19 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // mixedModelRows is what this package's model tier claims.
 //
@@ -875,7 +1074,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.StreamReflectsMutations,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertStreamReflectsMutations(tb, sub, fx)
@@ -1052,5 +1251,13 @@ func mixedAssertStreamReflectsMutations(
 		})
 }
 
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 8d4601d3c78a42b0069756bbe836ef17547b5bfc5e5f642cc7a8d54e2759fa89
+// testkit:provenance a8e20b55875986003515901300dab01571905e0956ac164100fc29de3ff1af38

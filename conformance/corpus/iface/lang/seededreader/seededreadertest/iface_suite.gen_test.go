@@ -7,170 +7,46 @@
 package seededreadertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/seededreader"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/seededreader/seededreadertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestCatalogProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveCatalog.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestCatalogProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		seededreadertest.CatalogSuite.Suite(seededreadertest.DefaultCatalogFixture(), seededreadertest.CatalogSuite.Corpus()).Checks,
-		catalogProofs())
-}
-
-// catalogProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveCatalog
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func catalogProofs() prove.Defects[seededreadertest.Catalog] {
-	ix := seededreadertest.CatalogSuite.Checks
-	return prove.Defects[seededreadertest.Catalog]{
-		ix.Lookup.Smoke(): prove.One("a Catalog whose Lookup panics",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (seededreader.Body, error) {
-						panic("planted: Lookup panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Lookup.Cancels(): prove.One("a Catalog whose Lookup ignores the context it is handed",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (r0 seededreader.Body, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Lookup.NilContext(): prove.One("a Catalog whose Lookup forgives a nil context and answers",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (r0 seededreader.Body, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Lookup.Deadline(): prove.One("a Catalog whose Lookup ignores the context it is handed",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (r0 seededreader.Body, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Lookup.ZeroOnError(): prove.One("a Catalog whose Lookup answers a believable value beside its error",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (r0 seededreader.Body, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = seededreader.Body("other-body")
-						err = errors.New("planted: Lookup refused with a believable value")
-						return
-					}))
-			}),
-		ix.Len.Smoke(): prove.One("a Catalog whose Len panics",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLen(
-					func(_ context.Context) (int, error) {
-						panic("planted: Len panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Len.Cancels(): prove.One("a Catalog whose Len ignores the context it is handed",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLen(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Len.NilContext(): prove.One("a Catalog whose Len forgives a nil context and answers",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLen(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Len.Deadline(): prove.One("a Catalog whose Len ignores the context it is handed",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLen(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Len.ZeroOnError(): prove.One("a Catalog whose Len answers a believable value beside its error",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLen(
-					func(_ context.Context) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Len refused with a believable value")
-						return
-					}))
-			}),
-		ix.Lookup.Miss(): prove.One("a Catalog whose Lookup answers for an input nothing wrote",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (r0 seededreader.Body, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = seededreader.Body("other-body")
-						return
-					}))
-			}),
-		ix.Lookup.Hit(): prove.One("a Catalog whose Lookup answers the zero for every key the run seeded",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLookup(
-					func(_ context.Context, _ seededreader.Key) (r0 seededreader.Body, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-		ix.Len.Count(): prove.One("a Catalog whose Len reports no entries however many the run seeded",
-			func(tb testing.TB) seededreadertest.Catalog {
-				return seededreadertest.NewCatalogStub(tb, seededreadertest.WithCatalogLen(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Lookup.Smoke — a Catalog whose Lookup panics
+//
+//	Lookup.Cancels — a Catalog whose Lookup ignores the context it is handed
+//
+//	Lookup.NilContext — a Catalog whose Lookup forgives a nil context and answers
+//
+//	Lookup.Deadline — a Catalog whose Lookup ignores the context it is handed
+//
+//	Lookup.ZeroOnError — a Catalog whose Lookup answers a believable value beside its error
+//
+//	Len.Smoke — a Catalog whose Len panics
+//
+//	Len.Cancels — a Catalog whose Len ignores the context it is handed
+//
+//	Len.NilContext — a Catalog whose Len forgives a nil context and answers
+//
+//	Len.Deadline — a Catalog whose Len ignores the context it is handed
+//
+//	Len.ZeroOnError — a Catalog whose Len answers a believable value beside its error
+//
+//	Lookup.Miss — a Catalog whose Lookup answers for an input nothing wrote
+//
+//	Lookup.Hit — a Catalog whose Lookup answers the zero for every key the run seeded
+//
+//	Len.Count — a Catalog whose Len reports no entries however many the run seeded
 
 // TestCatalogInvariants holds this package to what it says about itself.
 //
@@ -200,4 +76,4 @@ func TestCatalogInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9dc43e2ef61cb548bbb531cd3782a0dd59fedec47e87a3217eef66465434049b
+// testkit:provenance 59a64c06c71ba328fada6dc81e797db766a953cd104b88622da7d3f12d35c755

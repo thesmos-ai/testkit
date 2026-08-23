@@ -7,46 +7,22 @@
 package mutatortest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/mutator/mutatortest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMutatorProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMutator.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMutatorProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		mutatortest.MutatorSuite.Suite(mutatortest.DefaultMutatorFixture()).Checks,
-		mutatorProofs())
-}
-
-// mutatorProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMutator
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mutatorProofs() prove.Defects[mutatortest.Mutator] {
-	ix := mutatortest.MutatorSuite.Checks
-	return prove.Defects[mutatortest.Mutator]{
-		ix.Touch.Smoke(): prove.One("a Mutator whose Touch panics",
-			func(tb testing.TB) mutatortest.Mutator {
-				return mutatortest.NewMutatorStub(tb, mutatortest.WithMutatorTouch(
-					func(_ context.Context, _ string) {
-						panic("planted: Touch panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Touch.Smoke — a Mutator whose Touch panics
 
 // TestMutatorInvariants holds this package to what it says about itself.
 //
@@ -76,4 +52,4 @@ func TestMutatorInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a62383d65c740d5d60088d1f7b3194a3caee3245510b53e0df9380e4d19a777a
+// testkit:provenance 2dfd54e6394f9dd1396217d647bb5e20e058bd9660c9be9c0a2083e4ffcbe777

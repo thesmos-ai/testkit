@@ -7,128 +7,40 @@
 package publishertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/publisher"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/publisher/publishertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		publishertest.ContractSuite.Suite(publishertest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[publishertest.Contract] {
-	ix := publishertest.ContractSuite.Checks
-	return prove.Defects[publishertest.Contract]{
-		ix.Publish.Smoke(): prove.One("a Contract whose Publish panics",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractPublish(
-					func(_ context.Context, _ publisher.Value) error {
-						panic("planted: Publish panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Publish.Cancels(): prove.One("a Contract whose Publish ignores the context it is handed",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractPublish(
-					func(_ context.Context, _ publisher.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Publish.NilContext(): prove.One("a Contract whose Publish forgives a nil context and answers",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractPublish(
-					func(_ context.Context, _ publisher.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Publish.Deadline(): prove.One("a Contract whose Publish ignores the context it is handed",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractPublish(
-					func(_ context.Context, _ publisher.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Subscribe.Smoke(): prove.One("a Contract whose Subscribe panics",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractSubscribe(
-					func(_ context.Context) (<-chan publisher.Value, error) {
-						panic("planted: Subscribe panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Subscribe.Cancels(): prove.One("a Contract whose Subscribe ignores the context it is handed",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractSubscribe(
-					func(_ context.Context) (r0 <-chan publisher.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Subscribe.NilContext(): prove.One("a Contract whose Subscribe forgives a nil context and answers",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractSubscribe(
-					func(_ context.Context) (r0 <-chan publisher.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Subscribe.Deadline(): prove.One("a Contract whose Subscribe ignores the context it is handed",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractSubscribe(
-					func(_ context.Context) (r0 <-chan publisher.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Subscribe.ZeroOnError(): prove.One("a Contract whose Subscribe answers a believable value beside its error",
-			func(tb testing.TB) publishertest.Contract {
-				return publishertest.NewContractStub(tb, publishertest.WithContractSubscribe(
-					func(_ context.Context) (r0 <-chan publisher.Value, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = make(chan publisher.Value)
-						err = errors.New("planted: Subscribe refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Publish.Smoke — a Contract whose Publish panics
+//
+//	Publish.Cancels — a Contract whose Publish ignores the context it is handed
+//
+//	Publish.NilContext — a Contract whose Publish forgives a nil context and answers
+//
+//	Publish.Deadline — a Contract whose Publish ignores the context it is handed
+//
+//	Subscribe.Smoke — a Contract whose Subscribe panics
+//
+//	Subscribe.Cancels — a Contract whose Subscribe ignores the context it is handed
+//
+//	Subscribe.NilContext — a Contract whose Subscribe forgives a nil context and answers
+//
+//	Subscribe.Deadline — a Contract whose Subscribe ignores the context it is handed
+//
+//	Subscribe.ZeroOnError — a Contract whose Subscribe answers a believable value beside its error
+//
+//	Model.Delivers — a Contract whose Publish reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -158,4 +70,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance adba643fe51b120a221889691e4e3cc2e80f39c0bb0140723b53e6702493733c
+// testkit:provenance 22adfeb0c281958416ce0f93bddce87889dd52983d4569ac96b99648451b780d

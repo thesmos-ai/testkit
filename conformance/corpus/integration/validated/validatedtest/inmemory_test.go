@@ -34,7 +34,7 @@ func TestStoreContract(t *testing.T) {
 func TestStoreChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	validatedtest.ProveStore(t, storeChecks)
+	validatedtest.ProveStore(t, inMemory("in-memory"), storeChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

@@ -45,7 +45,7 @@ func TestReaderNoErrorContractWithoutSmoke(t *testing.T) {
 func TestReaderNoErrorChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	readernoerrortest.ProveReaderNoError(t, readerNoErrorChecks)
+	readernoerrortest.ProveReaderNoError(t, inMemory("in-memory"), readerNoErrorChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

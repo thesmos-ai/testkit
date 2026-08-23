@@ -51,7 +51,7 @@ func TestTxWithRetryContractWithoutSmoke(t *testing.T) {
 func TestTxWithRetryChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	txwithretrytest.ProveTxWithRetry(t, txWithRetryChecks)
+	txwithretrytest.ProveTxWithRetry(t, inMemory("in-memory"), txWithRetryChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

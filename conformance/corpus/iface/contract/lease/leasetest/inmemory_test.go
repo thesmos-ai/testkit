@@ -13,6 +13,8 @@ import (
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/lease"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/lease/leasetest"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // TestContractContract runs the generated checks and this package's own.
@@ -38,7 +40,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	leasetest.ProveContract(t, contractChecks)
+	leasetest.ProveContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -46,7 +48,22 @@ func TestContractChecksCanFail(t *testing.T) {
 func inMemory(name string) leasetest.ContractHarness[*leasetest.InMemory] {
 	return leasetest.ContractHarness[*leasetest.InMemory]{
 		Name: name, New: leasetest.NewInMemory,
+		// AUTO-LEASE-RELEASED-ON-CANCEL has to ask whether a key is free,
+		// and this interface declares no observer for that. Which calls
+		// answer the question is the declaration's to say.
+		Provide: map[suite.Capability]any{"free": leaseFree},
 	}
+}
+
+// leaseFree probes freedom through the acquire/release pair, because the
+// interface exposes no observer: an acquire that succeeds proves the key
+// was free, and the probe gives back what it took.
+func leaseFree(rt *model.T, s lease.Contract, k string) bool {
+	if err := s.Acquire(rt.Context(), k); err != nil {
+		return false
+	}
+	_ = s.Release(rt.Context(), k)
+	return true
 }
 
 // --- The checks: claims, bodies and defects, by name --------------------------

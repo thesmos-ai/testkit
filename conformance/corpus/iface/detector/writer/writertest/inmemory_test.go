@@ -22,6 +22,17 @@ func TestWriterContract(t *testing.T) {
 	)
 }
 
+// TestWriterChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestWriterChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	writertest.ProveWriter(
+		t,
+		writertest.WriterHarness[*writertest.InMemory]{Name: "in-memory", New: writertest.NewInMemory},
+	)
+}
+
 // Dropping a check is written against the typed index rather than a string, so
 // a check that is renamed or stops being emitted breaks this compile instead of
 // silently declining nothing.

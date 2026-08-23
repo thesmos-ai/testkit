@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -51,7 +53,6 @@ func consumerText(t *testing.T, dir string) string {
 // set derives from the emission, the arming from the consumers' own calls,
 // and every failure names its fixture and law.
 func TestEveryDoorIsArmedOrArgued(t *testing.T) {
-	skipUntilModelRelinked(t)
 	t.Parallel()
 
 	census, err := censusOnce()
@@ -80,15 +81,20 @@ func TestEveryDoorIsArmedOrArgued(t *testing.T) {
 		tests := consumerText(t, e.Dir)
 		for law, doors := range e.Doors {
 			for _, door := range doors {
-				// The option exports the config field: first letter up, the
-				// same spelling the supplied-option surface generates.
-				call := e.IfaceName + "Model" + strings.ToUpper(door[:1]) + door[1:] + "("
-				verdict(e.Dir+"/"+law+"."+door, call, strings.Contains(tests, call))
+				// The key the harness answers under, quoted as the Provide
+				// map spells it. It used to be a generated option per door;
+				// the open half of the capability registry replaced that
+				// with one map, so the door's own name is what a consumer
+				// writes and what this looks for.
+				arm := strconv.Quote(door) + ":"
+				verdict(e.Dir+"/"+law+"."+door, arm, strings.Contains(tests, arm))
 			}
 		}
 		for _, law := range e.Clocked {
-			call := e.IfaceName + "ModelClocked("
-			verdict(e.Dir+"/"+law+".clock", call, strings.Contains(tests, call))
+			// A clock is per-instance, so it keeps a field of its own on
+			// the harness rather than a row in the Provide map.
+			const arm = "OnClock:"
+			verdict(e.Dir+"/"+law+".clock", arm, strings.Contains(tests, arm))
 		}
 		for law, roles := range e.Unarmed {
 			for _, role := range roles {
@@ -99,10 +105,18 @@ func TestEveryDoorIsArmedOrArgued(t *testing.T) {
 		}
 	}
 
+	// Every stale row at once, for the reason the owed-law census reports
+	// its whole set: a register cleaned one entry per run is a register
+	// nobody can see the shape of.
+	var stale []string
 	for key := range gate.UnarmedDoors {
-		testkit.True(t, seen[key],
-			key+" is registered but the emission produced no such door — the row outlived its debt")
+		if !seen[key] {
+			stale = append(stale, key)
+		}
 	}
+	slices.Sort(stale)
+	testkit.Len(t, stale, 0, "registered but the emission produced no such door — "+
+		"the rows outlived their debt: "+strings.Join(stale, ", "))
 }
 
 // TestStampedMissIdentityReachesTheSequences holds the declaration's routed

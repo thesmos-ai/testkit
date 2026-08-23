@@ -380,6 +380,18 @@ type Bindings struct {
 	ConcReader, ConcWriter   *Action
 	ConcAcquire, ConcRelease *Action
 
+	// SimReader and SimWriter are the pair the crash schedule drives: a
+	// write whose acknowledgement the medium owes across a rebuild, and
+	// the read that collects the debt.
+	//
+	// Derived apart from the concurrent pair even where they name the same
+	// two methods. The questions are not the same one asked twice — a
+	// linearizability leg wants a model that can order a history, and this
+	// wants an acknowledgement whose meaning survives losing power — so a
+	// shape can carry either claim without the other, and reading one off
+	// the other would tie both to whichever refused first.
+	SimReader, SimWriter *Action
+
 	// PkgName is where Layout routed the file — see [Bindings.SetOutputPackages].
 	PkgName string
 
@@ -523,6 +535,10 @@ func (*Bindings) RootPkg() string { return RootPkg }
 // ModelPkg surfaces the runner's import path to the templates, which can
 // reach a method and not a const.
 func (*Bindings) ModelPkg() string { return ModelPkg }
+
+// LegsPkg returns the leg bridge's import path, for the pools that ride
+// its provenance gate.
+func (*Bindings) LegsPkg() string { return LegsPkg }
 
 // RefPkg returns the reference package's import path.
 func (*Bindings) RefPkg() string { return RefPkg }
@@ -685,9 +701,6 @@ func (b *Bindings) RowedLaws() []*LawBinding {
 	var out []*LawBinding
 	seen := map[string]bool{}
 	for _, l := range b.Laws {
-		if len(l.Supplied) > 0 {
-			continue
-		}
 		if _, worded := lawid.ClaimOf(l.ID); !worded || seen[l.ID] {
 			continue
 		}
@@ -706,8 +719,30 @@ func (b *Bindings) RowedLaws() []*LawBinding {
 func (b *Bindings) BindingsOf(id string) []*LawBinding {
 	var out []*LawBinding
 	for _, l := range b.Laws {
-		if l.ID == id && len(l.Supplied) == 0 {
+		if l.ID == id {
 			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// SuppliedBy are the capability doors these laws read — the facts no
+// derivation can invent, which a consumer answers through the harness's
+// Provide map.
+//
+// The row declares each as a Need, so a subject that supplies none is
+// refused by name before any body runs. Dropping the law instead is what
+// this replaced: it bound, ran nowhere, and appeared in no header, which
+// is the one absence nothing in the output would show.
+func SuppliedBy(laws []*LawBinding) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, l := range laws {
+		for _, door := range l.Supplied {
+			if !seen[door] {
+				seen[door] = true
+				out = append(out, door)
+			}
 		}
 	}
 	return out
@@ -770,12 +805,38 @@ func (b *Bindings) LegLaws() []*LawBinding {
 	var out []*LawBinding
 	for _, l := range b.Laws {
 		if l.Clocked || len(l.Supplied) > 0 {
+			// A supplied law reads a door only the consumer can fill, and
+			// the bundle has no way to declare one: its row is shared, so
+			// a Needs on it would demand the door of every law riding it.
+			// Its own row carries the demand instead.
 			continue
 		}
 		if _, worded := lawid.ClaimOf(l.ID); worded {
 			continue
 		}
 		out = append(out, l)
+	}
+	return out
+}
+
+// SessionLaws are the per-client laws the concurrent leg re-registers.
+//
+// The same bindings the sequential legs carry, bound a second time where
+// their multi-client trace lives. A session claim is about what ONE client
+// may observe as others write — monotonic reads, read-your-writes — and one
+// ordered run cannot exhibit the interleaving it forbids. The sequential
+// binding states the claim; this one is where it can fail.
+//
+// It is also what keeps the leg from asserting nothing. A store assigning
+// its own version defeats the value equality every model compares by, so
+// the family runs stepless, and a stepless model with no law registered is
+// a run the engine refuses outright rather than pass.
+func (b *Bindings) SessionLaws() []*LawBinding {
+	var out []*LawBinding
+	for _, l := range b.Laws {
+		if l.Session {
+			out = append(out, l)
+		}
 	}
 	return out
 }

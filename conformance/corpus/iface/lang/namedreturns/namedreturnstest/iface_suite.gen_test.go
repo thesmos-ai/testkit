@@ -7,190 +7,50 @@
 package namedreturnstest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/namedreturns/namedreturnstest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestServiceProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveService.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestServiceProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		namedreturnstest.ServiceSuite.Suite(namedreturnstest.DefaultServiceFixture()).Checks,
-		serviceProofs())
-}
-
-// serviceProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveService
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func serviceProofs() prove.Defects[namedreturnstest.Service] {
-	ix := namedreturnstest.ServiceSuite.Checks
-	return prove.Defects[namedreturnstest.Service]{
-		ix.Named.Smoke(): prove.One("a Service whose Named panics",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceNamed(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Named panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Named.Cancels(): prove.One("a Service whose Named ignores the context it is handed",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceNamed(
-					func(_ context.Context, _ string) (item string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Named.NilContext(): prove.One("a Service whose Named forgives a nil context and answers",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceNamed(
-					func(_ context.Context, _ string) (item string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Named.Deadline(): prove.One("a Service whose Named ignores the context it is handed",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceNamed(
-					func(_ context.Context, _ string) (item string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Named.ZeroOnError(): prove.One("a Service whose Named answers a believable value beside its error",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceNamed(
-					func(_ context.Context, _ string) (item string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						item = "other-"
-						err = errors.New("planted: Named refused with a believable value")
-						return
-					}))
-			}),
-		ix.Unnamed.Smoke(): prove.One("a Service whose Unnamed panics",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceUnnamed(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Unnamed panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Unnamed.Cancels(): prove.One("a Service whose Unnamed ignores the context it is handed",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceUnnamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Unnamed.NilContext(): prove.One("a Service whose Unnamed forgives a nil context and answers",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceUnnamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Unnamed.Deadline(): prove.One("a Service whose Unnamed ignores the context it is handed",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceUnnamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Unnamed.ZeroOnError(): prove.One("a Service whose Unnamed answers a believable value beside its error",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServiceUnnamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Unnamed refused with a believable value")
-						return
-					}))
-			}),
-		ix.PartiallyNamed.Smoke(): prove.One("a Service whose PartiallyNamed panics",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServicePartiallyNamed(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: PartiallyNamed panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.PartiallyNamed.Cancels(): prove.One("a Service whose PartiallyNamed ignores the context it is handed",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServicePartiallyNamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.PartiallyNamed.NilContext(): prove.One("a Service whose PartiallyNamed forgives a nil context and answers",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServicePartiallyNamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.PartiallyNamed.Deadline(): prove.One("a Service whose PartiallyNamed ignores the context it is handed",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServicePartiallyNamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.PartiallyNamed.ZeroOnError(): prove.One("a Service whose PartiallyNamed answers a believable value beside its error",
-			func(tb testing.TB) namedreturnstest.Service {
-				return namedreturnstest.NewServiceStub(tb, namedreturnstest.WithServicePartiallyNamed(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: PartiallyNamed refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Named.Smoke — a Service whose Named panics
+//
+//	Named.Cancels — a Service whose Named ignores the context it is handed
+//
+//	Named.NilContext — a Service whose Named forgives a nil context and answers
+//
+//	Named.Deadline — a Service whose Named ignores the context it is handed
+//
+//	Named.ZeroOnError — a Service whose Named answers a believable value beside its error
+//
+//	Unnamed.Smoke — a Service whose Unnamed panics
+//
+//	Unnamed.Cancels — a Service whose Unnamed ignores the context it is handed
+//
+//	Unnamed.NilContext — a Service whose Unnamed forgives a nil context and answers
+//
+//	Unnamed.Deadline — a Service whose Unnamed ignores the context it is handed
+//
+//	Unnamed.ZeroOnError — a Service whose Unnamed answers a believable value beside its error
+//
+//	PartiallyNamed.Smoke — a Service whose PartiallyNamed panics
+//
+//	PartiallyNamed.Cancels — a Service whose PartiallyNamed ignores the context it is handed
+//
+//	PartiallyNamed.NilContext — a Service whose PartiallyNamed forgives a nil context and answers
+//
+//	PartiallyNamed.Deadline — a Service whose PartiallyNamed ignores the context it is handed
+//
+//	PartiallyNamed.ZeroOnError — a Service whose PartiallyNamed answers a believable value beside its error
 
 // TestServiceInvariants holds this package to what it says about itself.
 //
@@ -220,4 +80,4 @@ func TestServiceInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance e605c89ca3231bf283e1ec11a46d3d051350e18e84c3fb5078d072931f767a77
+// testkit:provenance c299d659f4e59eaf7479fed37e9ab6e0de2a26ce0a8feaa511c1a588b2ef6a90

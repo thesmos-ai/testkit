@@ -11,41 +11,18 @@ import (
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/pure/puretest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		puretest.MixedSuite.Suite(puretest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[puretest.Mixed] {
-	ix := puretest.MixedSuite.Checks
-	return prove.Defects[puretest.Mixed]{
-		ix.Derive.Smoke(): prove.One("a Mixed whose Derive panics",
-			func(tb testing.TB) puretest.Mixed {
-				return puretest.NewMixedStub(tb, puretest.WithMixedDerive(
-					func(_ string) string {
-						panic("planted: Derive panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Derive.Smoke — a Mixed whose Derive panics
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -75,4 +52,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a08ec031b683691309d0d231dffcb45f89cfd59e2da351ef6498f784d8638fb4
+// testkit:provenance f120b9c6ecaf92429cadcf8f060955014aac6528e2c37d15cfbf0d9e5f58cfe8

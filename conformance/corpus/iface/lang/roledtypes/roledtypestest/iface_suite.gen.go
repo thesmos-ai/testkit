@@ -8,6 +8,7 @@ package roledtypestest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -79,6 +80,26 @@ type StoreFixture struct {
 	keyOther     roledtypes.Key
 	payload      roledtypes.Payload
 	payloadOther roledtypes.Payload
+
+	// keyPool is the whole key pool this run drew,
+	// which is not the same as the two members above: a DERIVED pool
+	// carries a hostile member the transforms added, and a pool you passed
+	// carries exactly what you passed. See KeyPool.
+	keyPool []roledtypes.Key
+
+	// keyPoolGiven records that the run passed this pool
+	// rather than taking the derived one. See KeyPoolDerived.
+	keyPoolGiven bool
+
+	// bodyPool is the whole payload pool this run drew,
+	// which is not the same as the two members above: a DERIVED pool
+	// carries a hostile member the transforms added, and a pool you passed
+	// carries exactly what you passed. See BodyPool.
+	bodyPool []string
+
+	// bodyPoolGiven records that the run passed this pool
+	// rather than taking the derived one. See BodyPoolDerived.
+	bodyPoolGiven bool
 }
 
 // DefaultStoreFixture is what a run with no config draws.
@@ -92,12 +113,21 @@ func DefaultStoreFixture() StoreFixture {
 // supplied through the config and one worked out from the type are read
 // the same way, and no check should be able to tell them apart.
 func storeNewFixture(cfg StoreConfig) StoreFixture {
+	// Read BEFORE the defaults land, because that is the only moment the
+	// two are distinguishable. Afterwards every pool is full and nothing
+	// can tell which was whose.
+	keyPoolGiven := len(cfg.KeyPool) > 0
+	bodyPoolGiven := len(cfg.BodyPool) > 0
 	cfg = cfg.orDefault()
 	return StoreFixture{
-		key:          cfg.KeyPool[0],
-		keyOther:     cfg.KeyPool[1],
-		payload:      roledtypes.Payload{Body: cfg.BodyPool[0]},
-		payloadOther: roledtypes.Payload{Body: cfg.BodyPool[1]},
+		keyPool:       cfg.KeyPool,
+		keyPoolGiven:  keyPoolGiven,
+		bodyPool:      cfg.BodyPool,
+		bodyPoolGiven: bodyPoolGiven,
+		key:           cfg.KeyPool[0],
+		keyOther:      cfg.KeyPool[1],
+		payload:       roledtypes.Payload{Body: cfg.BodyPool[0]},
+		payloadOther:  roledtypes.Payload{Body: cfg.BodyPool[1]},
 	}
 }
 
@@ -116,6 +146,64 @@ func (f StoreFixture) Payload() roledtypes.Payload { return f.payload }
 // first — so a check that expects to find nothing is asking about
 // something your implementation has genuinely never been given.
 func (f StoreFixture) PayloadOther() roledtypes.Payload { return f.payloadOther }
+
+// KeyPool is every key this run draws from, which is more
+// than the pair above.
+//
+// The pair is what a fixed call sequence needs: one value and a second
+// guaranteed to differ. This is what a DRAWN sequence needs, and the
+// difference is the hostile member — a control sequence, a broken rune —
+// that the transforms add to a pool derived from the type and that a pool
+// you passed does not carry.
+//
+// Which is the whole provenance rule, and it needs no flag: a derived
+// pool is a guess and attacking a guess costs nothing, while a pool you
+// passed is a statement about what the implementation accepts. Pass one
+// and the hostile member is simply not in it.
+func (f StoreFixture) KeyPool() []roledtypes.Key {
+	return f.keyPool
+}
+
+// KeyPoolDerived reports that this run took the key pool as
+// derived rather than as one you supplied.
+//
+// The hostile member above is one value. This is what licenses reaching
+// past it: a derived pool is a guess from the type, and a tier may widen a
+// guess as far as it likes because nobody has said what the implementation
+// accepts. A pool you passed IS that statement, and probing past it reds
+// correct code against inputs you ruled out.
+func (f StoreFixture) KeyPoolDerived() bool {
+	return !f.keyPoolGiven
+}
+
+// BodyPool is every payload this run draws from, which is more
+// than the pair above.
+//
+// The pair is what a fixed call sequence needs: one value and a second
+// guaranteed to differ. This is what a DRAWN sequence needs, and the
+// difference is the hostile member — a control sequence, a broken rune —
+// that the transforms add to a pool derived from the type and that a pool
+// you passed does not carry.
+//
+// Which is the whole provenance rule, and it needs no flag: a derived
+// pool is a guess and attacking a guess costs nothing, while a pool you
+// passed is a statement about what the implementation accepts. Pass one
+// and the hostile member is simply not in it.
+func (f StoreFixture) BodyPool() []string {
+	return f.bodyPool
+}
+
+// BodyPoolDerived reports that this run took the payload pool as
+// derived rather than as one you supplied.
+//
+// The hostile member above is one value. This is what licenses reaching
+// past it: a derived pool is a guess from the type, and a tier may widen a
+// guess as far as it likes because nobody has said what the implementation
+// accepts. A pool you passed IS that statement, and probing past it reds
+// correct code against inputs you ruled out.
+func (f StoreFixture) BodyPoolDerived() bool {
+	return !f.bodyPoolGiven
+}
 
 // StoreConfig is the sample inputs the checks use.
 //
@@ -826,8 +914,15 @@ func (c StoreCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, storeMethods); err != nil {
 			return out, err
@@ -845,10 +940,10 @@ func (c StoreCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -900,11 +995,125 @@ func RunStore(
 		rc.Subjects...)
 }
 
-// ProveStore runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// storeProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveStore(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func storeProofs() prove.Defects[Store] {
+	ix := StoreSuite.Checks
+	return prove.Defects[Store]{
+		ix.Put.Smoke(): prove.One("a Store whose Put panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) error {
+						panic("planted: Put panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Put.Cancels(): prove.One("a Store whose Put ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Put.NilContext(): prove.One("a Store whose Put forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Put.Deadline(): prove.One("a Store whose Put ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ roledtypes.Key, _ roledtypes.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.Smoke(): prove.One("a Store whose Get panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ roledtypes.Key) (roledtypes.Payload, error) {
+						panic("planted: Get panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Get.Cancels(): prove.One("a Store whose Get ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Get.NilContext(): prove.One("a Store whose Get forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Get.Deadline(): prove.One("a Store whose Get ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.ZeroOnError(): prove.One("a Store whose Get answers a believable value beside its error",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = roledtypes.Payload{Body: "other-payload"}
+						err = errors.New("planted: Get refused with a believable value")
+						return
+					}))
+			}),
+		ix.Get.Miss(): prove.One("a Store whose Get answers for an input nothing wrote",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ roledtypes.Key) (r0 roledtypes.Payload, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = roledtypes.Payload{Body: "other-payload"}
+						return
+					}))
+			}),
+	}
+}
+
+// ProveStore runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveStore(t, StoreHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -914,30 +1123,40 @@ func RunStore(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunStore does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveStore(
-	t *testing.T, checks StoreChecks, cfg ...StoreConfig,
+	t *testing.T, opts ...StoreRunOpt,
 ) {
 	t.Helper()
-	if len(cfg) > 1 {
-		t.Fatalf("ProveStore: %d configs passed; pass at most one", len(cfg))
-	}
-	var c StoreConfig
-	if len(cfg) == 1 {
-		c = cfg[0]
+	var rc storeRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
 	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
-	fx := storeNewFixture(c)
-	bound := make([]suite.Check[Store], 0, len(checks))
-	defects := prove.Defects[Store]{}
-	for _, row := range checks {
+	fx := storeNewFixture(rc.cfg)
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveStore")
+	s := storeSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := storeProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveStore: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -947,8 +1166,14 @@ func ProveStore(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance 12062da7c94809a044b291261957d08fbd8264e443104562a287df2189df8bd6
+// testkit:provenance e2ab704586a789839ecb7a4ec39ccd7a4a1845be2a1af192167cc71e5da3feaa

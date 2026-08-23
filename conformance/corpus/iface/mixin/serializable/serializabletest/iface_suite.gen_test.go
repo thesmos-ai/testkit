@@ -2,202 +2,55 @@
 //
 // Source:    corpus/iface/mixin/serializable/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/...
+// Command:   testkit run ./corpus/iface/mixin/snapshotisolation/... ./corpus/iface/mixin/serializable/...
 
 package serializabletest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/serializable"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/serializable/serializabletest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		serializabletest.MixedSuite.Suite(serializabletest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[serializabletest.Mixed] {
-	ix := serializabletest.MixedSuite.Checks
-	return prove.Defects[serializabletest.Mixed]{
-		ix.Record.Smoke(): prove.One("a Mixed whose Record panics",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedRecord(
-					func(_ context.Context, _ serializable.Entry) error {
-						panic("planted: Record panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Record.Cancels(): prove.One("a Mixed whose Record ignores the context it is handed",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedRecord(
-					func(_ context.Context, _ serializable.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Record.NilContext(): prove.One("a Mixed whose Record forgives a nil context and answers",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedRecord(
-					func(_ context.Context, _ serializable.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Record.Deadline(): prove.One("a Mixed whose Record ignores the context it is handed",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedRecord(
-					func(_ context.Context, _ serializable.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.History.Smoke(): prove.One("a Mixed whose History panics",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedHistory(
-					func(_ context.Context) ([]serializable.Entry, error) {
-						panic("planted: History panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.History.Cancels(): prove.One("a Mixed whose History ignores the context it is handed",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedHistory(
-					func(_ context.Context) (r0 []serializable.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.History.NilContext(): prove.One("a Mixed whose History forgives a nil context and answers",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedHistory(
-					func(_ context.Context) (r0 []serializable.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.History.Deadline(): prove.One("a Mixed whose History ignores the context it is handed",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedHistory(
-					func(_ context.Context) (r0 []serializable.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.History.ZeroOnError(): prove.One("a Mixed whose History answers a believable value beside its error",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedHistory(
-					func(_ context.Context) (r0 []serializable.Entry, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = []serializable.Entry{{Txn: 7}}
-						err = errors.New("planted: History refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Smoke(): prove.One("a Mixed whose Get panics",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedGet(
-					func(_ context.Context, _ string) (serializable.Entry, error) {
-						panic("planted: Get panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Get.Cancels(): prove.One("a Mixed whose Get ignores the context it is handed",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Get.NilContext(): prove.One("a Mixed whose Get forgives a nil context and answers",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Get.Deadline(): prove.One("a Mixed whose Get ignores the context it is handed",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.ZeroOnError(): prove.One("a Mixed whose Get answers a believable value beside its error",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = serializable.Entry{Txn: 7}
-						err = errors.New("planted: Get refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Miss(): prove.One("a Mixed whose Get answers for an input nothing wrote",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = serializable.Entry{Txn: 7}
-						return
-					}))
-			}),
-		ix.Model.Agrees(): prove.One("a Mixed whose Record reports success and keeps nothing",
-			func(tb testing.TB) serializabletest.Mixed {
-				return serializabletest.NewMixedStub(tb, serializabletest.WithMixedRecord(
-					func(_ context.Context, _ serializable.Entry) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Record.Smoke — a Mixed whose Record panics
+//
+//	Record.Cancels — a Mixed whose Record ignores the context it is handed
+//
+//	Record.NilContext — a Mixed whose Record forgives a nil context and answers
+//
+//	Record.Deadline — a Mixed whose Record ignores the context it is handed
+//
+//	History.Smoke — a Mixed whose History panics
+//
+//	History.Cancels — a Mixed whose History ignores the context it is handed
+//
+//	History.NilContext — a Mixed whose History forgives a nil context and answers
+//
+//	History.Deadline — a Mixed whose History ignores the context it is handed
+//
+//	History.ZeroOnError — a Mixed whose History answers a believable value beside its error
+//
+//	Get.Smoke — a Mixed whose Get panics
+//
+//	Get.Cancels — a Mixed whose Get ignores the context it is handed
+//
+//	Get.NilContext — a Mixed whose Get forgives a nil context and answers
+//
+//	Get.Deadline — a Mixed whose Get ignores the context it is handed
+//
+//	Get.ZeroOnError — a Mixed whose Get answers a believable value beside its error
+//
+//	Get.Miss — a Mixed whose Get answers for an input nothing wrote
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -227,4 +80,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 674a08468e0d41b776845e8f3fbdae573f69440cc79c5fd66f1a15e96e0fdd6a
+// testkit:provenance 6ac657d066c1cdce04340942738098447fd3ddfc23d7806462e282ff67a4d4c9

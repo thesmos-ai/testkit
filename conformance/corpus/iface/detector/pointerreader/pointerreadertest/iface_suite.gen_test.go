@@ -7,47 +7,22 @@
 package pointerreadertest_test
 
 import (
-	"context"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/pointerreader"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/pointerreader/pointerreadertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestPointerReaderProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProvePointerReader.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestPointerReaderProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		pointerreadertest.PointerReaderSuite.Suite(pointerreadertest.DefaultPointerReaderFixture()).Checks,
-		pointerReaderProofs())
-}
-
-// pointerReaderProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProvePointerReader
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func pointerReaderProofs() prove.Defects[pointerreadertest.PointerReader] {
-	ix := pointerreadertest.PointerReaderSuite.Checks
-	return prove.Defects[pointerreadertest.PointerReader]{
-		ix.Find.Smoke(): prove.One("a PointerReader whose Find panics",
-			func(tb testing.TB) pointerreadertest.PointerReader {
-				return pointerreadertest.NewPointerReaderStub(tb, pointerreadertest.WithPointerReaderFind(
-					func(_ context.Context, _ string) *pointerreader.Value {
-						panic("planted: Find panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Find.Smoke — a PointerReader whose Find panics
 
 // TestPointerReaderInvariants holds this package to what it says about itself.
 //
@@ -77,4 +52,4 @@ func TestPointerReaderInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 612afe016f251504d5107117b7ff9656ce658e18e042654a7ea1ffa1cbcb8175
+// testkit:provenance 1273975097a15f84dae8c950f33e7a3dcb278e6b3b9f79a761bba73cac75973b

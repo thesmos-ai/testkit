@@ -222,6 +222,54 @@ func NeedsInduce(sentinel error) Caps { return Needs(CapInduce, sentinel) }
 // NeedsRecover declares that a check rebuilds over durable state.
 func NeedsRecover() Caps { return Needs(CapRecover, nil) }
 
+// Doors collects the open-set capability answers a run's subjects supply,
+// so a subject built elsewhere — a planted defect, a negative control —
+// can be handed the same ones.
+//
+// Every door in the open half is a function OVER a subject: what a pool's
+// accounting is called, which field an order sorts on, how a recorded
+// operation folds into a transaction. None of them is a fact about any
+// one instance, which is why they can be lifted off one subject and given
+// to another — and why a defect that stands in for a real subject has no
+// separate answer to give.
+//
+// [CapClock], [CapInduce] and [CapRecover] are not collected: those three
+// ARE per-instance, answered by a constructor or a trigger map, and a
+// subject that borrowed another's would be built by the wrong factory.
+//
+// First answer wins. Two subjects disagreeing about a declaration fact is
+// a wiring mistake, and the check bodies read one door — taking the later
+// answer would make which subject ran first decide what was checked.
+func Doors[S any](subs ...Subject[S]) map[Capability]any {
+	var out map[Capability]any
+	for _, s := range subs {
+		for c, v := range s.Provides {
+			if perInstance(c) {
+				continue
+			}
+			if out == nil {
+				out = map[Capability]any{}
+			}
+			if _, answered := out[c]; !answered {
+				out[c] = v
+			}
+		}
+	}
+	return out
+}
+
+// perInstance reports the capabilities answered by a subject's own field
+// rather than by the Provide map, and so not lent to another subject.
+//
+// Read off the same three the gate switches on in capGapOf: each is
+// satisfied by a constructor or a trigger map belonging to one instance.
+// A subject naming one in Provide has already misfiled it — the gate
+// consults the field and reports it missing — so passing it on would
+// carry the mistake into a second subject.
+func perInstance(c Capability) bool {
+	return c == CapClock || c == CapInduce || c == CapRecover
+}
+
 // Check is one assertion about a subject.
 type Check[S any] struct {
 	// ID is the check's stable identity: the handle a drop, a rerun, the
@@ -653,4 +701,36 @@ func Proven() Falsifiability { return Falsifiability{State: FalsifiableProven} }
 // Argued marks a check nothing can currently falsify, with the reason.
 func Argued(why string) Falsifiability {
 	return Falsifiability{State: FalsifiableArgued, Why: why}
+}
+
+// Provided reads a capability value the subject supplied, at the type the
+// check expects.
+//
+// The open half of the capability registry has to come back typed
+// somewhere, and a raw assertion inside a check body panics with Go's own
+// message — which names two interface types and not the harness field a
+// consumer has to fix. The runner's gate has already refused any subject
+// missing the key by the time a body runs, so reaching here with nothing
+// is a check that reads a door it never declared in Needs; reaching here
+// with the wrong type is a harness supplying a shape its checks cannot
+// use. Both are wiring, and both say so.
+func Provided[T, S any](tb testing.TB, sub Subject[S], c Capability) T {
+	tb.Helper()
+	var zero T
+	v, supplied := sub.Provides[c]
+	if !supplied {
+		tb.Fatalf("this check reads capability %q and subject %q provides none; "+
+			"add it to the harness's Provide map, or declare it in the check's Needs "+
+			"so the run refuses the subject by name instead of here",
+			c, sub.Name)
+		return zero
+	}
+	typed, usable := v.(T)
+	if !usable {
+		tb.Fatalf("subject %q provides capability %q as %T, and this check reads it "+
+			"as %T; the harness supplies a shape its checks cannot use",
+			sub.Name, c, v, zero)
+		return zero
+	}
+	return typed
 }

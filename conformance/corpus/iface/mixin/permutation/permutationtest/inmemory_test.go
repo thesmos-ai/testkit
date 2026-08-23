@@ -8,6 +8,7 @@ package permutationtest_test
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	permutationtest.ProveMixed(t, mixedChecks)
+	permutationtest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -54,26 +55,27 @@ func inMemory(name string) permutationtest.MixedHarness[*permutationtest.InMemor
 
 var mixedChecks = permutationtest.MixedChecks{
 	{
-		Method: "Items", Name: "yields-each-append-once",
-		Claim: "Items yields what Add put in, once each",
-		Run:   yieldsEachAppendOnce,
+		Method: "Items", Name: "yields-every-append-once",
+		Claim: "Items yields exactly what Add accepted, in some order",
+		Run:   yieldsEveryAppendOnce,
 		ProvenBy: permutationtest.BrokenMixed(
-			"a collection that drains its appends as they arrived", newKeepsTheRepeat,
+			"a collection that overwrites an element sharing a key", newOverwritesByKey,
 		),
-		ProvenReason: "the repeated key is one element",
+		ProvenReason: "a repeat is a second element",
 	},
 }
 
 // --- Bodies -------------------------------------------------------------------
 
-// yieldsEachAppendOnce puts the same key in twice and a second key that sorts
-// ahead of it.
+// yieldsEveryAppendOnce puts the same key in twice and a second key that
+// sorts ahead of it.
 //
-// The repeat is what makes the dedup claim testable: a drain that yielded it
-// twice would be reporting its input rather than its contents. The out-of-order
-// second key is what makes the ordering observable — with one element every
-// order is the right one, and a subject returning map order would pass.
-func yieldsEachAppendOnce(
+// The repeat is what makes the claim testable: a permutation is of what went
+// IN, so two appends of one key are two elements and a collection folding
+// them into one has lost an element it accepted. The out-of-order second key
+// is what makes the ordering observable — with one element every order is
+// the right one, and a subject answering in arrival order would pass.
+func yieldsEveryAppendOnce(
 	tb testing.TB, s permutation.Mixed, _ permutationtest.MixedFixture,
 ) {
 	tb.Helper()
@@ -86,7 +88,7 @@ func yieldsEachAppendOnce(
 
 	got, err := s.Items(tb.Context())
 	testkit.NoError(tb, err, "the drain succeeds")
-	testkit.Equal(tb, len(got), 2, "the repeated key is one element")
+	testkit.Equal(tb, len(got), 3, "a repeat is a second element, not the same one again")
 	testkit.Equal(tb, got[0].Key, earlyKey, "and the drain is ordered rather than arbitrary")
 }
 
@@ -99,20 +101,22 @@ const (
 	lateKey  = "zz"
 )
 
-// keepsTheRepeat stores every append and drains them in the order they arrived,
-// which is what a collection backed by a plain slice does. It gets BOTH halves
-// wrong at once, which is right for this row: the two are one claim about what
-// a drain reports, and a defect wrong about only one would leave the other
-// unproven.
-type keepsTheRepeat struct{ items []permutation.Value }
+// overwritesByKey folds an element into an earlier one sharing its key, so
+// its drain is a permutation of something smaller than what went in. It gets
+// BOTH halves wrong at once, which is right for this row: the count and the
+// order are one claim about what a drain reports, and a defect wrong about
+// only one would leave the other unproven.
+type overwritesByKey struct{ items map[string]permutation.Value }
 
-func newKeepsTheRepeat() *keepsTheRepeat { return &keepsTheRepeat{} }
+func newOverwritesByKey() *overwritesByKey {
+	return &overwritesByKey{items: map[string]permutation.Value{}}
+}
 
-func (k *keepsTheRepeat) Add(_ context.Context, v permutation.Value) error {
-	k.items = append(k.items, v)
+func (k *overwritesByKey) Add(_ context.Context, v permutation.Value) error {
+	k.items[v.Key] = v
 	return nil
 }
 
-func (k *keepsTheRepeat) Items(context.Context) ([]permutation.Value, error) {
-	return slices.Clone(k.items), nil
+func (k *overwritesByKey) Items(context.Context) ([]permutation.Value, error) {
+	return slices.Collect(maps.Values(k.items)), nil
 }

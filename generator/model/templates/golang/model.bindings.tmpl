@@ -26,7 +26,16 @@ generated file per interface.
 // read revisit a write and an overwrite land on held state. A wide key
 // pool would pass every comparison over a history that never collides.
 func {{ .KeysFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .ModelPkg "Generator") }}[{{ renderType .Keys.Type }}] {
+{{- if .Keys.Hostile }}
+	return {{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Keys.PoolField }}Derived(),
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}()),
+		func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) },
+	)
+{{- else if .Keys.PoolField }}
+	return {{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}())
+{{- else }}
 	return {{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{ {{ .Keys.Read }}, {{ .Keys.OtherRead }} })
+{{- end }}
 }
 {{- end }}
 {{- if .NeedsValuesPool }}
@@ -41,6 +50,21 @@ func {{ .KeysFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .Mo
 // The fixture pair blended with arbitrary draws: the pair keeps identical
 // rewrites frequent, the wide arm reaches values no fixture spells, and
 // nothing in the claims licenses refusing either.
+{{- else if .Values.Hostile }}
+//
+// The run's whole {{ .Values.PoolField }}, widened with the hostile half of
+// the string space where the pool was DERIVED and left verbatim where you
+// passed one. A derived pool is a guess from the type and attacking a
+// guess costs nothing; a pool you passed is a statement about what the
+// implementation accepts, and probing past it reds correct code against
+// inputs you ruled out.
+{{- else if .Values.PoolField }}
+//
+// The run's whole {{ .Values.PoolField }}, which is the pair plus whatever
+// else it holds. A pool derived from the type carries a hostile member the
+// transforms added; a pool you passed carries exactly what you passed. So
+// the guess gets attacked and your statement about what the implementation
+// accepts is taken at its word, with no flag deciding which.
 {{- else }}
 //
 // The fixture pair alone — {{ .Values.WhyNarrow }}.
@@ -306,6 +330,11 @@ model.bodies spells the value pool's unpinned generator.
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
 		{{ renderExpr (external .ModelPkg "Make") }}[{{ renderType .Values.Type }}](),
 	)
+{{- else if .Values.Hostile }}{{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Values.PoolField }}Derived(),
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}()),
+		func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) },
+	)
+{{- else if .Values.PoolField }}{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}())
 {{- else }}{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} })
 {{- end -}}
 {{- end -}}

@@ -343,11 +343,11 @@ func worded() map[string]law {
 			"StreamNoDuplicates", "StreamNoDuplicates",
 		},
 		StreamOverMatch: {
-			"every required element appears in the drain",
+			"the drain holds everything that was written, and may hold more",
 			"StreamOverMatch", "StreamOverMatch",
 		},
 		StreamPermutation: {
-			"the drain is a permutation of the expected elements",
+			"the drain is a permutation of what was written",
 			"StreamPermutation", "StreamPermutation",
 		},
 		StreamReentrant: {

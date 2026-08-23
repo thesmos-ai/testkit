@@ -118,8 +118,19 @@ func lawsOf(b *Bindings, harness *subject.Projection, partners map[string]string
 					b.RecordsHistory = true
 					b.HistoryElem = field.Value
 					for _, a := range b.Actions {
-						if a.Method == field.Method {
-							a.Records = true
+						if a.Method != field.Method {
+							continue
+						}
+						a.Records = true
+						// The recording constructor, not the plain one with a
+						// logging closure: the closure is handed the subject
+						// and then the reference, so a log filled from inside
+						// it holds every write twice. Both variants take the
+						// log beside the pool; only the chain's also takes the
+						// projection saying which partition a write lands in.
+						if ctor, has := tiers.RecordingActionFor(a.Shape); has {
+							a.Ctor = sdk.NewExternal(actionPkg, ctor)
+							a.Partitioned = a.Shape != shapeWriter
 						}
 					}
 				}

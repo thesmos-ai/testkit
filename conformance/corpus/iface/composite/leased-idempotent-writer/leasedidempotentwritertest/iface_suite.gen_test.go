@@ -7,127 +7,38 @@
 package leasedidempotentwritertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/composite/leased-idempotent-writer/leasedidempotentwritertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestLeasedWriterProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveLeasedWriter.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestLeasedWriterProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		leasedidempotentwritertest.LeasedWriterSuite.Suite(leasedidempotentwritertest.DefaultLeasedWriterFixture()).Checks,
-		leasedWriterProofs())
-}
-
-// leasedWriterProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveLeasedWriter
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func leasedWriterProofs() prove.Defects[leasedidempotentwritertest.LeasedWriter] {
-	ix := leasedidempotentwritertest.LeasedWriterSuite.Checks
-	return prove.Defects[leasedidempotentwritertest.LeasedWriter]{
-		ix.Acquire.Smoke(): prove.One("a LeasedWriter whose Acquire panics",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterAcquire(
-					func(_ context.Context, _ string) error {
-						panic("planted: Acquire panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Acquire.Cancels(): prove.One("a LeasedWriter whose Acquire ignores the context it is handed",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Acquire.NilContext(): prove.One("a LeasedWriter whose Acquire forgives a nil context and answers",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Acquire.Deadline(): prove.One("a LeasedWriter whose Acquire ignores the context it is handed",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Release.Smoke(): prove.One("a LeasedWriter whose Release panics",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterRelease(
-					func(_ context.Context, _ string) error {
-						panic("planted: Release panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Release.Cancels(): prove.One("a LeasedWriter whose Release ignores the context it is handed",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterRelease(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Release.NilContext(): prove.One("a LeasedWriter whose Release forgives a nil context and answers",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterRelease(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Release.Deadline(): prove.One("a LeasedWriter whose Release ignores the context it is handed",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterRelease(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Acquire.Idempotent(): prove.One("a LeasedWriter whose Acquire fails on the second call",
-			func(tb testing.TB) leasedidempotentwritertest.LeasedWriter {
-				called := false
-				return leasedidempotentwritertest.NewLeasedWriterStub(tb, leasedidempotentwritertest.WithLeasedWriterAcquire(
-					func(_ context.Context, _ string) (err error) {
-						if called {
-							err = errors.New("planted: Acquire refuses its repeat")
-							return
-						}
-						called = true
-						return
-					}))
-			}),
-	}
-}
+//	Acquire.Smoke — a LeasedWriter whose Acquire panics
+//
+//	Acquire.Cancels — a LeasedWriter whose Acquire ignores the context it is handed
+//
+//	Acquire.NilContext — a LeasedWriter whose Acquire forgives a nil context and answers
+//
+//	Acquire.Deadline — a LeasedWriter whose Acquire ignores the context it is handed
+//
+//	Release.Smoke — a LeasedWriter whose Release panics
+//
+//	Release.Cancels — a LeasedWriter whose Release ignores the context it is handed
+//
+//	Release.NilContext — a LeasedWriter whose Release forgives a nil context and answers
+//
+//	Release.Deadline — a LeasedWriter whose Release ignores the context it is handed
+//
+//	Acquire.Idempotent — a LeasedWriter whose Acquire fails on the second call
 
 // TestLeasedWriterInvariants holds this package to what it says about itself.
 //
@@ -157,4 +68,4 @@ func TestLeasedWriterInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance f13ecba1bc382f60c938109abc427b5a09293000247bd995220aef79793beb43
+// testkit:provenance c27ec37a81c8ee2700ef69b373b0dff69dcfd93d78f4f1fe843751d05dc73d90

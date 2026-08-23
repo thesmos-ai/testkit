@@ -81,6 +81,35 @@ func ContractActionConsumes(contract, role string) []string {
 	return contractActionConsumes[contract+"."+role]
 }
 
+// RecordingActionFor returns the constructor that drives a shape AND files
+// what it wrote into the run's log, and whether the shape has one.
+//
+// A separate constructor rather than a logging closure passed to the plain
+// one: the closure is handed the subject and then the reference, so a log
+// filled from inside it holds every write twice. A membership check cannot
+// see the difference; a claim about how many elements a drain owes reads it
+// as every element having been dropped.
+//
+// Keyed on the shape the action already drives, because that is what
+// decides the constructor's own shape — the chain's takes a partition
+// projection beside the log, and a plain write has no partitions to name.
+func RecordingActionFor(shape string) (string, bool) {
+	ctor, ok := recordingActions[shape]
+	return ctor, ok
+}
+
+// RecordingActionRows returns the recording table for the census that holds
+// each value to a shipped constructor.
+func RecordingActionRows() map[string]string {
+	return maps.Clone(recordingActions)
+}
+
+//nolint:gochecknoglobals // a lookup table, read-only after init.
+var recordingActions = map[string]string{
+	shapeWriter:                      "WriterRecording",
+	contractChain + "." + roleAppend: "ChainAppendRecording",
+}
+
 // ContractActionRows returns the whole role table, keyed `contract.role`,
 // for the census that holds each value to a shipped constructor in both
 // directions.
@@ -102,11 +131,13 @@ var contractActionCtors = map[string]string{
 	contractCAS + "." + roleWriter:      "CompareAndSwap",
 	contractChain + "." + roleAppend:    "ChainAppend",
 	contractTx + "." + roleBegin:        "TwoPhase",
+	contractPool + "." + roleGet:        "Pool",
 }
 
 //nolint:gochecknoglobals // a lookup table, read-only after init.
 var contractActionConsumes = map[string][]string{
 	contractTx + "." + roleBegin: {roleTxCommit, roleTxRollback},
+	contractPool + "." + roleGet: {rolePut},
 }
 
 // MapStoreOp returns the [engine/model/ref.MapStore] method a shape delegates
@@ -258,6 +289,14 @@ var dedupingMixins = map[string]bool{
 // tells them apart, and the corpus proved it — the first same-key pair of
 // events collapsed the inferred map to one entry while the subject
 // faithfully held both.
+//
+// overmatch and permutation are here for the same reason from the other
+// direction. Both are claims about what a drain OWES the writes behind it:
+// permutation says exactly what went in comes out, overmatch says at least
+// that much. A subject holding a repeat is what each declares, and an
+// upsert map inferred from a Key field drops it — so the reference would
+// diverge from a correct subject on the second write to one key, and the
+// claim would be judged against a model that contradicts it.
 func DrainsHistory(classification string) bool {
 	return historyDrains[classification]
 }
@@ -266,6 +305,8 @@ func DrainsHistory(classification string) bool {
 var historyDrains = map[string]bool{
 	mixinSnapshotIsolation: true,
 	mixinSerializable:      true,
+	mixinOverMatch:         true,
+	mixinPermutation:       true,
 	contractChain:          true,
 }
 
@@ -312,6 +353,15 @@ var oracleDefeats = map[string]string{
 	// collection answers everything it was fed, so a correct subject's
 	// first clamped read counts as disagreement. Twins clamp together.
 	mixinBounded: "the bounded claim clamps what the reader answers, and a derived collection clamps nothing",
+	// An isolation level is an admission policy before it is anything
+	// else: a store claiming it refuses the operation that would put an
+	// anomaly in its history, and a derived log records whatever it is
+	// handed. So a correct subject's first refusal reads as disagreement,
+	// and — worse — a passive log fed arbitrary draws fabricates the very
+	// anomalies the laws exist to find, failing a subject that did nothing
+	// wrong. Twins share the policy and refuse together.
+	mixinSnapshotIsolation: "the isolation claim is an admission policy, and a derived log records anything",
+	mixinSerializable:      "the serializable claim is an admission policy, and a derived log records anything",
 }
 
 // MapStorePins reports whether the named mixin turns the map oracle into its

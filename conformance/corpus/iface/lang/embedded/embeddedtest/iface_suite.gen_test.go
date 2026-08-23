@@ -7,67 +7,26 @@
 package embeddedtest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/embedded/embeddedtest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestBaseProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveBase.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestBaseProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		embeddedtest.BaseSuite.Suite().Checks,
-		baseProofs())
-}
-
-// baseProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveBase
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func baseProofs() prove.Defects[embeddedtest.Base] {
-	ix := embeddedtest.BaseSuite.Checks
-	return prove.Defects[embeddedtest.Base]{
-		ix.Ping.Smoke(): prove.One("a Base whose Ping panics",
-			func(tb testing.TB) embeddedtest.Base {
-				return embeddedtest.NewBaseStub(tb, embeddedtest.WithBasePing(
-					func(_ context.Context) error {
-						panic("planted: Ping panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Ping.Cancels(): prove.One("a Base whose Ping ignores the context it is handed",
-			func(tb testing.TB) embeddedtest.Base {
-				return embeddedtest.NewBaseStub(tb, embeddedtest.WithBasePing(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Ping.NilContext(): prove.One("a Base whose Ping forgives a nil context and answers",
-			func(tb testing.TB) embeddedtest.Base {
-				return embeddedtest.NewBaseStub(tb, embeddedtest.WithBasePing(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-	}
-}
+//	Ping.Smoke — a Base whose Ping panics
+//
+//	Ping.Cancels — a Base whose Ping ignores the context it is handed
+//
+//	Ping.NilContext — a Base whose Ping forgives a nil context and answers
 
 // TestBaseInvariants holds this package to what it says about itself.
 //
@@ -96,58 +55,20 @@ func TestBaseInvariants(t *testing.T) {
 	suite.VerifyDistinctIDs(t, s.IDs())
 }
 
-// TestCloserProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveCloser.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestCloserProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		embeddedtest.CloserSuite.Suite().Checks,
-		closerProofs())
-}
-
-// closerProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveCloser
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func closerProofs() prove.Defects[embeddedtest.Closer] {
-	ix := embeddedtest.CloserSuite.Checks
-	return prove.Defects[embeddedtest.Closer]{
-		ix.Close.Smoke(): prove.One("a Closer whose Close panics",
-			func(tb testing.TB) embeddedtest.Closer {
-				return embeddedtest.NewCloserStub(tb, embeddedtest.WithCloserClose(
-					func(_ context.Context) error {
-						panic("planted: Close panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Close.Cancels(): prove.One("a Closer whose Close ignores the context it is handed",
-			func(tb testing.TB) embeddedtest.Closer {
-				return embeddedtest.NewCloserStub(tb, embeddedtest.WithCloserClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Close.NilContext(): prove.One("a Closer whose Close forgives a nil context and answers",
-			func(tb testing.TB) embeddedtest.Closer {
-				return embeddedtest.NewCloserStub(tb, embeddedtest.WithCloserClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-	}
-}
+//	Close.Smoke — a Closer whose Close panics
+//
+//	Close.Cancels — a Closer whose Close ignores the context it is handed
+//
+//	Close.NilContext — a Closer whose Close forgives a nil context and answers
 
 // TestCloserInvariants holds this package to what it says about itself.
 //
@@ -176,135 +97,36 @@ func TestCloserInvariants(t *testing.T) {
 	suite.VerifyDistinctIDs(t, s.IDs())
 }
 
-// TestComposedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveComposed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestComposedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		embeddedtest.ComposedSuite.Suite(embeddedtest.DefaultComposedFixture()).Checks,
-		composedProofs())
-}
-
-// composedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveComposed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func composedProofs() prove.Defects[embeddedtest.Composed] {
-	ix := embeddedtest.ComposedSuite.Checks
-	return prove.Defects[embeddedtest.Composed]{
-		ix.Get.Smoke(): prove.One("a Composed whose Get panics",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedGet(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Get panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Get.Cancels(): prove.One("a Composed whose Get ignores the context it is handed",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedGet(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Get.NilContext(): prove.One("a Composed whose Get forgives a nil context and answers",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedGet(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Get.Deadline(): prove.One("a Composed whose Get ignores the context it is handed",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedGet(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.ZeroOnError(): prove.One("a Composed whose Get answers a believable value beside its error",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedGet(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Get refused with a believable value")
-						return
-					}))
-			}),
-		ix.Ping.Smoke(): prove.One("a Composed whose Ping panics",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedPing(
-					func(_ context.Context) error {
-						panic("planted: Ping panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Ping.Cancels(): prove.One("a Composed whose Ping ignores the context it is handed",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedPing(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Ping.NilContext(): prove.One("a Composed whose Ping forgives a nil context and answers",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedPing(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Close.Smoke(): prove.One("a Composed whose Close panics",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedClose(
-					func(_ context.Context) error {
-						panic("planted: Close panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Close.Cancels(): prove.One("a Composed whose Close ignores the context it is handed",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Close.NilContext(): prove.One("a Composed whose Close forgives a nil context and answers",
-			func(tb testing.TB) embeddedtest.Composed {
-				return embeddedtest.NewComposedStub(tb, embeddedtest.WithComposedClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-	}
-}
+//	Get.Smoke — a Composed whose Get panics
+//
+//	Get.Cancels — a Composed whose Get ignores the context it is handed
+//
+//	Get.NilContext — a Composed whose Get forgives a nil context and answers
+//
+//	Get.Deadline — a Composed whose Get ignores the context it is handed
+//
+//	Get.ZeroOnError — a Composed whose Get answers a believable value beside its error
+//
+//	Ping.Smoke — a Composed whose Ping panics
+//
+//	Ping.Cancels — a Composed whose Ping ignores the context it is handed
+//
+//	Ping.NilContext — a Composed whose Ping forgives a nil context and answers
+//
+//	Close.Smoke — a Composed whose Close panics
+//
+//	Close.Cancels — a Composed whose Close ignores the context it is handed
+//
+//	Close.NilContext — a Composed whose Close forgives a nil context and answers
 
 // TestComposedInvariants holds this package to what it says about itself.
 //
@@ -334,4 +156,4 @@ func TestComposedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3e0cb4f8674e4c34d4aeb3fa8294634058183b28f86962e0894de42e60b53e1c
+// testkit:provenance 0491b989d585a442c64be7d0bbb2b794f139d32c62962c413dd9d78f0c53e79c

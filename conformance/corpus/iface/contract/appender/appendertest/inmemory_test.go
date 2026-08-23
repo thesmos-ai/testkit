@@ -23,6 +23,17 @@ func TestContractContract(t *testing.T) {
 	)
 }
 
+// TestContractChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestContractChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	appendertest.ProveContract(
+		t,
+		appendertest.ContractHarness[*appendertest.InMemory]{Name: "in-memory", New: appendertest.NewInMemory},
+	)
+}
+
 // Dropping a check is written against the typed index rather than a string, so
 // a check that is renamed or stops being emitted breaks this compile instead of
 // silently declining nothing.

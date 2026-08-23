@@ -7,127 +7,38 @@
 package retrysucceedstest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/retrysucceeds/retrysucceedstest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		retrysucceedstest.MixedSuite.Suite(retrysucceedstest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[retrysucceedstest.Mixed] {
-	ix := retrysucceedstest.MixedSuite.Checks
-	return prove.Defects[retrysucceedstest.Mixed]{
-		ix.Call.Smoke(): prove.One("a Mixed whose Call panics",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedCall(
-					func(_ context.Context, _ string) error {
-						panic("planted: Call panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Call.Cancels(): prove.One("a Mixed whose Call ignores the context it is handed",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedCall(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Call.NilContext(): prove.One("a Mixed whose Call forgives a nil context and answers",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedCall(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Call.Deadline(): prove.One("a Mixed whose Call ignores the context it is handed",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedCall(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Attempts.Smoke(): prove.One("a Mixed whose Attempts panics",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedAttempts(
-					func(_ context.Context) (int, error) {
-						panic("planted: Attempts panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Attempts.Cancels(): prove.One("a Mixed whose Attempts ignores the context it is handed",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedAttempts(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Attempts.NilContext(): prove.One("a Mixed whose Attempts forgives a nil context and answers",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedAttempts(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Attempts.Deadline(): prove.One("a Mixed whose Attempts ignores the context it is handed",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedAttempts(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Attempts.ZeroOnError(): prove.One("a Mixed whose Attempts answers a believable value beside its error",
-			func(tb testing.TB) retrysucceedstest.Mixed {
-				return retrysucceedstest.NewMixedStub(tb, retrysucceedstest.WithMixedAttempts(
-					func(_ context.Context) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Attempts refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Call.Smoke — a Mixed whose Call panics
+//
+//	Call.Cancels — a Mixed whose Call ignores the context it is handed
+//
+//	Call.NilContext — a Mixed whose Call forgives a nil context and answers
+//
+//	Call.Deadline — a Mixed whose Call ignores the context it is handed
+//
+//	Attempts.Smoke — a Mixed whose Attempts panics
+//
+//	Attempts.Cancels — a Mixed whose Attempts ignores the context it is handed
+//
+//	Attempts.NilContext — a Mixed whose Attempts forgives a nil context and answers
+//
+//	Attempts.Deadline — a Mixed whose Attempts ignores the context it is handed
+//
+//	Attempts.ZeroOnError — a Mixed whose Attempts answers a believable value beside its error
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -157,4 +68,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 06e74234cfeb6759f19d87053bf3347d9beca64a1c9dfcf5b528184588c7e2ca
+// testkit:provenance 87f1879459d61c28d06f66a2b6dfb1f4be7b7a4883374e483e5f02f739bed2c2

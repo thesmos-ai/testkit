@@ -7,199 +7,54 @@
 package batchedmixinstest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/composite/batched-mixins/batchedmixinstest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestBatchedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveBatched.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestBatchedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		batchedmixinstest.BatchedSuite.Suite(batchedmixinstest.DefaultBatchedFixture()).Checks,
-		batchedProofs())
-}
-
-// batchedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveBatched
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func batchedProofs() prove.Defects[batchedmixinstest.Batched] {
-	ix := batchedmixinstest.BatchedSuite.Checks
-	return prove.Defects[batchedmixinstest.Batched]{
-		ix.Put.Smoke(): prove.One("a Batched whose Put panics",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedPut(
-					func(_ context.Context, _ string, _ string) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Batched whose Put ignores the context it is handed",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedPut(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Batched whose Put forgives a nil context and answers",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedPut(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Batched whose Put ignores the context it is handed",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedPut(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Read.Smoke(): prove.One("a Batched whose Read panics",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedRead(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Read panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Read.Cancels(): prove.One("a Batched whose Read ignores the context it is handed",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Read.NilContext(): prove.One("a Batched whose Read forgives a nil context and answers",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Read.Deadline(): prove.One("a Batched whose Read ignores the context it is handed",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Read.ZeroOnError(): prove.One("a Batched whose Read answers a believable value beside its error",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Read refused with a believable value")
-						return
-					}))
-			}),
-		ix.List.Smoke(): prove.One("a Batched whose List panics",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedList(
-					func(_ context.Context) ([]string, error) {
-						panic("planted: List panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.List.Cancels(): prove.One("a Batched whose List ignores the context it is handed",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedList(
-					func(_ context.Context) (r0 []string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.List.NilContext(): prove.One("a Batched whose List forgives a nil context and answers",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedList(
-					func(_ context.Context) (r0 []string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.List.Deadline(): prove.One("a Batched whose List ignores the context it is handed",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedList(
-					func(_ context.Context) (r0 []string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.List.ZeroOnError(): prove.One("a Batched whose List answers a believable value beside its error",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedList(
-					func(_ context.Context) (r0 []string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = []string{"other-"}
-						err = errors.New("planted: List refused with a believable value")
-						return
-					}))
-			}),
-		ix.Put.Idempotent(): prove.One("a Batched whose Put fails on the second call",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				called := false
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedPut(
-					func(_ context.Context, _ string, _ string) (err error) {
-						if called {
-							err = errors.New("planted: Put refuses its repeat")
-							return
-						}
-						called = true
-						return
-					}))
-			}),
-		ix.Read.Miss(): prove.One("a Batched whose Read answers for an input nothing wrote",
-			func(tb testing.TB) batchedmixinstest.Batched {
-				return batchedmixinstest.NewBatchedStub(tb, batchedmixinstest.WithBatchedRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = "other-"
-						return
-					}))
-			}),
-	}
-}
+//	Put.Smoke — a Batched whose Put panics
+//
+//	Put.Cancels — a Batched whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Batched whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Batched whose Put ignores the context it is handed
+//
+//	Read.Smoke — a Batched whose Read panics
+//
+//	Read.Cancels — a Batched whose Read ignores the context it is handed
+//
+//	Read.NilContext — a Batched whose Read forgives a nil context and answers
+//
+//	Read.Deadline — a Batched whose Read ignores the context it is handed
+//
+//	Read.ZeroOnError — a Batched whose Read answers a believable value beside its error
+//
+//	List.Smoke — a Batched whose List panics
+//
+//	List.Cancels — a Batched whose List ignores the context it is handed
+//
+//	List.NilContext — a Batched whose List forgives a nil context and answers
+//
+//	List.Deadline — a Batched whose List ignores the context it is handed
+//
+//	List.ZeroOnError — a Batched whose List answers a believable value beside its error
+//
+//	Put.Idempotent — a Batched whose Put fails on the second call
+//
+//	Read.Miss — a Batched whose Read answers for an input nothing wrote
+//
+//	Model.IdempotentWrite — a Batched whose Put refuses its repeat
 
 // TestBatchedInvariants holds this package to what it says about itself.
 //
@@ -229,4 +84,4 @@ func TestBatchedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3187f6f42f1bd5755737c7847532e188d3a3302d0b9ab0bbae25402be416d951
+// testkit:provenance a8d517ba5cb6b72325d991cba9126fa95ed90f34ccff91245a6160b6a86c111d

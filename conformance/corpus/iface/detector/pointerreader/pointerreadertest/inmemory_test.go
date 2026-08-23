@@ -44,7 +44,7 @@ func TestPointerReaderContractWithoutSmoke(t *testing.T) {
 func TestPointerReaderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	pointerreadertest.ProvePointerReader(t, pointerReaderChecks)
+	pointerreadertest.ProvePointerReader(t, inMemory("in-memory"), pointerReaderChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

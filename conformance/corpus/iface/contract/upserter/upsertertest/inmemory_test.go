@@ -38,7 +38,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	upsertertest.ProveContract(t, contractChecks)
+	upsertertest.ProveContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -46,6 +46,10 @@ func TestContractChecksCanFail(t *testing.T) {
 func inMemory(name string) upsertertest.ContractHarness[*upsertertest.InMemory] {
 	return upsertertest.ContractHarness[*upsertertest.InMemory]{
 		Name: name, New: upsertertest.NewInMemory,
+		// The crash seam. The map outlives the instance holding it, which
+		// is what makes a rebuild over it mean anything: an acknowledged
+		// write is still there when the process that took it is not.
+		Recover: upsertertest.Reopen,
 	}
 }
 

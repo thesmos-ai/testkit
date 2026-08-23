@@ -7,47 +7,22 @@
 package readernoerrortest_test
 
 import (
-	"context"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/readernoerror"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/readernoerror/readernoerrortest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestReaderNoErrorProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveReaderNoError.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestReaderNoErrorProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		readernoerrortest.ReaderNoErrorSuite.Suite(readernoerrortest.DefaultReaderNoErrorFixture()).Checks,
-		readerNoErrorProofs())
-}
-
-// readerNoErrorProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveReaderNoError
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func readerNoErrorProofs() prove.Defects[readernoerrortest.ReaderNoError] {
-	ix := readernoerrortest.ReaderNoErrorSuite.Checks
-	return prove.Defects[readernoerrortest.ReaderNoError]{
-		ix.Lookup.Smoke(): prove.One("a ReaderNoError whose Lookup panics",
-			func(tb testing.TB) readernoerrortest.ReaderNoError {
-				return readernoerrortest.NewReaderNoErrorStub(tb, readernoerrortest.WithReaderNoErrorLookup(
-					func(_ context.Context, _ string) readernoerror.Value {
-						panic("planted: Lookup panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Lookup.Smoke — a ReaderNoError whose Lookup panics
 
 // TestReaderNoErrorInvariants holds this package to what it says about itself.
 //
@@ -77,4 +52,4 @@ func TestReaderNoErrorInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance d0738b386385f800fad10c2f57c3d9da16680c8d7ff11773d04ab362149b1ce0
+// testkit:provenance c9a5b610fa2c664b4fcffd715951893dccff0902bbb6c6e1ab784d34dc7ad34e

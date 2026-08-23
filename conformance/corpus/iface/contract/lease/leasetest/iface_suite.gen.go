@@ -17,6 +17,7 @@ import (
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/model/linearize"
 	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
@@ -256,16 +257,18 @@ func (contractVeneer) Suite(fx ContractFixture) suite.Suite[Contract] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var contractIndexPath = map[suite.ID]string{
-	contractCheckIndex.Acquire.Smoke():       "ContractSuite.Checks.Acquire.Smoke()",
-	contractCheckIndex.Acquire.Cancels():     "ContractSuite.Checks.Acquire.Cancels()",
-	contractCheckIndex.Acquire.NilContext():  "ContractSuite.Checks.Acquire.NilContext()",
-	contractCheckIndex.Acquire.Deadline():    "ContractSuite.Checks.Acquire.Deadline()",
-	contractCheckIndex.Release.Smoke():       "ContractSuite.Checks.Release.Smoke()",
-	contractCheckIndex.Release.Cancels():     "ContractSuite.Checks.Release.Cancels()",
-	contractCheckIndex.Release.NilContext():  "ContractSuite.Checks.Release.NilContext()",
-	contractCheckIndex.Release.Deadline():    "ContractSuite.Checks.Release.Deadline()",
-	contractCheckIndex.Model.Agrees():        "ContractSuite.Checks.Model.Agrees()",
-	contractCheckIndex.Model.DoubleAcquire(): "ContractSuite.Checks.Model.DoubleAcquire()",
+	contractCheckIndex.Acquire.Smoke():          "ContractSuite.Checks.Acquire.Smoke()",
+	contractCheckIndex.Acquire.Cancels():        "ContractSuite.Checks.Acquire.Cancels()",
+	contractCheckIndex.Acquire.NilContext():     "ContractSuite.Checks.Acquire.NilContext()",
+	contractCheckIndex.Acquire.Deadline():       "ContractSuite.Checks.Acquire.Deadline()",
+	contractCheckIndex.Release.Smoke():          "ContractSuite.Checks.Release.Smoke()",
+	contractCheckIndex.Release.Cancels():        "ContractSuite.Checks.Release.Cancels()",
+	contractCheckIndex.Release.NilContext():     "ContractSuite.Checks.Release.NilContext()",
+	contractCheckIndex.Release.Deadline():       "ContractSuite.Checks.Release.Deadline()",
+	contractCheckIndex.Model.Agrees():           "ContractSuite.Checks.Model.Agrees()",
+	contractCheckIndex.Model.Linearizable():     "ContractSuite.Checks.Model.Linearizable()",
+	contractCheckIndex.Model.DoubleAcquire():    "ContractSuite.Checks.Model.DoubleAcquire()",
+	contractCheckIndex.Model.ReleasedOnCancel(): "ContractSuite.Checks.Model.ReleasedOnCancel()",
 }
 
 var contractDropHint = suite.DropHinter(
@@ -365,14 +368,24 @@ func (contractModelChecks) Agrees() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, suite.SegDifferential)
 }
 
+func (contractModelChecks) Linearizable() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, suite.SegLinearizable)
+}
+
 func (contractModelChecks) DoubleAcquire() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.LeaseDoubleAcquireBlocks)
+}
+
+func (contractModelChecks) ReleasedOnCancel() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.LeaseReleasedOnCancel)
 }
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
 		contractModelChecks{}.Agrees(),
+		contractModelChecks{}.Linearizable(),
 		contractModelChecks{}.DoubleAcquire(),
+		contractModelChecks{}.ReleasedOnCancel(),
 	}
 }
 
@@ -646,6 +659,14 @@ type ContractCheck struct {
 	ProvenBy     ContractDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Contract, fx ContractFixture)
 }
 
 // contractMethods is the interface's method names, used to catch a typo in
@@ -670,8 +691,15 @@ func (c ContractCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, contractMethods); err != nil {
 			return out, err
@@ -689,10 +717,24 @@ func (c ContractCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, contractMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Contract]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -744,11 +786,113 @@ func RunContract(
 		rc.Subjects...)
 }
 
-// ProveContract runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// contractProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveContract(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func contractProofs() prove.Defects[Contract] {
+	ix := ContractSuite.Checks
+	return prove.Defects[Contract]{
+		ix.Acquire.Smoke(): prove.One("a Contract whose Acquire panics",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractAcquire(
+					func(_ context.Context, _ string) error {
+						panic("planted: Acquire panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Acquire.Cancels(): prove.One("a Contract whose Acquire ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Acquire.NilContext(): prove.One("a Contract whose Acquire forgives a nil context and answers",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Acquire.Deadline(): prove.One("a Contract whose Acquire ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Release.Smoke(): prove.One("a Contract whose Release panics",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractRelease(
+					func(_ context.Context, _ string) error {
+						panic("planted: Release panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Release.Cancels(): prove.One("a Contract whose Release ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractRelease(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Release.NilContext(): prove.One("a Contract whose Release forgives a nil context and answers",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractRelease(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Release.Deadline(): prove.One("a Contract whose Release ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractRelease(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Model.Agrees(): prove.One("a Contract whose Acquire reports success and keeps nothing",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractAcquire(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+	}
+}
+
+// ProveContract runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveContract(t, ContractHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -758,23 +902,40 @@ func RunContract(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunContract does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveContract(
-	t *testing.T, checks ContractChecks,
+	t *testing.T, opts ...ContractRunOpt,
 ) {
 	t.Helper()
+	var rc contractRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := contractNewFixture()
-	bound := make([]suite.Check[Contract], 0, len(checks))
-	defects := prove.Defects[Contract]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveContract")
+	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := contractProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveContract: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -784,8 +945,19 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // contractModelRows is what this package's model tier claims.
 //
@@ -808,6 +980,16 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			},
 		},
 		{
+			ID:          contractCheckIndex.Model.Linearizable(),
+			Class:       suite.ClassConcurrent,
+			Claim:       "concurrent operation histories are linearizable",
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertLinearizable(tb, sub, fx)
+			},
+		},
+		{
 			ID:    contractCheckIndex.Model.DoubleAcquire(),
 			Class: suite.ClassLaws,
 			Claim: "a second acquire of a held key reports the held sentinel",
@@ -818,6 +1000,22 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertDoubleAcquire(tb, sub, fx)
+			},
+		},
+		{
+			ID:    contractCheckIndex.Model.ReleasedOnCancel(),
+			Class: suite.ClassConcurrent,
+			Claim: "a held lease frees once its acquiring context is cancelled",
+			Binds: []string{
+				lawid.LeaseReleasedOnCancel,
+			},
+			Needs: suite.Caps{
+				"free": nil,
+			},
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertReleasedOnCancel(tb, sub, fx)
 			},
 		},
 	}
@@ -907,6 +1105,40 @@ func contractAssertAgrees(
 		contractModelActions(fx))
 }
 
+// contractAssertLinearizable drives concurrent workers against one instance and asks
+// whether the history they recorded has a serial explanation.
+//
+// A claim no sequential leg can state. The differential compares one
+// ordered run against a reference and the laws hold after each step of
+// one; this is about what a caller may observe when there is no single
+// order at all, and the model is what decides whether one exists.
+//
+// The engine owns the interleaving, the property loop and the artifact a
+// failing history is written to. This supplies the verbs and the model.
+func contractAssertLinearizable(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+	keys := contractModelKeys(fx)
+	legs.Concurrent(tb, sub,
+		NewContractModelReference,
+		model.ConcurrentConfig[Contract]{
+			Model: linearize.LeaseTable(lease.ErrHeld, nil),
+			Actions: []model.ConcurrentAction[Contract]{
+				linearize.ConcurrentDeleter(linearize.OpAcquire, keys,
+					func(ctx context.Context, s lease.Contract, k string) error {
+						return s.Acquire(ctx, k)
+					}),
+				linearize.ConcurrentDeleter(linearize.OpRelease, keys,
+					func(ctx context.Context, s lease.Contract, k string) error {
+						return s.Release(ctx, k)
+					}),
+			},
+		})
+}
+
 // contractAssertDoubleAcquire binds AUTO-LEASE-DOUBLE-ACQUIRE-BLOCKS over the shared sequences.
 //
 // One law, and the run's only oracle. The differential is off here, as
@@ -939,5 +1171,43 @@ func contractAssertDoubleAcquire(
 		})
 }
 
+// contractAssertReleasedOnCancel binds AUTO-LEASE-RELEASED-ON-CANCEL over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func contractAssertReleasedOnCancel(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+	keys := contractModelKeys(fx)
+
+	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Contract { return sub.New(tb) }, buildRef,
+		contractModelActions(fx),
+		[]law.Law[Contract]{
+			law.LeaseReleasedOnCancel[lease.Contract, string]{
+				Acquire: func(ctx context.Context, s lease.Contract, k string) error {
+					return s.Acquire(ctx, k)
+				},
+				Free:    suite.Provided[func(*model.T, lease.Contract, string) bool](tb, sub, "free"),
+				Keys:    keys,
+				Timeout: 100000000,
+			},
+		})
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 55e4f228c53e2e7c01649342468bdd17ccd094d14a1274b526e692cb131f6f5e
+// testkit:provenance 4ccd453f7b86f40a108faefd11a73334d22af80b5e7268248206683c588871f7

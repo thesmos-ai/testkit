@@ -1,0 +1,77 @@
+{{- /*
+model.leg.sim — the body behind the row claiming an acknowledged write
+survives losing the process.
+
+A drawn interleaving of writes, reads and crash points, with every read
+judged against what the writes acknowledged. No model to select and no
+reference to pick, which is what makes this the shortest leg in the
+tier: the subject is held to its own acknowledgements, and the only
+thing the schedule needs from the interface is the pair of verbs, the
+two pools they draw from, and the projection saying which key a write
+lands on.
+
+The three type arguments are spelled rather than inferred. The oracle is
+a map from the key to the record, and Go infers neither from a closure —
+so the schedule names the subject, the key and the value, in that order.
+*/ -}}
+{{- define "model.leg.sim" -}}
+// {{ .Assert }} drives a drawn schedule of writes, reads and crashes,
+// and asks whether the medium still owes what the writes promised.
+//
+// A claim no other leg in this file can state. The differential compares
+// two live instances and the laws hold after each step of one; this is
+// about what is left when an instance stops existing mid-run, which is a
+// question only the medium can answer.
+//
+// The engine owns the interleaving, the shrinking and the oracle. This
+// supplies the verbs and the two pools they draw from.
+func {{ .Assert }}(
+	tb {{ renderExpr (external "testing" "TB") }},
+	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
+{{- if .Draws }}
+	{{ .Fixture }} {{ .FixtureType }},
+{{- end }}
+) {
+	tb.Helper()
+	{{ renderExpr (external .LegsPkg "Recover") }}[{{ .Subject }}, {{ renderType .Key }}, {{ renderType .Value }}](tb, sub,
+		{{ renderExpr (external .CrashPkg "Schedule") }}[{{ .Subject }}, {{ renderType .Key }}, {{ renderType .Value }}]{
+			Values: {{ .ValuesFunc }}({{ template "model.leg.args" . }}),
+			Keys:   {{ .KeysFunc }}({{ template "model.leg.args" . }}),
+			KeyOf:  {{ .KeyOfName }},
+			Write: func(ctx {{ renderExpr (external "context" "Context") }}, world {{ .Subject }}, v {{ renderType .Value }}) error {
+				return {{ template "model.leg.sim.iface" . }}.{{ .Writer.Method }}({{ if .Writer.TakesCtx }}ctx, {{ end }}v)
+			},
+			Read: func(ctx {{ renderExpr (external "context" "Context") }}, world {{ .Subject }}, k {{ renderType .Key }}) ({{ renderType .Value }}, error) {
+				return {{ template "model.leg.sim.iface" . }}.{{ .Reader.Method }}({{ if .Reader.TakesCtx }}ctx, {{ end }}k)
+			},
+			Equal:  func(a, b {{ renderType .Value }}) bool { return a == b },
+			Absent: {{ template "model.leg.sim.absent" . }},
+		}, nil)
+}
+{{- end -}}
+
+{{- /*
+model.leg.sim.iface narrows the harness's subject type to the
+declaration's own before naming a method on it.
+
+The schedule is typed at the subject the harness spells, and the methods
+belong to the interface — the same split every action closure carries.
+Where the two are already the same type the conversion is noise, so it
+is only rendered where the leg knows a distinct interface type.
+*/ -}}
+{{- define "model.leg.sim.iface" -}}
+{{- if .Iface }}{{ renderType .Iface }}(world){{ else }}world{{ end -}}
+{{- end -}}
+
+{{- /*
+model.leg.sim.absent renders how a read reports a key that is not there:
+the declaration's own sentinel where a mixin stamps one, and nil
+otherwise — which the schedule reads as "any error means absent".
+
+The lenient form is not a shortcut. A contract that names no miss
+sentinel has not said which error means absent, and insisting on one
+would red every implementation that reports it its own way.
+*/ -}}
+{{- define "model.leg.sim.absent" -}}
+{{- if .Miss }}{{ renderExpr (external .CrashPkg "Is") }}({{ renderExpr .Miss }}){{ else }}nil{{ end -}}
+{{- end -}}

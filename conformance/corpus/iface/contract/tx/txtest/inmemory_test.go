@@ -44,7 +44,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	txtest.ProveContract(t, contractChecks)
+	txtest.ProveContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // TestStagingRefusesASettledHandle is a package test rather than a row: staging

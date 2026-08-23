@@ -31,7 +31,7 @@ func TestStreamConsumerContract(t *testing.T) {
 func TestStreamConsumerChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	streamconsumertest.ProveStreamConsumer(t, streamConsumerChecks)
+	streamconsumertest.ProveStreamConsumer(t, inMemory("in-memory"), streamConsumerChecks)
 }
 
 // TestSourceContract runs the stream being consumed against its own contract,
@@ -48,7 +48,7 @@ func TestSourceContract(t *testing.T) {
 func TestSourceChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	streamconsumertest.ProveSource(t, sourceChecks)
+	streamconsumertest.ProveSource(t, sliceSource("slice"), sourceChecks)
 }
 
 // TestSourceContractWithoutSmoke drops a check through the typed index rather

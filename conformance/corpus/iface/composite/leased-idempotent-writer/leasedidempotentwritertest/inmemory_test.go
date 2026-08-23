@@ -57,7 +57,7 @@ func TestLeasedWriterContractWithoutSmoke(t *testing.T) {
 func TestLeasedWriterChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	leasedidempotentwritertest.ProveLeasedWriter(t, leasedWriterChecks)
+	leasedidempotentwritertest.ProveLeasedWriter(t, inMemory("in-memory"), leasedWriterChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

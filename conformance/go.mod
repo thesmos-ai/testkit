@@ -3,6 +3,7 @@ module go.thesmos.sh/testkit/conformance
 go 1.26.6
 
 require (
+	github.com/anishathalye/porcupine v1.3.0
 	go.thesmos.sh/eidos v1.14.2-0.20260820105211-dd939c81353f
 	go.thesmos.sh/eidos/backend/golang v1.13.4-0.20260820105211-dd939c81353f
 	go.thesmos.sh/eidos/frontend/golang v1.14.1-0.20260820105211-dd939c81353f
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/anishathalye/porcupine v1.3.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	golang.org/x/mod v0.39.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect

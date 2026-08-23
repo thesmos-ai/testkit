@@ -14,6 +14,7 @@ import (
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/stableorder"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/stableorder/stableordertest"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // TestMixedContract runs the generated checks and this package's own.
@@ -39,7 +40,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	stableordertest.ProveMixed(t, mixedChecks)
+	stableordertest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -47,6 +48,12 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) stableordertest.MixedHarness[*stableordertest.InMemory] {
 	return stableordertest.MixedHarness[*stableordertest.InMemory]{
 		Name: name, New: stableordertest.NewInMemory,
+		// AUTO-STREAM-STABLE-ORDER needs the order the drain claims to be
+		// in, and which field carries it is a fact about Value rather than
+		// about its shape. Key ascending is what Items sorts on.
+		Provide: map[suite.Capability]any{
+			"less": func(a, b stableorder.Value) bool { return a.Key < b.Key },
+		},
 	}
 }
 

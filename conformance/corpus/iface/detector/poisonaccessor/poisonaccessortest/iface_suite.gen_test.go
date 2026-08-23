@@ -11,41 +11,18 @@ import (
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/poisonaccessor/poisonaccessortest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestPoisonAccessorProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProvePoisonAccessor.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestPoisonAccessorProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		poisonaccessortest.PoisonAccessorSuite.Suite().Checks,
-		poisonAccessorProofs())
-}
-
-// poisonAccessorProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProvePoisonAccessor
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func poisonAccessorProofs() prove.Defects[poisonaccessortest.PoisonAccessor] {
-	ix := poisonaccessortest.PoisonAccessorSuite.Checks
-	return prove.Defects[poisonaccessortest.PoisonAccessor]{
-		ix.Err.Smoke(): prove.One("a PoisonAccessor whose Err panics",
-			func(tb testing.TB) poisonaccessortest.PoisonAccessor {
-				return poisonaccessortest.NewPoisonAccessorStub(tb, poisonaccessortest.WithPoisonAccessorErr(
-					func() error {
-						panic("planted: Err panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Err.Smoke — a PoisonAccessor whose Err panics
 
 // TestPoisonAccessorInvariants holds this package to what it says about itself.
 //
@@ -75,4 +52,4 @@ func TestPoisonAccessorInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 078d0f8433132a3804c0bc338f1b731c3b5b449c63a7d2b920dff65bf95c1b5c
+// testkit:provenance 51d7e8990133744e81bec3770cedaf84d42baed0db329bc249892771442b6c8d

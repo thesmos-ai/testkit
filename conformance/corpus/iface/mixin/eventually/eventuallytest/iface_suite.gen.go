@@ -8,6 +8,7 @@ package eventuallytest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -284,20 +285,21 @@ func (mixedVeneer) Suite(fx MixedFixture) suite.Suite[Mixed] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mixedIndexPath = map[suite.ID]string{
-	mixedCheckIndex.Publish.Smoke():      "MixedSuite.Checks.Publish.Smoke()",
-	mixedCheckIndex.Publish.Cancels():    "MixedSuite.Checks.Publish.Cancels()",
-	mixedCheckIndex.Publish.NilContext(): "MixedSuite.Checks.Publish.NilContext()",
-	mixedCheckIndex.Publish.Deadline():   "MixedSuite.Checks.Publish.Deadline()",
-	mixedCheckIndex.Settle.Smoke():       "MixedSuite.Checks.Settle.Smoke()",
-	mixedCheckIndex.Settle.Cancels():     "MixedSuite.Checks.Settle.Cancels()",
-	mixedCheckIndex.Settle.NilContext():  "MixedSuite.Checks.Settle.NilContext()",
-	mixedCheckIndex.Sync.Smoke():         "MixedSuite.Checks.Sync.Smoke()",
-	mixedCheckIndex.Items.Smoke():        "MixedSuite.Checks.Items.Smoke()",
-	mixedCheckIndex.Items.Cancels():      "MixedSuite.Checks.Items.Cancels()",
-	mixedCheckIndex.Items.NilContext():   "MixedSuite.Checks.Items.NilContext()",
-	mixedCheckIndex.Items.Deadline():     "MixedSuite.Checks.Items.Deadline()",
-	mixedCheckIndex.Items.ZeroOnError():  "MixedSuite.Checks.Items.ZeroOnError()",
-	mixedCheckIndex.Model.Counts():       "MixedSuite.Checks.Model.Counts()",
+	mixedCheckIndex.Publish.Smoke():             "MixedSuite.Checks.Publish.Smoke()",
+	mixedCheckIndex.Publish.Cancels():           "MixedSuite.Checks.Publish.Cancels()",
+	mixedCheckIndex.Publish.NilContext():        "MixedSuite.Checks.Publish.NilContext()",
+	mixedCheckIndex.Publish.Deadline():          "MixedSuite.Checks.Publish.Deadline()",
+	mixedCheckIndex.Settle.Smoke():              "MixedSuite.Checks.Settle.Smoke()",
+	mixedCheckIndex.Settle.Cancels():            "MixedSuite.Checks.Settle.Cancels()",
+	mixedCheckIndex.Settle.NilContext():         "MixedSuite.Checks.Settle.NilContext()",
+	mixedCheckIndex.Sync.Smoke():                "MixedSuite.Checks.Sync.Smoke()",
+	mixedCheckIndex.Items.Smoke():               "MixedSuite.Checks.Items.Smoke()",
+	mixedCheckIndex.Items.Cancels():             "MixedSuite.Checks.Items.Cancels()",
+	mixedCheckIndex.Items.NilContext():          "MixedSuite.Checks.Items.NilContext()",
+	mixedCheckIndex.Items.Deadline():            "MixedSuite.Checks.Items.Deadline()",
+	mixedCheckIndex.Items.ZeroOnError():         "MixedSuite.Checks.Items.ZeroOnError()",
+	mixedCheckIndex.Model.EventualConvergence(): "MixedSuite.Checks.Model.EventualConvergence()",
+	mixedCheckIndex.Model.Counts():              "MixedSuite.Checks.Model.Counts()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -440,12 +442,17 @@ func (mixedItemsChecks) All() []suite.ID {
 
 type mixedModelChecks struct{}
 
+func (mixedModelChecks) EventualConvergence() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.EventualConvergence)
+}
+
 func (mixedModelChecks) Counts() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
 }
 
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
+		mixedModelChecks{}.EventualConvergence(),
 		mixedModelChecks{}.Counts(),
 	}
 }
@@ -807,6 +814,20 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropPublish is Prop with Publish's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Publish, so leave Method empty.
+	PropPublish func(rt *PropT, s Mixed, value string)
 }
 
 // mixedMethods is the interface's method names, used to catch a typo in
@@ -831,8 +852,15 @@ func (c MixedCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
 			return out, err
@@ -850,10 +878,34 @@ func (c MixedCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop, PropPublish"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropPublish != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedPublish, c.Name)
+		fn := c.PropPublish
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -905,11 +957,150 @@ func RunMixed(
 		rc.Subjects...)
 }
 
-// ProveMixed runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// mixedProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveMixed(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func mixedProofs() prove.Defects[Mixed] {
+	ix := MixedSuite.Checks
+	return prove.Defects[Mixed]{
+		ix.Publish.Smoke(): prove.One("a Mixed whose Publish panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedPublish(
+					func(_ context.Context, _ string) error {
+						panic("planted: Publish panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Publish.Cancels(): prove.One("a Mixed whose Publish ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedPublish(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Publish.NilContext(): prove.One("a Mixed whose Publish forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedPublish(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Publish.Deadline(): prove.One("a Mixed whose Publish ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedPublish(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Settle.Smoke(): prove.One("a Mixed whose Settle panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedSettle(
+					func(_ context.Context) error {
+						panic("planted: Settle panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Settle.Cancels(): prove.One("a Mixed whose Settle ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedSettle(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Settle.NilContext(): prove.One("a Mixed whose Settle forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedSettle(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Sync.Smoke(): prove.One("a Mixed whose Sync panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedSync(
+					func(_ context.Context, _ eventually.Mixed) error {
+						panic("planted: Sync panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Items.Smoke(): prove.One("a Mixed whose Items panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) ([]string, error) {
+						panic("planted: Items panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Items.Cancels(): prove.One("a Mixed whose Items ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []string, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Items.NilContext(): prove.One("a Mixed whose Items forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []string, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Items.Deadline(): prove.One("a Mixed whose Items ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []string, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Items.ZeroOnError(): prove.One("a Mixed whose Items answers a believable value beside its error",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []string, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = []string{"other-"}
+						err = errors.New("planted: Items refused with a believable value")
+						return
+					}))
+			}),
+	}
+}
+
+// ProveMixed runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveMixed(t, MixedHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -919,23 +1110,40 @@ func RunMixed(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunMixed does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveMixed(
-	t *testing.T, checks MixedChecks,
+	t *testing.T, opts ...MixedRunOpt,
 ) {
 	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := mixedNewFixture()
-	bound := make([]suite.Check[Mixed], 0, len(checks))
-	defects := prove.Defects[Mixed]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := mixedProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveMixed: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -945,8 +1153,19 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // mixedModelRows is what this package's model tier claims.
 //
@@ -958,6 +1177,22 @@ func ProveMixed(
 // some of them build two.
 func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 	return []suite.Check[Mixed]{
+		{
+			ID:    mixedCheckIndex.Model.EventualConvergence(),
+			Class: suite.ClassLaws,
+			Claim: "replicas given disjoint writes converge once they exchange state",
+			Binds: []string{
+				lawid.EventualConvergence,
+			},
+			Needs: suite.Caps{
+				"merge": nil,
+			},
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertEventualConvergence(tb, sub, fx)
+			},
+		},
 		{
 			ID:    mixedCheckIndex.Model.Counts(),
 			Class: suite.ClassLaws,
@@ -1026,6 +1261,62 @@ func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 	}
 }
 
+// mixedAssertEventualConvergence binds AUTO-EVENTUAL-CONVERGENCE over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func mixedAssertEventualConvergence(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+	values := mixedModelValues(fx)
+	factory := func() Mixed { return sub.New(tb) }
+
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			law.EventualConvergence[eventually.Mixed, string, []string]{
+				Factory: factory,
+				Write: func(rt *model.T, s eventually.Mixed, v string) error {
+					return s.Publish(rt.Context(), v)
+				},
+				Values: values,
+				Settle: func(rt *model.T, replicas []eventually.Mixed) {
+					for _, r := range replicas {
+						_ = r.Settle(rt.Context())
+					}
+				},
+				Sync: func(rt *model.T, replicas []eventually.Mixed) error {
+					for _, peer := range replicas[1:] {
+						if err := replicas[0].Sync(rt.Context(), peer); err != nil {
+							return err
+						}
+					}
+					for _, peer := range replicas[1:] {
+						if err := peer.Sync(rt.Context(), replicas[0]); err != nil {
+							return err
+						}
+					}
+					return nil
+				},
+				Snapshot: func(rt *model.T, s eventually.Mixed) []string {
+					v, err := s.Items(rt.Context())
+					if err != nil {
+						rt.Fatalf("Snapshot observation failed: %v", err)
+					}
+					return v
+				},
+				Merge: suite.Provided[func(a, b []string) []string](tb, sub, "merge"),
+			},
+		})
+}
+
 // mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
 //
 // One law, and the run's only oracle. The differential is off here, as
@@ -1053,5 +1344,13 @@ func mixedAssertCounts(
 		})
 }
 
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 6db2d0bb4cfd2cb6bfd2717a408ac04fc1dbc215364b83d096c72222aa76a683
+// testkit:provenance e6ecc5b2ec80c11c652bb22bd340f7d66656d822ca24aff2aa8d3e424c65648c

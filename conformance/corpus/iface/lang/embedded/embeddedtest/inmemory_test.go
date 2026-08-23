@@ -27,7 +27,7 @@ func TestComposedContract(t *testing.T) {
 func TestComposedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	embeddedtest.ProveComposed(t, composedChecks)
+	embeddedtest.ProveComposed(t, composed("in-memory"), composedChecks)
 }
 
 // TestBaseContract runs the first embedded interface, which is a contract in
@@ -53,7 +53,7 @@ func TestBaseContractWithoutSmoke(t *testing.T) {
 func TestBaseChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	embeddedtest.ProveBase(t, baseChecks)
+	embeddedtest.ProveBase(t, base("in-memory"), baseChecks)
 }
 
 // TestCloserContract runs the second embedded interface.
@@ -77,7 +77,7 @@ func TestCloserContractWithoutSmoke(t *testing.T) {
 func TestCloserChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	embeddedtest.ProveCloser(t, closerChecks)
+	embeddedtest.ProveCloser(t, closer("in-memory"), closerChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

@@ -39,7 +39,7 @@ func TestFinderContractWithoutSmoke(t *testing.T) {
 func TestFinderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	variadictest.ProveFinder(t, finderChecks)
+	variadictest.ProveFinder(t, inMemory("in-memory"), finderChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

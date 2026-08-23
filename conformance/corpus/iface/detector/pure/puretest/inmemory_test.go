@@ -43,7 +43,7 @@ func TestPureContractWithoutSmoke(t *testing.T) {
 func TestPureChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	puretest.ProvePure(t, pureChecks)
+	puretest.ProvePure(t, labelled("in-memory", "first"), pureChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

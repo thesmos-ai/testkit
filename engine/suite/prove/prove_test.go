@@ -250,6 +250,60 @@ func TestGreenSkipsExcusedChecks(t *testing.T) {
 	Green(t, []suite.Check[fake]{alwaysRed()}, sub)
 }
 
+// TestAnswering pins the seam that lets a generated defect take a check
+// declaring a door: the doors come from the run's harness, and a defect
+// keeps whatever it answered for itself.
+func TestAnswering(t *testing.T) {
+	t.Parallel()
+
+	owned := defect()
+	owned.Provides = map[suite.Capability]any{"less": "the defect's own"}
+	in := Defects[fake]{"X/plain": defect(), "X/owned": owned}
+
+	out := in.Answering(map[suite.Capability]any{"less": "the harness's", "stats": 1})
+
+	if got := out["X/plain"].Provides["less"]; got != "the harness's" {
+		t.Errorf("a defect answering nothing must take the harness's door, got %v", got)
+	}
+	if got := out["X/owned"].Provides["less"]; got != "the defect's own" {
+		t.Errorf("a defect's own answer must survive, got %v", got)
+	}
+	if got := out["X/owned"].Provides["stats"]; got != 1 {
+		t.Errorf("and the doors it did not answer must still arrive, got %v", got)
+	}
+	if in["X/plain"].Provides != nil {
+		t.Error("the original map must be left alone")
+	}
+	if same := in.Answering(nil); len(same) != len(in) {
+		t.Errorf("no doors is the same map, got %d entries", len(same))
+	}
+}
+
+// TestRedGate pins the proof's capability gate from the other side: a
+// defect that cannot take the check is refused naming the arm, because
+// the wiring red it would otherwise produce is not evidence.
+//
+// alwaysRed reds against anything, so only the gate firing first keeps
+// the unarmed arm's assertion meaningful.
+func TestRedGate(t *testing.T) {
+	t.Parallel()
+
+	needy := alwaysRed()
+	needy.ID = "X/needs-clock"
+	needy.Needs = suite.NeedsClock()
+
+	if msg := redGate(needy, defect().Subject); !strings.Contains(msg, "OnClock") {
+		t.Errorf("an unarmed defect must be refused naming the arm, got %q", msg)
+	}
+
+	armed := defect()
+	armed.OnClock = func(testing.TB, *clock.TestClock) fake { return fake{} }
+	if msg := redGate(needy, armed.Subject); msg != "" {
+		t.Errorf("an armed defect must pass the gate, got %q", msg)
+	}
+	Red(t, []suite.Check[fake]{needy}, needy.ID, armed)
+}
+
 // TestGreenGate pins the control's capability gate: an unarmed control is
 // refused naming the arm — a wiring red would poison the specificity
 // measurement — and an armed one runs the check.

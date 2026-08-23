@@ -46,7 +46,7 @@ func TestStreamReaderContractWithoutSmoke(t *testing.T) {
 func TestStreamReaderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	streamreadertest.ProveStreamReader(t, streamReaderChecks)
+	streamreadertest.ProveStreamReader(t, inMemory("in-memory"), streamReaderChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

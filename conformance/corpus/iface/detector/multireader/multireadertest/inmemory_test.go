@@ -44,7 +44,7 @@ func TestMultiReaderContractWithoutSmoke(t *testing.T) {
 func TestMultiReaderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	multireadertest.ProveMultiReader(t, multiReaderChecks)
+	multireadertest.ProveMultiReader(t, inMemory("in-memory"), multiReaderChecks)
 }
 
 // TestGetWithMetaZeroesEverySlot pins the GENERATED check rather than the row:

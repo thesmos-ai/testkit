@@ -10,5 +10,7 @@ Put/deadline	signature/deadline	Put reports an expired deadline as exceeded
 Put/nilcontext	signature/nilcontext	Put returns an error rather than panicking on a nil context	
 Put/smoke	signature/smoke	Put survives a call with a derived value	
 model/contract/AUTO-ATOMIC-WRITE	model/laws	a write that errs leaves the observable state unchanged	AUTO-ATOMIC-WRITE
+model/contract/AUTO-LINEARIZABLE	model/concurrent	concurrent operation histories are linearizable	
 model/contract/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/contract/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+sim/contract/recovery	sim/recovery	every acknowledged write is still readable after the process is rebuilt over its medium	

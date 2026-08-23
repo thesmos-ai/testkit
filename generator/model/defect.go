@@ -59,7 +59,73 @@ func lawDefects() map[string]lawDefectRule {
 		lawid.LifecycleAfterClose:      afterCloseOutlives,
 		lawid.PoisonConsistent:         poisonHeals,
 		lawid.AppenderMonotonicOffsets: appenderFreezes,
+
+		// The carrier-does-nothing family. Each of these laws reads what
+		// one method answers — a value read back, a delivery, a refusal
+		// the context asked for — so a carrier that acts on nothing and
+		// reports success breaks it directly. One statement, several
+		// claims, which is what [projection.AnswersAnyway] is named for.
+		//
+		// The comparison laws are deliberately absent. A carrier that
+		// answers nothing looks, to a law comparing subject against
+		// reference, exactly like a subject that has nothing to report —
+		// and the corpus measured it slipping through on 22 of 30
+		// fixtures. Whatever breaks those is not this statement, and a
+		// rule that does not redden is not evidence.
+		lawid.WriteObservable:          carrierDoesNothing,
+		lawid.LifecycleRespectsContext: carrierDoesNothing,
+		lawid.PublisherDelivers:        carrierDoesNothing,
+		lawid.PublisherAtLeastOnce:     carrierDoesNothing,
+		lawid.PersisterRetrievable:     carrierDoesNothing,
+		lawid.StreamReflectsMutations:  carrierDoesNothing,
+		lawid.StreamOverMatch:          carrierDoesNothing,
+		lawid.StreamPermutation:        carrierDoesNothing,
+		lawid.WatcherReturnsOnChange:   carrierDoesNothing,
+		lawid.Roundtrip:                carrierDoesNothing,
+
+		// The repeat family: the first call lands and the second
+		// refuses, which is what an idempotence claim forbids and what
+		// no total defect can state.
+		lawid.IdempotentWrite:     carrierRefusesItsRepeat,
+		lawid.UpserterIdempotent:  carrierRefusesItsRepeat,
+		lawid.IdempotentLifecycle: carrierRefusesItsRepeat,
 	}
+}
+
+// carrierDoesNothing plants the method that stamped the law acting on
+// nothing and reporting success.
+//
+// The carrier rather than a writer picked by shape: the law reads what
+// ITS method answers, and a defect on some other method is one the law
+// has no reason to notice. The corpus settled that for the appender
+// already — its law appends through a closure of its own, over a method
+// the sequences never drive.
+func carrierDoesNothing(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool) {
+	m := methodNamed(b, l.carrier.Name)
+	if m == nil {
+		return nil, nil, false
+	}
+	return projection.AnswersAnyway{
+		Clause: projection.Clause{Text: suite.DropsWriteClause(*m)},
+		Option: projection.OptionName(b.IfaceName, m.Name),
+	}, m, true
+}
+
+// carrierRefusesItsRepeat plants the first call landing and the second
+// refusing — the one shape an idempotence claim can see.
+//
+// A total defect cannot state it: a method that always fails breaks the
+// first call too, which is a different claim, and one that always
+// succeeds is what the law expects.
+func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool) {
+	m := methodNamed(b, l.carrier.Name)
+	if m == nil {
+		return nil, nil, false
+	}
+	return projection.SecondCallErrs{
+		Clause: projection.Clause{Text: m.Name + " refuses its repeat"},
+		Option: projection.OptionName(b.IfaceName, m.Name),
+	}, m, true
 }
 
 // differentialDefect is the rule that proves the reference comparison: a

@@ -7,91 +7,30 @@
 package streamconsumertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/streamconsumer"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/streamconsumer/streamconsumertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestSourceProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveSource.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestSourceProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		streamconsumertest.SourceSuite.Suite().Checks,
-		sourceProofs())
-}
-
-// sourceProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveSource
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func sourceProofs() prove.Defects[streamconsumertest.Source] {
-	ix := streamconsumertest.SourceSuite.Checks
-	return prove.Defects[streamconsumertest.Source]{
-		ix.Next.Smoke(): prove.One("a Source whose Next panics",
-			func(tb testing.TB) streamconsumertest.Source {
-				return streamconsumertest.NewSourceStub(tb, streamconsumertest.WithSourceNext(
-					func(_ context.Context) (streamconsumer.Value, bool, error) {
-						panic("planted: Next panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Next.Cancels(): prove.One("a Source whose Next ignores the context it is handed",
-			func(tb testing.TB) streamconsumertest.Source {
-				return streamconsumertest.NewSourceStub(tb, streamconsumertest.WithSourceNext(
-					func(_ context.Context) (r0 streamconsumer.Value, r1 bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Next.NilContext(): prove.One("a Source whose Next forgives a nil context and answers",
-			func(tb testing.TB) streamconsumertest.Source {
-				return streamconsumertest.NewSourceStub(tb, streamconsumertest.WithSourceNext(
-					func(_ context.Context) (r0 streamconsumer.Value, r1 bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Next.Deadline(): prove.One("a Source whose Next ignores the context it is handed",
-			func(tb testing.TB) streamconsumertest.Source {
-				return streamconsumertest.NewSourceStub(tb, streamconsumertest.WithSourceNext(
-					func(_ context.Context) (r0 streamconsumer.Value, r1 bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Next.ZeroOnError(): prove.One("a Source whose Next answers a believable value beside its error",
-			func(tb testing.TB) streamconsumertest.Source {
-				return streamconsumertest.NewSourceStub(tb, streamconsumertest.WithSourceNext(
-					func(_ context.Context) (r0 streamconsumer.Value, r1 bool, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = streamconsumer.Value{Key: "other-value"}
-						err = errors.New("planted: Next refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Next.Smoke — a Source whose Next panics
+//
+//	Next.Cancels — a Source whose Next ignores the context it is handed
+//
+//	Next.NilContext — a Source whose Next forgives a nil context and answers
+//
+//	Next.Deadline — a Source whose Next ignores the context it is handed
+//
+//	Next.ZeroOnError — a Source whose Next answers a believable value beside its error
 
 // TestSourceInvariants holds this package to what it says about itself.
 //
@@ -120,38 +59,16 @@ func TestSourceInvariants(t *testing.T) {
 	suite.VerifyDistinctIDs(t, s.IDs())
 }
 
-// TestStreamConsumerProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveStreamConsumer.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestStreamConsumerProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		streamconsumertest.StreamConsumerSuite.Suite(streamconsumertest.DefaultStreamConsumerFixture()).Checks,
-		streamConsumerProofs())
-}
-
-// streamConsumerProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveStreamConsumer
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func streamConsumerProofs() prove.Defects[streamconsumertest.StreamConsumer] {
-	ix := streamconsumertest.StreamConsumerSuite.Checks
-	return prove.Defects[streamconsumertest.StreamConsumer]{
-		ix.Ingest.Smoke(): prove.One("a StreamConsumer whose Ingest panics",
-			func(tb testing.TB) streamconsumertest.StreamConsumer {
-				return streamconsumertest.NewStreamConsumerStub(tb, streamconsumertest.WithStreamConsumerIngest(
-					func(_ context.Context, _ streamconsumer.Source) (int, error) {
-						panic("planted: Ingest panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Ingest.Smoke — a StreamConsumer whose Ingest panics
 
 // TestStreamConsumerInvariants holds this package to what it says about itself.
 //
@@ -181,4 +98,4 @@ func TestStreamConsumerInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 6a3377d158919db0137aac40fcbc49d02a66b9ce6b975eb707dbdf5bab0a0630
+// testkit:provenance 5bfcea91a64201834afb725b06a205e61101643f051db8e1bf8ef64fdc6bce90

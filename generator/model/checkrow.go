@@ -20,9 +20,16 @@ import (
 // the runner treats differently, and "the model tier's checks are second
 // class" is not a claim anybody wants to defend.
 type CheckRow struct {
-	// Accessor is the index method naming this row —
-	// `Model.TTLExpiry()`. The family is fixed; only the word varies.
-	Accessor string
+	// Group is the index field this row is named under, and Accessor the
+	// method on it — together `Model.TTLExpiry()`.
+	//
+	// Per row rather than per declaration. The index groups by the ID's
+	// family, and this tier no longer plans into one family: the crash
+	// row reports under sim because it judges the subject against its own
+	// acknowledgements across a seam nothing else in the run crosses, and
+	// a declaration naming one group for all its rows would look every
+	// row up under whichever family happened to be written here.
+	Group, Accessor string
 
 	// AssertName is the generated function the row's RunWith calls.
 	AssertName string
@@ -50,15 +57,13 @@ type CheckRow struct {
 	Proven   bool
 	Argument string
 
-	// NeedsCtor is the runtime constructor spelling what this row demands
-	// of the harness beyond a constructor — `NeedsClock` — empty for a row
-	// that demands nothing.
+	// Needs are the capability doors this row demands of the harness, as
+	// the literal spells them.
 	//
-	// The named constructor rather than the capability and its value,
-	// because the runtime is where that pairing is decided: a row spelling
-	// `Needs(CapClock, nil)` would be a second place that has to know a
-	// clock door carries no value.
-	NeedsCtor string
+	// A list rather than one constructor, because a law can read a clock
+	// and a supplied fact at once, and a row naming only the first is one
+	// the runner admits against a subject that cannot serve it.
+	Needs []NeedCap
 
 	// Binds names the laws the row reports under, where any back it, each
 	// as the lawid identifier that declares it. A generated file naming a
@@ -76,6 +81,7 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 	out := make([]CheckRow, 0, len(plans))
 	for _, p := range plans {
 		out = append(out, CheckRow{
+			Group:         golang.ExportedName(p.ID.Family),
 			Accessor:      rowAccessor(p.ID),
 			AssertName:    rowAssertName(token, p.ID),
 			ClassConst:    classConst(p.Class),
@@ -83,7 +89,7 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 			Claim:         p.Claim,
 			Proven:        p.Falsifiable.State == vocab.Proven().State,
 			Argument:      p.Falsifiable.Why,
-			NeedsCtor:     needsCtor(p.Needs),
+			Needs:         needsCaps(p.Needs),
 			Binds:         lawConsts(p.Binds),
 		})
 	}
@@ -105,23 +111,49 @@ func rowAccessor(id projection.IDPlan) string {
 	return acc.Name
 }
 
-// needsCtor names the runtime constructor for what a row demands of the
-// harness, empty for a row that demands nothing.
+// needsCaps spells every door a row demands of the harness, empty for a
+// row that demands nothing.
 //
-// One capability at most, which is what this tier plans: a clocked law
-// needs the subject built on a clock it can move, and every other leg
-// provokes what it needs through methods the interface declares. A plan
-// carrying two would be one this cannot spell, so it says nothing rather
-// than spelling the first and dropping the second.
-func needsCtor(needs []projection.NeedPlan) string {
-	if len(needs) != 1 {
-		return ""
+// Every one, in plan order. A law can read a clock and a
+// consumer-supplied fact at once — the windowed law does — and a row
+// naming only the first is one the runner admits against a subject that
+// cannot serve it, so the check fails inside the body naming a nil
+// closure rather than at the gate naming the field that arms it.
+func needsCaps(needs []projection.NeedPlan) []NeedCap {
+	out := make([]NeedCap, 0, len(needs))
+	for _, n := range needs {
+		if name, named := capConsts[n.Capability]; named {
+			out = append(out, NeedCap{Const: name})
+			continue
+		}
+		out = append(out, NeedCap{Name: string(n.Capability)})
 	}
-	if needs[0].Capability == vocab.CapClock {
-		return "NeedsClock"
-	}
-	return ""
+	return out
 }
+
+// capConsts is the runtime's identifier for each door it names.
+//
+// The doors with a dedicated Subject field, which is the same thing: a
+// door the runtime answers from a field of its own has a constant
+// declaring it, and a door only a given interface's checks know does
+// not. A generated file spelling the string where a constant exists is a
+// second home for the vocabulary, and the two drift the moment one is
+// reworded.
+//
+//nolint:gochecknoglobals // a vocabulary table, read-only after init.
+var capConsts = map[vocab.Capability]string{
+	vocab.CapClock:   "CapClock",
+	vocab.CapInduce:  "CapInduce",
+	vocab.CapRecover: "CapRecover",
+}
+
+// NeedCap is one door in a row's Needs literal: the runtime constant the
+// vocabulary declares it under, or its bare name where it declares none.
+//
+// The constant where one exists, because a door the runtime names has a
+// home for its spelling — and a generated file repeating the literal is
+// where that home stops being single.
+type NeedCap struct{ Const, Name string }
 
 // strengthConst is the runtime's identifier for how far a body looks.
 //

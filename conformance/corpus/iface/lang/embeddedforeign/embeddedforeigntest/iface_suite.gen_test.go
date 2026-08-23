@@ -7,97 +7,32 @@
 package embeddedforeigntest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/embeddedforeign/embeddedforeigntest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestStreamProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveStream.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestStreamProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		embeddedforeigntest.StreamSuite.Suite(embeddedforeigntest.DefaultStreamFixture()).Checks,
-		streamProofs())
-}
-
-// streamProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveStream
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func streamProofs() prove.Defects[embeddedforeigntest.Stream] {
-	ix := embeddedforeigntest.StreamSuite.Checks
-	return prove.Defects[embeddedforeigntest.Stream]{
-		ix.Read.Smoke(): prove.One("a Stream whose Read panics",
-			func(tb testing.TB) embeddedforeigntest.Stream {
-				return embeddedforeigntest.NewStreamStub(tb, embeddedforeigntest.WithStreamRead(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Read panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Read.Cancels(): prove.One("a Stream whose Read ignores the context it is handed",
-			func(tb testing.TB) embeddedforeigntest.Stream {
-				return embeddedforeigntest.NewStreamStub(tb, embeddedforeigntest.WithStreamRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Read.NilContext(): prove.One("a Stream whose Read forgives a nil context and answers",
-			func(tb testing.TB) embeddedforeigntest.Stream {
-				return embeddedforeigntest.NewStreamStub(tb, embeddedforeigntest.WithStreamRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Read.Deadline(): prove.One("a Stream whose Read ignores the context it is handed",
-			func(tb testing.TB) embeddedforeigntest.Stream {
-				return embeddedforeigntest.NewStreamStub(tb, embeddedforeigntest.WithStreamRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Read.ZeroOnError(): prove.One("a Stream whose Read answers a believable value beside its error",
-			func(tb testing.TB) embeddedforeigntest.Stream {
-				return embeddedforeigntest.NewStreamStub(tb, embeddedforeigntest.WithStreamRead(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Read refused with a believable value")
-						return
-					}))
-			}),
-		ix.Close.Smoke(): prove.One("a Stream whose Close panics",
-			func(tb testing.TB) embeddedforeigntest.Stream {
-				return embeddedforeigntest.NewStreamStub(tb, embeddedforeigntest.WithStreamClose(
-					func() error {
-						panic("planted: Close panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Read.Smoke — a Stream whose Read panics
+//
+//	Read.Cancels — a Stream whose Read ignores the context it is handed
+//
+//	Read.NilContext — a Stream whose Read forgives a nil context and answers
+//
+//	Read.Deadline — a Stream whose Read ignores the context it is handed
+//
+//	Read.ZeroOnError — a Stream whose Read answers a believable value beside its error
+//
+//	Close.Smoke — a Stream whose Close panics
 
 // TestStreamInvariants holds this package to what it says about itself.
 //
@@ -127,4 +62,4 @@ func TestStreamInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9d5d451da89a81fed8960832c980b2a3c6fb3a1858b38c51b130b946f5b8afca
+// testkit:provenance 96bb768e8978f4e25e404a800b81ec710bf324f268446d012f254ce860b07d62

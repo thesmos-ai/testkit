@@ -8,6 +8,7 @@ package embeddedtest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -491,8 +492,15 @@ func (c BaseCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, baseMethods); err != nil {
 			return out, err
@@ -510,10 +518,10 @@ func (c BaseCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -565,11 +573,56 @@ func RunBase(
 		rc.Subjects...)
 }
 
-// ProveBase runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// baseProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveBase(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func baseProofs() prove.Defects[Base] {
+	ix := BaseSuite.Checks
+	return prove.Defects[Base]{
+		ix.Ping.Smoke(): prove.One("a Base whose Ping panics",
+			func(tb testing.TB) Base {
+				return NewBaseStub(tb, WithBasePing(
+					func(_ context.Context) error {
+						panic("planted: Ping panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Ping.Cancels(): prove.One("a Base whose Ping ignores the context it is handed",
+			func(tb testing.TB) Base {
+				return NewBaseStub(tb, WithBasePing(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Ping.NilContext(): prove.One("a Base whose Ping forgives a nil context and answers",
+			func(tb testing.TB) Base {
+				return NewBaseStub(tb, WithBasePing(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+	}
+}
+
+// ProveBase runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveBase(t, BaseHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -579,23 +632,40 @@ func RunBase(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunBase does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveBase(
-	t *testing.T, checks BaseChecks,
+	t *testing.T, opts ...BaseRunOpt,
 ) {
 	t.Helper()
+	var rc baseRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := baseNewFixture()
-	bound := make([]suite.Check[Base], 0, len(checks))
-	defects := prove.Defects[Base]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveBase")
+	s := baseSuite().With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := baseProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveBase: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -605,7 +675,13 @@ func ProveBase(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // Conformance checks for Closer, worked out from its declaration.
@@ -1083,8 +1159,15 @@ func (c CloserCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, closerMethods); err != nil {
 			return out, err
@@ -1102,10 +1185,10 @@ func (c CloserCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -1157,11 +1240,56 @@ func RunCloser(
 		rc.Subjects...)
 }
 
-// ProveCloser runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// closerProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveCloser(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func closerProofs() prove.Defects[Closer] {
+	ix := CloserSuite.Checks
+	return prove.Defects[Closer]{
+		ix.Close.Smoke(): prove.One("a Closer whose Close panics",
+			func(tb testing.TB) Closer {
+				return NewCloserStub(tb, WithCloserClose(
+					func(_ context.Context) error {
+						panic("planted: Close panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Close.Cancels(): prove.One("a Closer whose Close ignores the context it is handed",
+			func(tb testing.TB) Closer {
+				return NewCloserStub(tb, WithCloserClose(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Close.NilContext(): prove.One("a Closer whose Close forgives a nil context and answers",
+			func(tb testing.TB) Closer {
+				return NewCloserStub(tb, WithCloserClose(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+	}
+}
+
+// ProveCloser runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveCloser(t, CloserHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -1171,23 +1299,40 @@ func RunCloser(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunCloser does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveCloser(
-	t *testing.T, checks CloserChecks,
+	t *testing.T, opts ...CloserRunOpt,
 ) {
 	t.Helper()
+	var rc closerRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := closerNewFixture()
-	bound := make([]suite.Check[Closer], 0, len(checks))
-	defects := prove.Defects[Closer]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveCloser")
+	s := closerSuite().With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := closerProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveCloser: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -1197,7 +1342,13 @@ func ProveCloser(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // Conformance checks for Composed, worked out from its declaration.
@@ -1918,8 +2069,15 @@ func (c ComposedCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, composedMethods); err != nil {
 			return out, err
@@ -1937,10 +2095,10 @@ func (c ComposedCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -1992,11 +2150,133 @@ func RunComposed(
 		rc.Subjects...)
 }
 
-// ProveComposed runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// composedProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveComposed(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func composedProofs() prove.Defects[Composed] {
+	ix := ComposedSuite.Checks
+	return prove.Defects[Composed]{
+		ix.Get.Smoke(): prove.One("a Composed whose Get panics",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedGet(
+					func(_ context.Context, _ string) (string, error) {
+						panic("planted: Get panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Get.Cancels(): prove.One("a Composed whose Get ignores the context it is handed",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedGet(
+					func(_ context.Context, _ string) (r0 string, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Get.NilContext(): prove.One("a Composed whose Get forgives a nil context and answers",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedGet(
+					func(_ context.Context, _ string) (r0 string, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Get.Deadline(): prove.One("a Composed whose Get ignores the context it is handed",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedGet(
+					func(_ context.Context, _ string) (r0 string, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.ZeroOnError(): prove.One("a Composed whose Get answers a believable value beside its error",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedGet(
+					func(_ context.Context, _ string) (r0 string, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = "other-"
+						err = errors.New("planted: Get refused with a believable value")
+						return
+					}))
+			}),
+		ix.Ping.Smoke(): prove.One("a Composed whose Ping panics",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedPing(
+					func(_ context.Context) error {
+						panic("planted: Ping panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Ping.Cancels(): prove.One("a Composed whose Ping ignores the context it is handed",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedPing(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Ping.NilContext(): prove.One("a Composed whose Ping forgives a nil context and answers",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedPing(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Close.Smoke(): prove.One("a Composed whose Close panics",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedClose(
+					func(_ context.Context) error {
+						panic("planted: Close panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Close.Cancels(): prove.One("a Composed whose Close ignores the context it is handed",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedClose(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Close.NilContext(): prove.One("a Composed whose Close forgives a nil context and answers",
+			func(tb testing.TB) Composed {
+				return NewComposedStub(tb, WithComposedClose(
+					func(_ context.Context) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+	}
+}
+
+// ProveComposed runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveComposed(t, ComposedHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -2006,23 +2286,40 @@ func RunComposed(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunComposed does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveComposed(
-	t *testing.T, checks ComposedChecks,
+	t *testing.T, opts ...ComposedRunOpt,
 ) {
 	t.Helper()
+	var rc composedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := composedNewFixture()
-	bound := make([]suite.Check[Composed], 0, len(checks))
-	defects := prove.Defects[Composed]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveComposed")
+	s := composedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := composedProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveComposed: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -2032,8 +2329,14 @@ func ProveComposed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance 19103bd8c01ae87f24422190f0dfa45eff1303ba3e94a39cadb525b523cde79c
+// testkit:provenance 062fef954511f2512954fe420b252a13b09bf2812100d0ad0a18fa1473c412da

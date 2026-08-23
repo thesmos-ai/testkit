@@ -176,6 +176,55 @@ func ConcurrentCAS[T, V any](
 	}
 }
 
+// ConcurrentWrite creates a ConcurrentAction for a Writer-shaped method
+// whose history a STEPLESS model carries: one partition, because nothing
+// partitions a history no model steps.
+//
+// The keyed [ConcurrentWriter] cannot serve it. That one partitions by the
+// key a write lands on, and a store assigning its own version stamp
+// derives no key projection at all — which is the same fact that put it on
+// a stepless model, since a stamp the subject chooses defeats the value
+// equality every model compares by. The verdict comes from the per-client
+// laws reading the multi-client trace, and those read the method name.
+func ConcurrentWrite[T, V any](
+	name string,
+	values *rapid.Generator[V],
+	write func(context.Context, T, V) error,
+) model.ConcurrentAction[T] {
+	return model.ConcurrentAction[T]{
+		Name: name,
+		Gen: func(rt *rapid.T) any {
+			return values.Draw(rt, name+"_value")
+		},
+		Apply: func(ctx context.Context, impl T, input any) any {
+			err := write(ctx, impl, input.(V))
+			return WriterResult{Err: err}
+		},
+		PartitionKey: func(any) string { return "" },
+	}
+}
+
+// ConcurrentAnsweringWrite is [ConcurrentWrite] for a write that answers
+// the state it stored, which is how a version-stamping store hands its
+// stamp back — the value the per-client laws order reads against.
+func ConcurrentAnsweringWrite[T, V any](
+	name string,
+	values *rapid.Generator[V],
+	write func(context.Context, T, V) (V, error),
+) model.ConcurrentAction[T] {
+	return model.ConcurrentAction[T]{
+		Name: name,
+		Gen: func(rt *rapid.T) any {
+			return values.Draw(rt, name+"_value")
+		},
+		Apply: func(ctx context.Context, impl T, input any) any {
+			v, err := write(ctx, impl, input.(V))
+			return AnsweringResult[V]{Value: v, Err: err}
+		},
+		PartitionKey: func(any) string { return "" },
+	}
+}
+
 // ConcurrentCellReader creates a ConcurrentAction for a keyless read of the
 // whole cell — nothing to draw, and the one partition is the cell itself.
 func ConcurrentCellReader[T, V any](

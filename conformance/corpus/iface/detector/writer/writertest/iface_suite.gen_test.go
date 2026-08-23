@@ -7,77 +7,28 @@
 package writertest_test
 
 import (
-	"context"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/writer"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/writer/writertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestWriterProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveWriter.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestWriterProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		writertest.WriterSuite.Suite(writertest.DefaultWriterFixture()).Checks,
-		writerProofs())
-}
-
-// writerProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveWriter
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func writerProofs() prove.Defects[writertest.Writer] {
-	ix := writertest.WriterSuite.Checks
-	return prove.Defects[writertest.Writer]{
-		ix.Put.Smoke(): prove.One("a Writer whose Put panics",
-			func(tb testing.TB) writertest.Writer {
-				return writertest.NewWriterStub(tb, writertest.WithWriterPut(
-					func(_ context.Context, _ writer.Value) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Writer whose Put ignores the context it is handed",
-			func(tb testing.TB) writertest.Writer {
-				return writertest.NewWriterStub(tb, writertest.WithWriterPut(
-					func(_ context.Context, _ writer.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Writer whose Put forgives a nil context and answers",
-			func(tb testing.TB) writertest.Writer {
-				return writertest.NewWriterStub(tb, writertest.WithWriterPut(
-					func(_ context.Context, _ writer.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Writer whose Put ignores the context it is handed",
-			func(tb testing.TB) writertest.Writer {
-				return writertest.NewWriterStub(tb, writertest.WithWriterPut(
-					func(_ context.Context, _ writer.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-	}
-}
+//	Put.Smoke — a Writer whose Put panics
+//
+//	Put.Cancels — a Writer whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Writer whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Writer whose Put ignores the context it is handed
 
 // TestWriterInvariants holds this package to what it says about itself.
 //
@@ -107,4 +58,4 @@ func TestWriterInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 4cc1a53110fc2641b50a47b38095867d735ca8157707adecbb6b526a8205aa72
+// testkit:provenance e5fae2897e287ad957480a69b2657b5260550b105f772fd9cdb5801b9ce9d3f7

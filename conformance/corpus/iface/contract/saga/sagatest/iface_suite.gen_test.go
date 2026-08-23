@@ -7,165 +7,46 @@
 package sagatest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/saga"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/saga/sagatest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		sagatest.ContractSuite.Suite(sagatest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[sagatest.Contract] {
-	ix := sagatest.ContractSuite.Checks
-	return prove.Defects[sagatest.Contract]{
-		ix.Step.Smoke(): prove.One("a Contract whose Step panics",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractStep(
-					func(_ context.Context, _ saga.Value) error {
-						panic("planted: Step panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Step.Cancels(): prove.One("a Contract whose Step ignores the context it is handed",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractStep(
-					func(_ context.Context, _ saga.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Step.NilContext(): prove.One("a Contract whose Step forgives a nil context and answers",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractStep(
-					func(_ context.Context, _ saga.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Step.Deadline(): prove.One("a Contract whose Step ignores the context it is handed",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractStep(
-					func(_ context.Context, _ saga.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Compensate.Smoke(): prove.One("a Contract whose Compensate panics",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractCompensate(
-					func(_ context.Context, _ saga.Value) error {
-						panic("planted: Compensate panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Compensate.Cancels(): prove.One("a Contract whose Compensate ignores the context it is handed",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractCompensate(
-					func(_ context.Context, _ saga.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Compensate.NilContext(): prove.One("a Contract whose Compensate forgives a nil context and answers",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractCompensate(
-					func(_ context.Context, _ saga.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Compensate.Deadline(): prove.One("a Contract whose Compensate ignores the context it is handed",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractCompensate(
-					func(_ context.Context, _ saga.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.State.Smoke(): prove.One("a Contract whose State panics",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractState(
-					func(_ context.Context) (string, error) {
-						panic("planted: State panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.State.Cancels(): prove.One("a Contract whose State ignores the context it is handed",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractState(
-					func(_ context.Context) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.State.NilContext(): prove.One("a Contract whose State forgives a nil context and answers",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractState(
-					func(_ context.Context) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.State.Deadline(): prove.One("a Contract whose State ignores the context it is handed",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractState(
-					func(_ context.Context) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.State.ZeroOnError(): prove.One("a Contract whose State answers a believable value beside its error",
-			func(tb testing.TB) sagatest.Contract {
-				return sagatest.NewContractStub(tb, sagatest.WithContractState(
-					func(_ context.Context) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: State refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Step.Smoke — a Contract whose Step panics
+//
+//	Step.Cancels — a Contract whose Step ignores the context it is handed
+//
+//	Step.NilContext — a Contract whose Step forgives a nil context and answers
+//
+//	Step.Deadline — a Contract whose Step ignores the context it is handed
+//
+//	Compensate.Smoke — a Contract whose Compensate panics
+//
+//	Compensate.Cancels — a Contract whose Compensate ignores the context it is handed
+//
+//	Compensate.NilContext — a Contract whose Compensate forgives a nil context and answers
+//
+//	Compensate.Deadline — a Contract whose Compensate ignores the context it is handed
+//
+//	State.Smoke — a Contract whose State panics
+//
+//	State.Cancels — a Contract whose State ignores the context it is handed
+//
+//	State.NilContext — a Contract whose State forgives a nil context and answers
+//
+//	State.Deadline — a Contract whose State ignores the context it is handed
+//
+//	State.ZeroOnError — a Contract whose State answers a believable value beside its error
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -195,4 +76,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 265da3f28a89e8ac9825b90d3d75fce0f26146f6e45da4da63c8a6d4db8feaa3
+// testkit:provenance 0d0eb6b3a1d2afa77c07bfb0797aae5ef2fe7f2bf62f18136c550cc55856d411

@@ -1,0 +1,17 @@
+{{- /*
+A two-role cycle drives the pair as one step — take, then hand back — which
+is the driving two standalone actions could never state. Every claim the
+pool contract makes is about the round trip: a value is outstanding between
+the two calls, so a walk that interleaves them independently is never at
+rest, and a leak-free law checked between steps reads a legitimately-held
+value as a leak.
+*/ -}}
+{{- define "model.action.cycle" -}}
+{{ renderExpr .Ctor }}({{ printf "%q" .Method }},
+				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}) ({{ renderType .Value }}, error) {
+					return s.{{ .Method }}({{ if .TakesCtx }}ctx{{ end }})
+				},
+				func({{ if .PartnerCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, taken {{ renderType .Value }}) error {
+					return s.{{ .Partner }}({{ if .PartnerCtx }}ctx, {{ end }}taken)
+				})
+{{- end -}}

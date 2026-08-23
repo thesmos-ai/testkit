@@ -274,8 +274,15 @@ func TestDrainFixtures(t *testing.T) {
 }
 
 // TestHistoryDrainForcesTheLog pins the drain fork's history arm: a claim
-// whose vocabulary is events outranks the upsert inference an incidental Key
-// field would trigger.
+// whose vocabulary is repeats outranks the upsert inference an incidental
+// Key field would trigger.
+//
+// Stamped overmatch rather than an isolation claim, which was the example
+// until an isolation level became an admission policy: a store that refuses
+// the operation an anomaly would need defeats every immediate oracle, so
+// that claim never reaches the collection-or-map fork this pins. The drain
+// claims still do — overmatch says a drain owes every write behind it, and
+// a map inferred from a Key field would drop the second write to one key.
 func TestHistoryDrainForcesTheLog(t *testing.T) {
 	t.Parallel()
 
@@ -284,10 +291,32 @@ func TestHistoryDrainForcesTheLog(t *testing.T) {
 		for _, m := range iface.Methods {
 			// Replacing the fixture's noduplicates claim outright: a history
 			// under a dedupe claim is a different fixture's question.
+			shape.MetaMixins.Set(m.EnsureMeta(), []string{"overmatch"}, "test")
+		}
+	}
+	b := bindingsOf(t, s)
+	testkit.True(t, b.Reference.Collects(), "writes accumulate; they do not upsert")
+	testkit.False(t, b.Reference.Dedupe, "and identical writes repeat")
+}
+
+// TestIsolationClaimDefeatsTheOracle pins the verdict that replaced the
+// isolation fixtures' log reference: the level is a policy about what the
+// store REFUSES, and every derived oracle records what it is handed.
+//
+// The corpus proved both halves. Left deriving a log, the reference admitted
+// entries the subject refused and the differential reddened correct code;
+// before that, with the subject recording passively, the anomaly laws found
+// anomalies the drawn values had fabricated. The twin refuses alongside.
+func TestIsolationClaimDefeatsTheOracle(t *testing.T) {
+	t.Parallel()
+
+	s := drainStore(t, true)
+	for _, iface := range s.Nodes().Interfaces().Items() {
+		for _, m := range iface.Methods {
 			shape.MetaMixins.Set(m.EnsureMeta(), []string{"snapshotisolation"}, "test")
 		}
 	}
 	b := bindingsOf(t, s)
-	testkit.True(t, b.Reference.Collects(), "events append; they do not upsert")
-	testkit.False(t, b.Reference.Dedupe, "and identical events repeat")
+	testkit.True(t, b.Reference.Twin(), "an admission policy leaves no oracle to derive")
+	testkit.False(t, b.Reference.Collects(), "and the log form is not reached at all")
 }

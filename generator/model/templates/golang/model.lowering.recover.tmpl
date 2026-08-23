@@ -1,0 +1,33 @@
+{{- /*
+model.lowering.recover — carry the harness's reopen constructor onto the
+runtime subject.
+
+Rendered inside the harness's Subject method, after the subject is built.
+Both fields lower to the runtime's one Recover, so the guard refuses a
+harness that set two rather than silently taking the second.
+
+The narrowing is the one thing this lowering does that the clock's does
+not. Every other field on the harness hands an instance OUT — a
+constructor returns T and the subject takes it as the interface — and
+this is the one that takes one back in, because recovery is over the
+medium a particular instance left behind. AsBuilt is that narrowing, in
+the leg package rather than spelled here: it cannot fail for an instance
+this harness built, and where that is not true a bare assertion would
+panic naming two interface types while it names the harness.
+*/ -}}
+{{- define "model.lowering.recover" -}}
+if err := {{ renderExpr (external .Vocab "ExclusivePair") }}(h.Name, "Recover", "StartRecover",
+		h.Recover != nil, h.StartRecover != nil); err != nil {
+		return {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}]{}, err
+	}
+	if reopen := h.Recover; reopen != nil {
+		out.Recover = func(tb {{ renderExpr (external "testing" "TB") }}, prior {{ .Subject }}) {{ .Subject }} {
+			return reopen({{ renderExpr (external .LegsPkg "AsBuilt") }}[T](tb, h.Name, prior))
+		}
+	}
+	if reopen := h.StartRecover; reopen != nil {
+		out.Recover = func(tb {{ renderExpr (external "testing" "TB") }}, prior {{ .Subject }}) {{ .Subject }} {
+			return reopen(tb, {{ renderExpr (external .LegsPkg "AsBuilt") }}[T](tb, h.Name, prior))
+		}
+	}
+{{- end -}}

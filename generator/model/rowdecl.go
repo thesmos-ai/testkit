@@ -4,10 +4,8 @@
 package model
 
 import (
-	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/sdk"
 
-	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/suite"
 )
@@ -51,12 +49,12 @@ type RowDecl struct {
 	// Vocab is the runtime suite package, whose Check the rows are.
 	Vocab string
 
-	// IndexVar is the typed index the harness generator emits, and Group
-	// the field on it this tier's rows are named under. A row names its
-	// identity through the index rather than composing one, so a
-	// consumer's Without and the row report the same ID by construction.
+	// IndexVar is the typed index the harness generator emits. A row names
+	// its identity through the index rather than composing one, so a
+	// consumer's Without and the row report the same ID by construction —
+	// and WHICH field of the index a row is named under rides on the row,
+	// because this tier plans into more than one family.
 	IndexVar string
-	Group    string
 
 	// LawIDs is the law catalogue's import path, for the Binds column: a
 	// row names a law through the constant that declares it.
@@ -84,7 +82,6 @@ func rowDeclFor(
 		Vocab:      VocabPkg,
 		LawIDs:     suite.LawIDs,
 		IndexVar:   projection.IndexVar(projection.Token(b.IfaceName)),
-		Group:      golang.ExportedName(vocab.FamilyModel),
 		Rows:       CheckRows(projection.Token(b.IfaceName), b.Rows),
 		TypeParams: harness.TypeParams,
 	}

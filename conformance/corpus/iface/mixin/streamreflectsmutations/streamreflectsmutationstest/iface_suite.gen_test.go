@@ -7,121 +7,40 @@
 package streamreflectsmutationstest_test
 
 import (
-	"context"
-	"iter"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/streamreflectsmutations/streamreflectsmutationstest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		streamreflectsmutationstest.MixedSuite.Suite(streamreflectsmutationstest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[streamreflectsmutationstest.Mixed] {
-	ix := streamreflectsmutationstest.MixedSuite.Checks
-	return prove.Defects[streamreflectsmutationstest.Mixed]{
-		ix.Stream.Smoke(): prove.One("a Mixed whose Stream panics",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedStream(
-					func(_ context.Context) iter.Seq2[string, error] {
-						panic("planted: Stream panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Add.Smoke(): prove.One("a Mixed whose Add panics",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedAdd(
-					func(_ context.Context, _ string) error {
-						panic("planted: Add panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Add.Cancels(): prove.One("a Mixed whose Add ignores the context it is handed",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedAdd(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Add.NilContext(): prove.One("a Mixed whose Add forgives a nil context and answers",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedAdd(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Add.Deadline(): prove.One("a Mixed whose Add ignores the context it is handed",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedAdd(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Remove.Smoke(): prove.One("a Mixed whose Remove panics",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedRemove(
-					func(_ context.Context, _ string) error {
-						panic("planted: Remove panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Remove.Cancels(): prove.One("a Mixed whose Remove ignores the context it is handed",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedRemove(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Remove.NilContext(): prove.One("a Mixed whose Remove forgives a nil context and answers",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedRemove(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Remove.Deadline(): prove.One("a Mixed whose Remove ignores the context it is handed",
-			func(tb testing.TB) streamreflectsmutationstest.Mixed {
-				return streamreflectsmutationstest.NewMixedStub(tb, streamreflectsmutationstest.WithMixedRemove(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-	}
-}
+//	Stream.Smoke — a Mixed whose Stream panics
+//
+//	Add.Smoke — a Mixed whose Add panics
+//
+//	Add.Cancels — a Mixed whose Add ignores the context it is handed
+//
+//	Add.NilContext — a Mixed whose Add forgives a nil context and answers
+//
+//	Add.Deadline — a Mixed whose Add ignores the context it is handed
+//
+//	Remove.Smoke — a Mixed whose Remove panics
+//
+//	Remove.Cancels — a Mixed whose Remove ignores the context it is handed
+//
+//	Remove.NilContext — a Mixed whose Remove forgives a nil context and answers
+//
+//	Remove.Deadline — a Mixed whose Remove ignores the context it is handed
+//
+//	Model.StreamReflectsMutations — a Mixed whose Stream reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -151,4 +70,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 584199ce2c5e55927dd09f7d969efd17de47f1a788f84765f8b855b91488cf84
+// testkit:provenance 70eb8006c830f1ae095e3ac137f610d4f6766ab7b3dc19f60d3550fac516e85b

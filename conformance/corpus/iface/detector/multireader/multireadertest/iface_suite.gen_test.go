@@ -7,91 +7,30 @@
 package multireadertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/multireader"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/multireader/multireadertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMultiReaderProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMultiReader.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMultiReaderProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		multireadertest.MultiReaderSuite.Suite(multireadertest.DefaultMultiReaderFixture()).Checks,
-		multiReaderProofs())
-}
-
-// multiReaderProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMultiReader
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func multiReaderProofs() prove.Defects[multireadertest.MultiReader] {
-	ix := multireadertest.MultiReaderSuite.Checks
-	return prove.Defects[multireadertest.MultiReader]{
-		ix.GetWithMeta.Smoke(): prove.One("a MultiReader whose GetWithMeta panics",
-			func(tb testing.TB) multireadertest.MultiReader {
-				return multireadertest.NewMultiReaderStub(tb, multireadertest.WithMultiReaderGetWithMeta(
-					func(_ context.Context, _ string) (multireader.Value, multireader.Meta, error) {
-						panic("planted: GetWithMeta panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.GetWithMeta.Cancels(): prove.One("a MultiReader whose GetWithMeta ignores the context it is handed",
-			func(tb testing.TB) multireadertest.MultiReader {
-				return multireadertest.NewMultiReaderStub(tb, multireadertest.WithMultiReaderGetWithMeta(
-					func(_ context.Context, _ string) (r0 multireader.Value, r1 multireader.Meta, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.GetWithMeta.NilContext(): prove.One("a MultiReader whose GetWithMeta forgives a nil context and answers",
-			func(tb testing.TB) multireadertest.MultiReader {
-				return multireadertest.NewMultiReaderStub(tb, multireadertest.WithMultiReaderGetWithMeta(
-					func(_ context.Context, _ string) (r0 multireader.Value, r1 multireader.Meta, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.GetWithMeta.Deadline(): prove.One("a MultiReader whose GetWithMeta ignores the context it is handed",
-			func(tb testing.TB) multireadertest.MultiReader {
-				return multireadertest.NewMultiReaderStub(tb, multireadertest.WithMultiReaderGetWithMeta(
-					func(_ context.Context, _ string) (r0 multireader.Value, r1 multireader.Meta, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.GetWithMeta.ZeroOnError(): prove.One("a MultiReader whose GetWithMeta answers a believable value beside its error",
-			func(tb testing.TB) multireadertest.MultiReader {
-				return multireadertest.NewMultiReaderStub(tb, multireadertest.WithMultiReaderGetWithMeta(
-					func(_ context.Context, _ string) (r0 multireader.Value, r1 multireader.Meta, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = multireader.Value{Key: "other-value"}
-						err = errors.New("planted: GetWithMeta refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	GetWithMeta.Smoke — a MultiReader whose GetWithMeta panics
+//
+//	GetWithMeta.Cancels — a MultiReader whose GetWithMeta ignores the context it is handed
+//
+//	GetWithMeta.NilContext — a MultiReader whose GetWithMeta forgives a nil context and answers
+//
+//	GetWithMeta.Deadline — a MultiReader whose GetWithMeta ignores the context it is handed
+//
+//	GetWithMeta.ZeroOnError — a MultiReader whose GetWithMeta answers a believable value beside its error
 
 // TestMultiReaderInvariants holds this package to what it says about itself.
 //
@@ -121,4 +60,4 @@ func TestMultiReaderInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance c4fca53c1e2b2279a2d7f17a2de7d1c2a08fd19f3931fcce0bea390d6293c81a
+// testkit:provenance 08a0cf80d1ffffba3ea23933fda69ccaac53268a36f8c819df79de8a2b08f77b

@@ -44,7 +44,7 @@ func TestBatchReaderContractWithoutSmoke(t *testing.T) {
 func TestBatchReaderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	batchreadertest.ProveBatchReader(t, batchReaderChecks)
+	batchreadertest.ProveBatchReader(t, inMemory("in-memory"), batchReaderChecks)
 }
 
 // TestBatchReaderAnswersPerKeyWhenItHoldsThemAll runs a subject holding BOTH

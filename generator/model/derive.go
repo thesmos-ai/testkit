@@ -28,6 +28,14 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 	// tier stamps Proven owes a defect there, and the parity gate holds
 	// the two to each other at run time.
 	proofs := sdk.PendingByOrigin[*suite.Proofs](ctx.Store.Emit())
+	// The property alias is a package-level type, and a package can hold
+	// more than one interface carrying the directive — the corpus has
+	// three. Declared once per output package, by whichever interface
+	// reaches it first: a second declaration is a compile error over
+	// generated code the consumer may not edit, and naming it per
+	// interface would make a consumer spell which interface's property
+	// state they meant in a signature that already says.
+	aliased := map[string]bool{}
 
 	for _, iface := range ctx.Reader.Interfaces().Slice() {
 		if !iface.HasPositiveDirective(DirectiveName) {
@@ -95,10 +103,52 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 		if err := harness.Rows().Append(call, c.Provenance(Name+".rows")); err != nil {
 			return fmt.Errorf("%s: contribute the rows for %q: %w", Name, iface.Name, err)
 		}
-		decls := []sdk.EmitNode{rowDeclFor(c, iface, b, harness), b}
+		decls := []sdk.EmitNode{
+			&Compat{BaseEmit: sdk.EmitBase(c, iface), LegsPkg: LegsPkg},
+			rowDeclFor(c, iface, b, harness), b,
+		}
 		for _, d := range decls {
 			if err := harness.Decls().Append(d, c.Provenance(Name+".decls")); err != nil {
 				return fmt.Errorf("%s: declare the rows for %q: %w", Name, iface.Name, err)
+			}
+		}
+
+		// The property surface a consumer writes their own drawn-input
+		// checks through: the alias they name in a signature, the row
+		// fields they set, and the dispatch that turns one into a body
+		// the runner calls.
+		//
+		// Last, and beside the declarations rather than before them. A
+		// sugared field draws from this tier's own pools, and those are
+		// declared by the emit two lines above — so a run that got this
+		// far and no further would offer a consumer a field whose draw
+		// names a function nobody emitted.
+		//
+		// Three regions and one contribution, appended together because
+		// any two without the third is worse than none: a field with no
+		// dispatch is a body somebody writes and nothing calls, and the
+		// check it belongs to reports green.
+		alias, propFields, dispatch := propFor(b, harness)
+		parts := []struct {
+			slot *sdk.Slot
+			node sdk.EmitNode
+			what string
+		}{
+			{harness.CheckFields(), propFields, "fields"},
+			{harness.CheckBodies(), dispatch, "dispatch"},
+		}
+		if pkg := iface.Package; !aliased[pkg] {
+			aliased[pkg] = true
+			parts = append(parts, struct {
+				slot *sdk.Slot
+				node sdk.EmitNode
+				what string
+			}{harness.Decls(), alias, "alias"})
+		}
+		for _, part := range parts {
+			if err := part.slot.Append(part.node, c.Provenance(Name+".prop")); err != nil {
+				return fmt.Errorf("%s: contribute the property %s for %q: %w",
+					Name, part.what, iface.Name, err)
 			}
 		}
 	}
@@ -238,6 +288,11 @@ func BindingsFor(
 	// rather than derived: a qualified spelling of the subject compiles
 	// beside the local one, so a second derivation puts two names for one
 	// type in one file and nothing complains.
+	// After the pools are derived and while the harness's config plans are
+	// still in hand: which pools a run can replace is the harness's fact,
+	// and drawing from them rather than from the fixture's pair is this
+	// tier's.
+	poolFields(ctx, b, harness.Pools)
 	b.SubjectSpelling = harness.SubjectType()
 	b.FixtureTypeName = harness.Fixture.TypeName + harness.TypeArgs
 	b.VeneerVar = projection.VeneerName(iface.Name)
@@ -420,11 +475,44 @@ func bindingsOf(
 	lawsOf(b, harness, partners, keyed)
 	saturationOf(b, harness)
 	concurrentOf(b, harness, keyed, valued)
+	simOf(b, keyed, valued)
 	// Last, because a row is planned from what bound: the laws decide
 	// which legs report, and the reference decides whether there is a
 	// differential at all.
 	b.Rows = PlanRows(b)
 	return b, true
+}
+
+// simOf wires the crash-recovery pair: the write whose acknowledgement
+// the medium owes across a rebuild, and the read that collects the debt.
+//
+// Only the wiring. Whether the pair can carry the claim is
+// [simLegReason]'s question, kept apart for the reason the concurrent
+// leg keeps it apart: a shape is CLASSIFIED here, and whether a leg over
+// it can be written is a second question whose answer a reader of the
+// generated header is owed in words.
+//
+// The pair is the interface's own reader and writer — the same two the
+// sequential actions drive — so the crash schedule and the ordinary
+// legs cannot disagree about what a key is or what a write installs.
+func simOf(b *Bindings, keyed, valued *subject.Method) {
+	if keyed == nil || valued == nil {
+		return
+	}
+	for _, a := range b.Actions {
+		switch a.Method {
+		case keyed.Name:
+			b.SimReader = a
+		case valued.Name:
+			b.SimWriter = a
+		}
+	}
+	if b.SimReader == nil || b.SimWriter == nil {
+		// Half a pair cannot state the claim: a write with no read owes a
+		// debt nothing can collect, and a read with no write collects one
+		// nothing incurred.
+		b.SimReader, b.SimWriter = nil, nil
+	}
 }
 
 // concurrentOf wires the linearizability leg where the map derivation holds

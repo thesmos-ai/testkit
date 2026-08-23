@@ -7,73 +7,28 @@
 package poisonabletest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/poisonable/poisonabletest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		poisonabletest.MixedSuite.Suite().Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[poisonabletest.Mixed] {
-	ix := poisonabletest.MixedSuite.Checks
-	return prove.Defects[poisonabletest.Mixed]{
-		ix.Fail.Smoke(): prove.One("a Mixed whose Fail panics",
-			func(tb testing.TB) poisonabletest.Mixed {
-				return poisonabletest.NewMixedStub(tb, poisonabletest.WithMixedFail(
-					func(_ context.Context) error {
-						panic("planted: Fail panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Fail.Cancels(): prove.One("a Mixed whose Fail ignores the context it is handed",
-			func(tb testing.TB) poisonabletest.Mixed {
-				return poisonabletest.NewMixedStub(tb, poisonabletest.WithMixedFail(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Fail.NilContext(): prove.One("a Mixed whose Fail forgives a nil context and answers",
-			func(tb testing.TB) poisonabletest.Mixed {
-				return poisonabletest.NewMixedStub(tb, poisonabletest.WithMixedFail(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Probe.Smoke(): prove.One("a Mixed whose Probe panics",
-			func(tb testing.TB) poisonabletest.Mixed {
-				return poisonabletest.NewMixedStub(tb, poisonabletest.WithMixedProbe(
-					func() error {
-						panic("planted: Probe panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Fail.Smoke — a Mixed whose Fail panics
+//
+//	Fail.Cancels — a Mixed whose Fail ignores the context it is handed
+//
+//	Fail.NilContext — a Mixed whose Fail forgives a nil context and answers
+//
+//	Probe.Smoke — a Mixed whose Probe panics
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -103,4 +58,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8ba249f75591c16abc0b4650e77fd8ab992226e348d7b9430989a47f8c16c8ac
+// testkit:provenance 76aa7b58505ad181277f254d595f84030ce04709b276d6886ccab4346e7c6f7d

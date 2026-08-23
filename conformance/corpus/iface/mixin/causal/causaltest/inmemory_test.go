@@ -15,6 +15,8 @@ import (
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/causal"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/causal/causaltest"
+	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // TestMixedContract runs the generated checks and this package's own.
@@ -40,7 +42,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	causaltest.ProveMixed(t, mixedChecks)
+	causaltest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -48,8 +50,22 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) causaltest.MixedHarness[*causaltest.InMemory] {
 	return causaltest.MixedHarness[*causaltest.InMemory]{
 		Name: name, New: causaltest.NewInMemory,
+		// AUTO-CAUSAL-ORDERING needs the causal relation over writes, and
+		// no shape yields it: the directive names Rev as the stamp, and
+		// what a stamp ORDERS is the declaration's to say.
+		Provide: map[suite.Capability]any{"happensBefore": storeOrder},
 	}
 }
+
+// storeOrder is the causal relation Rev carries.
+//
+// One store assigns every revision from one counter, so its writes are
+// totally ordered and an earlier revision causally precedes a later one.
+// That relation is transitively closed, which is what the checker needs
+// and does not compute for itself. A store whose stamp were per-key, or
+// a vector clock, would need a different answer here — which is why the
+// law asks rather than deriving it.
+func storeOrder(a, b law.ClientOp[string]) bool { return a.Version < b.Version }
 
 // --- The checks: claims, bodies and defects, by name --------------------------
 

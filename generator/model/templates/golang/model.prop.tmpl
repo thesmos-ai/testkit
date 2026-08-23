@@ -1,0 +1,85 @@
+{{- /*
+model.prop — the property surface a consumer writes their own
+drawn-input checks through.
+
+Three contributions in three regions, and they are one thing: the alias
+a consumer names in their signature, the fields they set on a row, and
+the dispatch that turns one into a body the runner calls. A field with
+no dispatch is a body somebody writes and nothing runs, which reports
+green — which is why they are emitted together or not at all.
+
+Only where the directive is. The alias is the engine's own property
+state under a local name, so contributing it puts the engine and rapid
+behind it into the build; that is exactly what the directive gates, and
+why this surface belongs to this tier however much it looks like part of
+the row type.
+*/ -}}
+{{- define "model.prop.alias" -}}
+// {{ .Alias }} is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names {{ .Alias }} rather than obliging your test
+// file to import the engine directly.
+type {{ .Alias }} = {{ renderExpr (external .ModelPkg "T") }}
+{{- end -}}
+
+{{- define "model.prop.fields" -}}
+// Prop is a body whose inputs are drawn rather than fixed, run many
+// times with the draws shrunk on failure. Report through the {{ .Alias }}
+// and not through a testing.TB: shrinking works by replaying draws, and
+// a failure raised anywhere else is one the run cannot narrow.
+//
+// Requires Method, like Run.
+Prop func(rt *{{ .Alias }}, s {{ .Subject }}, {{ .FixtureIdent }} {{ .Fixture }})
+{{- range .Sugars }}
+
+	// {{ .Field }} is Prop with {{ .Method }}'s own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// {{ .Method }}, so leave Method empty.
+	{{ .Field }} func(rt *{{ $.Alias }}, s {{ $.Subject }}, {{ .Param }} {{ renderType .ParamType }})
+{{- end }}
+{{- end -}}
+
+{{- /*
+model.prop.dispatch — the block that turns a set field into a body.
+
+Every Prop body lowers to RunWith rather than Run, and the reason is the
+whole design: a property engine shrinks by replaying draws and takes the
+verdict to be a function of those draws alone. One instance bound for
+the whole check makes that false — state accumulates, the same draws
+stop producing the same answer, and a real defect is reported as a test
+that cannot be reproduced. So each iteration builds its own.
+
+A body wanting an accumulated sequence wants this tier's own legs, which
+own sequences on purpose.
+*/ -}}
+{{- define "model.prop.dispatch" -}}
+fields += {{ printf "%q" .Fields }}
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = {{ renderExpr (external .Vocab "RowID") }}("Prop", c.Method, c.Name, {{ .MethodsVar }}); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}]) {
+			{{ renderExpr (external .ModelPkg "Check") }}(tb, func(rt *{{ .Alias }}) {
+				fn(rt, sub.New(tb), {{ .FixtureIdent }})
+			})
+		}
+	}
+{{- range .Sugars }}
+	if c.{{ .Field }} != nil {
+		bodies++
+		out.ID = {{ renderExpr (external $.Vocab "MethodID") }}({{ .MethodConst }}, c.Name)
+		fn := c.{{ .Field }}
+		out.RunWith = func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ renderExpr (external $.Vocab "Subject") }}[{{ $.Subject }}]) {
+			{{ renderExpr (external $.ModelPkg "Check") }}(tb, func(rt *{{ $.Alias }}) {
+				fn(rt, sub.New(tb), {{ .Pool }}({{ $.FixtureIdent }}).Draw(rt, {{ printf "%q" .Label }}))
+			})
+		}
+	}
+{{- end }}
+{{- end -}}

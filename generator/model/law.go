@@ -70,6 +70,10 @@ type LawField struct {
 	// KindName selects the field's template by its closure shape.
 	KindName sdk.Kind
 
+	// Shape is the supplied door's closure shape, for the arm that spells
+	// its type. Empty on every field a derivation fills for itself.
+	Shape string
+
 	// Name is the struct field, for the composite literal.
 	Name string
 
@@ -86,6 +90,11 @@ type LawField struct {
 	// the domain a roundtrip draws, the offset an append answers, the state
 	// an observation returns.
 	In, Out sdk.Ref
+
+	// Elem is the drained element a supplied door's closure speaks in —
+	// carried beside Out because the arm that spells its type reads
+	// whichever the shape names.
+	Elem sdk.Ref
 
 	// Pool names the shared local a generator field reuses, and KeyOfName the
 	// shared key projection a handle field reuses — the same values the
@@ -121,6 +130,10 @@ func (f *LawField) Kind() sdk.Kind { return f.KindName }
 // ModelPkg surfaces the runner's import path to the field templates, whose
 // closures take the runner's *T.
 func (*LawField) ModelPkg() string { return ModelPkg }
+
+// VocabPkg surfaces the runtime suite package, whose Provided reads a
+// door the consumer answered.
+func (*LawField) VocabPkg() string { return VocabPkg }
 
 // LawPool is one pool a law draws that the sequences do not: a wide input
 // domain for a stateless claim, the adversarial strings a safety claim needs.

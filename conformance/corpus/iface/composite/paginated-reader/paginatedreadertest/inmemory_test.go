@@ -56,7 +56,7 @@ func TestPaginatedReaderContractWithoutSmoke(t *testing.T) {
 func TestPaginatedReaderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	paginatedreadertest.ProvePaginatedReader(t, paginatedReaderChecks)
+	paginatedreadertest.ProvePaginatedReader(t, holding("in-memory"), paginatedReaderChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

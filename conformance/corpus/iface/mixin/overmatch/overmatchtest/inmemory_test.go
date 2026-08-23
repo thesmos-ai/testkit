@@ -8,6 +8,7 @@ package overmatchtest_test
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	overmatchtest.ProveMixed(t, mixedChecks)
+	overmatchtest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -54,26 +55,28 @@ func inMemory(name string) overmatchtest.MixedHarness[*overmatchtest.InMemory] {
 
 var mixedChecks = overmatchtest.MixedChecks{
 	{
-		Method: "Items", Name: "yields-each-append-once",
-		Claim: "Items yields what Add put in, once each",
-		Run:   yieldsEachAppendOnce,
+		Method: "Items", Name: "yields-every-append",
+		Claim: "Items yields everything Add accepted, and may yield more",
+		Run:   yieldsEveryAppend,
 		ProvenBy: overmatchtest.BrokenMixed(
-			"a collection that drains its appends as they arrived", newKeepsTheRepeat,
+			"a collection that overwrites an element sharing a key", newOverwritesByKey,
 		),
-		ProvenReason: "the repeated key is one element",
+		ProvenReason: "a repeat is a second element",
 	},
 }
 
 // --- Bodies -------------------------------------------------------------------
 
-// yieldsEachAppendOnce puts the same key in twice and a second key that sorts
+// yieldsEveryAppend puts the same key in twice and a second key that sorts
 // ahead of it.
 //
-// The repeat is what makes the dedup claim testable: a drain that yielded it
-// twice would be reporting its input rather than its contents. The out-of-order
-// second key is what makes the ordering observable — with one element every
-// order is the right one, and a subject returning map order would pass.
-func yieldsEachAppendOnce(
+// The repeat is what makes the claim testable in the direction this mixin
+// points: overmatch permits a drain to yield MORE than was asked of it and
+// forbids it yielding less, so a collection that folded the repeat into one
+// element would have dropped something it accepted. The out-of-order second
+// key is what makes the ordering observable — with one element every order
+// is the right one, and a subject answering in arrival order would pass.
+func yieldsEveryAppend(
 	tb testing.TB, s overmatch.Mixed, _ overmatchtest.MixedFixture,
 ) {
 	tb.Helper()
@@ -86,7 +89,7 @@ func yieldsEachAppendOnce(
 
 	got, err := s.Items(tb.Context())
 	testkit.NoError(tb, err, "the drain succeeds")
-	testkit.Equal(tb, len(got), 2, "the repeated key is one element")
+	testkit.Equal(tb, len(got), 3, "a repeat is a second element, not the same one again")
 	testkit.Equal(tb, got[0].Key, earlyKey, "and the drain is ordered rather than arbitrary")
 }
 
@@ -99,18 +102,21 @@ const (
 	lateKey  = "zz"
 )
 
-// keepsTheRepeat drains every append in arrival order, which answers MORE than
-// the collection holds — the overmatch this mixin is named for, in its smallest
-// form.
-type keepsTheRepeat struct{ items []overmatch.Value }
+// overwritesByKey folds an element into an earlier one sharing its key,
+// which is a collection that drops what it accepted. That is the direction
+// overmatch forbids: yielding more than was asked is permitted, and this
+// yields less.
+type overwritesByKey struct{ items map[string]overmatch.Value }
 
-func newKeepsTheRepeat() *keepsTheRepeat { return &keepsTheRepeat{} }
+func newOverwritesByKey() *overwritesByKey {
+	return &overwritesByKey{items: map[string]overmatch.Value{}}
+}
 
-func (k *keepsTheRepeat) Add(_ context.Context, v overmatch.Value) error {
-	k.items = append(k.items, v)
+func (k *overwritesByKey) Add(_ context.Context, v overmatch.Value) error {
+	k.items[v.Key] = v
 	return nil
 }
 
-func (k *keepsTheRepeat) Items(context.Context) ([]overmatch.Value, error) {
-	return slices.Clone(k.items), nil
+func (k *overwritesByKey) Items(context.Context) ([]overmatch.Value, error) {
+	return slices.Collect(maps.Values(k.items)), nil
 }

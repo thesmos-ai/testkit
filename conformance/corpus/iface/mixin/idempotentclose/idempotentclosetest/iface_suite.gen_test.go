@@ -7,130 +7,42 @@
 package idempotentclosetest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/idempotentclose/idempotentclosetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestCloserProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveCloser.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestCloserProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		idempotentclosetest.CloserSuite.Suite().Checks,
-		closerProofs())
-}
-
-// closerProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveCloser
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func closerProofs() prove.Defects[idempotentclosetest.Closer] {
-	ix := idempotentclosetest.CloserSuite.Checks
-	return prove.Defects[idempotentclosetest.Closer]{
-		ix.Close.Smoke(): prove.One("a Closer whose Close panics",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserClose(
-					func(_ context.Context) error {
-						panic("planted: Close panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Close.Cancels(): prove.One("a Closer whose Close ignores the context it is handed",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Close.NilContext(): prove.One("a Closer whose Close forgives a nil context and answers",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Stats.Smoke(): prove.One("a Closer whose Stats panics",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserStats(
-					func(_ context.Context) (int, error) {
-						panic("planted: Stats panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Stats.Cancels(): prove.One("a Closer whose Stats ignores the context it is handed",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserStats(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Stats.NilContext(): prove.One("a Closer whose Stats forgives a nil context and answers",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserStats(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Stats.Deadline(): prove.One("a Closer whose Stats ignores the context it is handed",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserStats(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Stats.ZeroOnError(): prove.One("a Closer whose Stats answers a believable value beside its error",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserStats(
-					func(_ context.Context) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Stats refused with a believable value")
-						return
-					}))
-			}),
-		ix.Close.Idempotent(): prove.One("a Closer whose Close fails on the second call",
-			func(tb testing.TB) idempotentclosetest.Closer {
-				called := false
-				return idempotentclosetest.NewCloserStub(tb, idempotentclosetest.WithCloserClose(
-					func(_ context.Context) (err error) {
-						if called {
-							err = errors.New("planted: Close refuses its repeat")
-							return
-						}
-						called = true
-						return
-					}))
-			}),
-	}
-}
+//	Close.Smoke — a Closer whose Close panics
+//
+//	Close.Cancels — a Closer whose Close ignores the context it is handed
+//
+//	Close.NilContext — a Closer whose Close forgives a nil context and answers
+//
+//	Stats.Smoke — a Closer whose Stats panics
+//
+//	Stats.Cancels — a Closer whose Stats ignores the context it is handed
+//
+//	Stats.NilContext — a Closer whose Stats forgives a nil context and answers
+//
+//	Stats.Deadline — a Closer whose Stats ignores the context it is handed
+//
+//	Stats.ZeroOnError — a Closer whose Stats answers a believable value beside its error
+//
+//	Close.Idempotent — a Closer whose Close fails on the second call
+//
+//	Model.RespectsContext — a Closer whose Close reports success and keeps nothing
+//
+//	Model.IdempotentLifecycle — a Closer whose Close refuses its repeat
 
 // TestCloserInvariants holds this package to what it says about itself.
 //
@@ -160,4 +72,4 @@ func TestCloserInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance f2b25e56e48e5b788804ce8a4383457109739d9b6da4d0d012c54052f52e0fc6
+// testkit:provenance 4d35aa281e1810e59dad8c9dbf05c76bd447176ac2a88160e1d209ca5a3c49e1

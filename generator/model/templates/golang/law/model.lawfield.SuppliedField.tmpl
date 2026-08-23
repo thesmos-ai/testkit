@@ -1,7 +1,13 @@
 {{- /*
-A consumer-supplied field: the law literal reads the config, and the guard
-around the registration is what keeps a nil closure from ever being called.
+A consumer-supplied field: a fact no derivation can invent, read off the
+door the harness answered it through.
+
+The row that carries this law declares the door in its Needs, so the
+runner refuses a subject supplying none BEFORE this body runs — which is
+why reading it here can be unconditional. The old shape guarded the
+registration on a config field instead, and a law behind an unset guard
+registered nowhere and said nothing.
 */ -}}
 {{- define "model.lawfield.SuppliedField" -}}
-{{ .Name }}: cfg.{{ .Pool }}
+{{ .Name }}: {{ renderExpr (external .VocabPkg "Provided") }}[{{ template "model.suppliedtype" . }}](tb, sub, {{ printf "%q" .Pool }})
 {{- end -}}

@@ -7,93 +7,32 @@
 package hookstest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/hooks/hookstest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		hookstest.MixedSuite.Suite(hookstest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[hookstest.Mixed] {
-	ix := hookstest.MixedSuite.Checks
-	return prove.Defects[hookstest.Mixed]{
-		ix.Fire.Smoke(): prove.One("a Mixed whose Fire panics",
-			func(tb testing.TB) hookstest.Mixed {
-				return hookstest.NewMixedStub(tb, hookstest.WithMixedFire(
-					func(_ context.Context, _ string) error {
-						panic("planted: Fire panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Fire.Cancels(): prove.One("a Mixed whose Fire ignores the context it is handed",
-			func(tb testing.TB) hookstest.Mixed {
-				return hookstest.NewMixedStub(tb, hookstest.WithMixedFire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Fire.NilContext(): prove.One("a Mixed whose Fire forgives a nil context and answers",
-			func(tb testing.TB) hookstest.Mixed {
-				return hookstest.NewMixedStub(tb, hookstest.WithMixedFire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Fire.Deadline(): prove.One("a Mixed whose Fire ignores the context it is handed",
-			func(tb testing.TB) hookstest.Mixed {
-				return hookstest.NewMixedStub(tb, hookstest.WithMixedFire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.OnEvent.Smoke(): prove.One("a Mixed whose OnEvent panics",
-			func(tb testing.TB) hookstest.Mixed {
-				return hookstest.NewMixedStub(tb, hookstest.WithMixedOnEvent(
-					func(_ func(string)) {
-						panic("planted: OnEvent panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Fire.Hooks(): prove.One("a Mixed whose Fire reports success and runs no hook",
-			func(tb testing.TB) hookstest.Mixed {
-				return hookstest.NewMixedStub(tb, hookstest.WithMixedFire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Fire.Smoke — a Mixed whose Fire panics
+//
+//	Fire.Cancels — a Mixed whose Fire ignores the context it is handed
+//
+//	Fire.NilContext — a Mixed whose Fire forgives a nil context and answers
+//
+//	Fire.Deadline — a Mixed whose Fire ignores the context it is handed
+//
+//	OnEvent.Smoke — a Mixed whose OnEvent panics
+//
+//	Fire.Hooks — a Mixed whose Fire reports success and runs no hook
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -123,4 +62,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 99c3b57ce0464687d4ee4a2a48dd50a7cc6678624c5f089eb0fb3cfb009b66e7
+// testkit:provenance 83a06a34eeb27cbb5712bee49eabdf8d178522114b6b789650f45e650b32812d

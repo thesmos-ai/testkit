@@ -43,7 +43,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	cachetest.ProveContract(t, contractChecks)
+	cachetest.ProveContract(t, seeded("in-memory"), contractChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

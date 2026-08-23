@@ -7,76 +7,28 @@
 package multiargwritertest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/multiargwriter/multiargwritertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMultiArgWriterProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMultiArgWriter.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMultiArgWriterProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		multiargwritertest.MultiArgWriterSuite.Suite(multiargwritertest.DefaultMultiArgWriterFixture()).Checks,
-		multiArgWriterProofs())
-}
-
-// multiArgWriterProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMultiArgWriter
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func multiArgWriterProofs() prove.Defects[multiargwritertest.MultiArgWriter] {
-	ix := multiargwritertest.MultiArgWriterSuite.Checks
-	return prove.Defects[multiargwritertest.MultiArgWriter]{
-		ix.Set.Smoke(): prove.One("a MultiArgWriter whose Set panics",
-			func(tb testing.TB) multiargwritertest.MultiArgWriter {
-				return multiargwritertest.NewMultiArgWriterStub(tb, multiargwritertest.WithMultiArgWriterSet(
-					func(_ context.Context, _ string, _ string, _ string) error {
-						panic("planted: Set panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Set.Cancels(): prove.One("a MultiArgWriter whose Set ignores the context it is handed",
-			func(tb testing.TB) multiargwritertest.MultiArgWriter {
-				return multiargwritertest.NewMultiArgWriterStub(tb, multiargwritertest.WithMultiArgWriterSet(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Set.NilContext(): prove.One("a MultiArgWriter whose Set forgives a nil context and answers",
-			func(tb testing.TB) multiargwritertest.MultiArgWriter {
-				return multiargwritertest.NewMultiArgWriterStub(tb, multiargwritertest.WithMultiArgWriterSet(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Set.Deadline(): prove.One("a MultiArgWriter whose Set ignores the context it is handed",
-			func(tb testing.TB) multiargwritertest.MultiArgWriter {
-				return multiargwritertest.NewMultiArgWriterStub(tb, multiargwritertest.WithMultiArgWriterSet(
-					func(_ context.Context, _ string, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-	}
-}
+//	Set.Smoke — a MultiArgWriter whose Set panics
+//
+//	Set.Cancels — a MultiArgWriter whose Set ignores the context it is handed
+//
+//	Set.NilContext — a MultiArgWriter whose Set forgives a nil context and answers
+//
+//	Set.Deadline — a MultiArgWriter whose Set ignores the context it is handed
 
 // TestMultiArgWriterInvariants holds this package to what it says about itself.
 //
@@ -106,4 +58,4 @@ func TestMultiArgWriterInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 5e014570e6d6b527efb4d5c749578ba4c635880da9f8f9c17edd5e2a46a671ca
+// testkit:provenance 75ce2f57e6fea36c3c7e1449b7cb507eef3f85970a1a835da06de183f02a2883

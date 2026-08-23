@@ -9,4 +9,5 @@ Items/nilcontext	signature/nilcontext	Items returns an error rather than panicki
 Items/smoke	signature/smoke	Items survives a call	
 Items/zero-on-error	signature/zero-on-error	Items returns nothing alongside any error	
 model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
+model/mixed/AUTO-STREAM-OVER-MATCH	model/laws	the drain holds everything that was written, and may hold more	AUTO-STREAM-OVER-MATCH
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

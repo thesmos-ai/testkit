@@ -7,100 +7,36 @@
 package leaderelectiontest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/leader-election/leaderelectiontest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		leaderelectiontest.ContractSuite.Suite().Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[leaderelectiontest.Contract] {
-	ix := leaderelectiontest.ContractSuite.Checks
-	return prove.Defects[leaderelectiontest.Contract]{
-		ix.Campaign.Smoke(): prove.One("a Contract whose Campaign panics",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractCampaign(
-					func(_ context.Context) error {
-						panic("planted: Campaign panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Campaign.Cancels(): prove.One("a Contract whose Campaign ignores the context it is handed",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractCampaign(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Campaign.NilContext(): prove.One("a Contract whose Campaign forgives a nil context and answers",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractCampaign(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Resign.Smoke(): prove.One("a Contract whose Resign panics",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractResign(
-					func(_ context.Context) error {
-						panic("planted: Resign panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Resign.Cancels(): prove.One("a Contract whose Resign ignores the context it is handed",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractResign(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Resign.NilContext(): prove.One("a Contract whose Resign forgives a nil context and answers",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractResign(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.IsLeader.Smoke(): prove.One("a Contract whose IsLeader panics",
-			func(tb testing.TB) leaderelectiontest.Contract {
-				return leaderelectiontest.NewContractStub(tb, leaderelectiontest.WithContractIsLeader(
-					func(_ context.Context) bool {
-						panic("planted: IsLeader panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Campaign.Smoke — a Contract whose Campaign panics
+//
+//	Campaign.Cancels — a Contract whose Campaign ignores the context it is handed
+//
+//	Campaign.NilContext — a Contract whose Campaign forgives a nil context and answers
+//
+//	Resign.Smoke — a Contract whose Resign panics
+//
+//	Resign.Cancels — a Contract whose Resign ignores the context it is handed
+//
+//	Resign.NilContext — a Contract whose Resign forgives a nil context and answers
+//
+//	IsLeader.Smoke — a Contract whose IsLeader panics
+//
+//	Model.RespectsContext — a Contract whose Campaign reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -130,4 +66,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 929c76ed583776f6c2a166376b3e15d65b693bfcd532c9efa1e54f00bece9311
+// testkit:provenance 05e0392d84e37893de2730bd5e297a83ce8c6503ee90131269ee451e8809aff6

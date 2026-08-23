@@ -25,6 +25,17 @@ func TestMutatorContract(t *testing.T) {
 	)
 }
 
+// TestMutatorChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestMutatorChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	mutatortest.ProveMutator(
+		t,
+		mutatortest.MutatorHarness[*mutatortest.InMemory]{Name: "in-memory", New: mutatortest.NewInMemory},
+	)
+}
+
 // Dropping a check is written against the typed index rather than a string, so
 // a check that is renamed or stops being emitted breaks this compile instead of
 // silently declining nothing.

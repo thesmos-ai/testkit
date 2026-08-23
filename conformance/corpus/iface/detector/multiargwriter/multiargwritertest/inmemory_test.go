@@ -28,6 +28,20 @@ func TestMultiArgWriterContract(t *testing.T) {
 	)
 }
 
+// TestMultiArgWriterChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestMultiArgWriterChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	multiargwritertest.ProveMultiArgWriter(
+		t,
+		multiargwritertest.MultiArgWriterHarness[*multiargwritertest.InMemory]{
+			Name: "in-memory",
+			New:  multiargwritertest.NewInMemory,
+		},
+	)
+}
+
 // Dropping a check is written against the typed index rather than a string, so
 // a check that is renamed or stops being emitted breaks this compile instead of
 // silently declining nothing.

@@ -8,6 +8,7 @@ package serializabletest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -17,7 +18,6 @@ import (
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/model/law"
-	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -281,23 +281,23 @@ func (mixedVeneer) Suite(fx MixedFixture) suite.Suite[Mixed] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mixedIndexPath = map[suite.ID]string{
-	mixedCheckIndex.Record.Smoke():        "MixedSuite.Checks.Record.Smoke()",
-	mixedCheckIndex.Record.Cancels():      "MixedSuite.Checks.Record.Cancels()",
-	mixedCheckIndex.Record.NilContext():   "MixedSuite.Checks.Record.NilContext()",
-	mixedCheckIndex.Record.Deadline():     "MixedSuite.Checks.Record.Deadline()",
-	mixedCheckIndex.History.Smoke():       "MixedSuite.Checks.History.Smoke()",
-	mixedCheckIndex.History.Cancels():     "MixedSuite.Checks.History.Cancels()",
-	mixedCheckIndex.History.NilContext():  "MixedSuite.Checks.History.NilContext()",
-	mixedCheckIndex.History.Deadline():    "MixedSuite.Checks.History.Deadline()",
-	mixedCheckIndex.History.ZeroOnError(): "MixedSuite.Checks.History.ZeroOnError()",
-	mixedCheckIndex.Get.Smoke():           "MixedSuite.Checks.Get.Smoke()",
-	mixedCheckIndex.Get.Cancels():         "MixedSuite.Checks.Get.Cancels()",
-	mixedCheckIndex.Get.NilContext():      "MixedSuite.Checks.Get.NilContext()",
-	mixedCheckIndex.Get.Deadline():        "MixedSuite.Checks.Get.Deadline()",
-	mixedCheckIndex.Get.ZeroOnError():     "MixedSuite.Checks.Get.ZeroOnError()",
-	mixedCheckIndex.Get.Miss():            "MixedSuite.Checks.Get.Miss()",
-	mixedCheckIndex.Model.Agrees():        "MixedSuite.Checks.Model.Agrees()",
-	mixedCheckIndex.Model.Counts():        "MixedSuite.Checks.Model.Counts()",
+	mixedCheckIndex.Record.Smoke():              "MixedSuite.Checks.Record.Smoke()",
+	mixedCheckIndex.Record.Cancels():            "MixedSuite.Checks.Record.Cancels()",
+	mixedCheckIndex.Record.NilContext():         "MixedSuite.Checks.Record.NilContext()",
+	mixedCheckIndex.Record.Deadline():           "MixedSuite.Checks.Record.Deadline()",
+	mixedCheckIndex.History.Smoke():             "MixedSuite.Checks.History.Smoke()",
+	mixedCheckIndex.History.Cancels():           "MixedSuite.Checks.History.Cancels()",
+	mixedCheckIndex.History.NilContext():        "MixedSuite.Checks.History.NilContext()",
+	mixedCheckIndex.History.Deadline():          "MixedSuite.Checks.History.Deadline()",
+	mixedCheckIndex.History.ZeroOnError():       "MixedSuite.Checks.History.ZeroOnError()",
+	mixedCheckIndex.Get.Smoke():                 "MixedSuite.Checks.Get.Smoke()",
+	mixedCheckIndex.Get.Cancels():               "MixedSuite.Checks.Get.Cancels()",
+	mixedCheckIndex.Get.NilContext():            "MixedSuite.Checks.Get.NilContext()",
+	mixedCheckIndex.Get.Deadline():              "MixedSuite.Checks.Get.Deadline()",
+	mixedCheckIndex.Get.ZeroOnError():           "MixedSuite.Checks.Get.ZeroOnError()",
+	mixedCheckIndex.Get.Miss():                  "MixedSuite.Checks.Get.Miss()",
+	mixedCheckIndex.Model.Counts():              "MixedSuite.Checks.Model.Counts()",
+	mixedCheckIndex.Model.SnapshotIsolationG2(): "MixedSuite.Checks.Model.SnapshotIsolationG2()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -439,18 +439,18 @@ func (mixedGetChecks) All() []suite.ID {
 
 type mixedModelChecks struct{}
 
-func (mixedModelChecks) Agrees() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, mixedQualifier, suite.SegDifferential)
-}
-
 func (mixedModelChecks) Counts() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
 }
 
+func (mixedModelChecks) SnapshotIsolationG2() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.SnapshotIsolationG2)
+}
+
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
-		mixedModelChecks{}.Agrees(),
 		mixedModelChecks{}.Counts(),
+		mixedModelChecks{}.SnapshotIsolationG2(),
 	}
 }
 
@@ -866,6 +866,26 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropRecord is Prop with Record's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Record, so leave Method empty.
+	PropRecord func(rt *PropT, s Mixed, value serializable.Entry)
+
+	// PropGet is Prop with Get's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Get, so leave Method empty.
+	PropGet func(rt *PropT, s Mixed, key string)
 }
 
 // mixedMethods is the interface's method names, used to catch a typo in
@@ -890,8 +910,15 @@ func (c MixedCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
 			return out, err
@@ -909,10 +936,44 @@ func (c MixedCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop, PropRecord, PropGet"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropRecord != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedRecord, c.Name)
+		fn := c.PropRecord
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if c.PropGet != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedGet, c.Name)
+		fn := c.PropGet
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -964,11 +1025,175 @@ func RunMixed(
 		rc.Subjects...)
 }
 
-// ProveMixed runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// mixedProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveMixed(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func mixedProofs() prove.Defects[Mixed] {
+	ix := MixedSuite.Checks
+	return prove.Defects[Mixed]{
+		ix.Record.Smoke(): prove.One("a Mixed whose Record panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRecord(
+					func(_ context.Context, _ serializable.Entry) error {
+						panic("planted: Record panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Record.Cancels(): prove.One("a Mixed whose Record ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRecord(
+					func(_ context.Context, _ serializable.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Record.NilContext(): prove.One("a Mixed whose Record forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRecord(
+					func(_ context.Context, _ serializable.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Record.Deadline(): prove.One("a Mixed whose Record ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRecord(
+					func(_ context.Context, _ serializable.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.History.Smoke(): prove.One("a Mixed whose History panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedHistory(
+					func(_ context.Context) ([]serializable.Entry, error) {
+						panic("planted: History panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.History.Cancels(): prove.One("a Mixed whose History ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedHistory(
+					func(_ context.Context) (r0 []serializable.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.History.NilContext(): prove.One("a Mixed whose History forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedHistory(
+					func(_ context.Context) (r0 []serializable.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.History.Deadline(): prove.One("a Mixed whose History ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedHistory(
+					func(_ context.Context) (r0 []serializable.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.History.ZeroOnError(): prove.One("a Mixed whose History answers a believable value beside its error",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedHistory(
+					func(_ context.Context) (r0 []serializable.Entry, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = []serializable.Entry{{Txn: 7}}
+						err = errors.New("planted: History refused with a believable value")
+						return
+					}))
+			}),
+		ix.Get.Smoke(): prove.One("a Mixed whose Get panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedGet(
+					func(_ context.Context, _ string) (serializable.Entry, error) {
+						panic("planted: Get panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Get.Cancels(): prove.One("a Mixed whose Get ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedGet(
+					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Get.NilContext(): prove.One("a Mixed whose Get forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedGet(
+					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Get.Deadline(): prove.One("a Mixed whose Get ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedGet(
+					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.ZeroOnError(): prove.One("a Mixed whose Get answers a believable value beside its error",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedGet(
+					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = serializable.Entry{Txn: 7}
+						err = errors.New("planted: Get refused with a believable value")
+						return
+					}))
+			}),
+		ix.Get.Miss(): prove.One("a Mixed whose Get answers for an input nothing wrote",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedGet(
+					func(_ context.Context, _ string) (r0 serializable.Entry, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = serializable.Entry{Txn: 7}
+						return
+					}))
+			}),
+	}
+}
+
+// ProveMixed runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveMixed(t, MixedHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -978,23 +1203,40 @@ func RunMixed(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunMixed does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveMixed(
-	t *testing.T, checks MixedChecks,
+	t *testing.T, opts ...MixedRunOpt,
 ) {
 	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := mixedNewFixture()
-	bound := make([]suite.Check[Mixed], 0, len(checks))
-	defects := prove.Defects[Mixed]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := mixedProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveMixed: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -1004,8 +1246,19 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // mixedModelRows is what this package's model tier claims.
 //
@@ -1017,16 +1270,6 @@ func ProveMixed(
 // some of them build two.
 func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 	return []suite.Check[Mixed]{
-		{
-			ID:          mixedCheckIndex.Model.Agrees(),
-			Class:       suite.ClassDifferential,
-			Claim:       "every operation sequence leaves the subject agreeing with the reference",
-			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthDifferential,
-			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
-				mixedAssertAgrees(tb, sub, fx)
-			},
-		},
 		{
 			ID:    mixedCheckIndex.Model.Counts(),
 			Class: suite.ClassLaws,
@@ -1040,6 +1283,22 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertCounts(tb, sub, fx)
 			},
 		},
+		{
+			ID:    mixedCheckIndex.Model.SnapshotIsolationG2(),
+			Class: suite.ClassLaws,
+			Claim: "the recorded transaction history has no write skew",
+			Binds: []string{
+				lawid.SnapshotIsolationG2,
+			},
+			Needs: suite.Caps{
+				"history": nil,
+			},
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertSnapshotIsolationG2(tb, sub, fx)
+			},
+		},
 	}
 }
 
@@ -1049,14 +1308,25 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 // something that judges them from outside. The rows on the run surface
 // above carry it, and MixedSuite.Without declines any of them by name.
 //
-//	Reference: derived — an append-and-drain collection over the
-//	           Entry fixture pair; NewMixedModelReference replaces it
-//	Sequences: Record (writer), History (collector)
-//	Values:    the fixture pair blended with arbitrary draws
-//	Not driven:
-//	           Get — the derived reference holds it inert — the oracle does not model its shape
+//	Reference: the subject's own factory — the serializable claim is an admission policy, and a derived log records anything,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Record (writer), History (collector), Get (reader)
+//	Values:    the fixture pair blended with arbitrary draws, each keyed
+//	           from the pool
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — KeyOf needs the key projection, which was not derivable here
+//	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
+
+// mixedModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
+	return model.SampledFrom([]string{fx.Key(), fx.KeyOther()})
+}
 
 // mixedModelValues is the value pool every value slot draws from.
 //
@@ -1064,38 +1334,19 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 // rewrites frequent, the wide arm reaches values no fixture spells, and
 // nothing in the claims licenses refusing either.
 func mixedModelValues(fx MixedFixture) *model.Generator[serializable.Entry] {
+	keys := mixedModelKeys(fx)
 	bodies := model.OneOf(
 		model.SampledFrom([]serializable.Entry{fx.Entry(), fx.EntryOther()}),
 		model.Make[serializable.Entry](),
 	)
-	return bodies
-}
-
-// mixedModelReference adapts the shipped Collection oracle to Mixed.
-// Deliberately simple: its correctness is read, not tested.
-type mixedModelReference struct {
-	store *ref.Collection[serializable.Entry]
-}
-
-// NewMixedModelReference builds one. Exported because a consumer whose
-// semantics outrun their shape replaces it, and because the proof beside
-// this file drives it as a subject of its own.
-func NewMixedModelReference() Mixed {
-	return &mixedModelReference{store: ref.NewCollection[serializable.Entry]()}
-}
-
-func (r *mixedModelReference) Record(ctx context.Context, e serializable.Entry) error {
-	return r.store.Add(ctx, e)
-}
-
-func (r *mixedModelReference) History(ctx context.Context) ([]serializable.Entry, error) {
-	return r.store.Items(ctx)
-}
-
-// Get is inert: the oracle does not model its shape. The laws that would compare the
-// subject against an inert body are not bound.
-func (r *mixedModelReference) Get(ctx context.Context, key string) (r0 serializable.Entry, r1 error) {
-	return
+	// Every drawn value lands on a pooled key: a key rewritten under
+	// another body is the history latest-write-wins is about, and a
+	// fresh-keyed value would never collide with one already held.
+	return model.Custom(func(t *model.T) serializable.Entry {
+		v := bodies.Draw(t, "value_body")
+		v.Key = keys.Draw(t, "value_key")
+		return v
+	})
 }
 
 // mixedModelActions is the operation vocabulary both legs drive.
@@ -1106,6 +1357,7 @@ func (r *mixedModelReference) Get(ctx context.Context, key string) (r0 serializa
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
+	keys := mixedModelKeys(fx)
 	values := mixedModelValues(fx)
 	return []model.Action[Mixed]{
 		action.Writer("Record", values,
@@ -1116,24 +1368,11 @@ func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 			func(ctx context.Context, s serializable.Mixed) ([]serializable.Entry, error) {
 				return s.History(ctx)
 			}),
+		action.Reader("Get", keys,
+			func(ctx context.Context, s serializable.Mixed, k string) (serializable.Entry, error) {
+				return s.Get(ctx, k)
+			}),
 	}
-}
-
-// mixedAssertAgrees drives random operation sequences against the subject and
-// the reference, comparing after every call.
-//
-// The differential is the strongest oracle this tier has, and it is this
-// leg's whole job: no laws are registered, so nothing competes with it and
-// a disagreement is what ends the run.
-func mixedAssertAgrees(
-	tb testing.TB,
-	sub suite.Subject[Mixed],
-	fx MixedFixture,
-) {
-	tb.Helper()
-	legs.Differential(tb, sub,
-		NewMixedModelReference,
-		mixedModelActions(fx))
 }
 
 // mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
@@ -1148,7 +1387,7 @@ func mixedAssertCounts(
 ) {
 	tb.Helper()
 
-	buildRef, tier := legs.Reference(tb, sub, NewMixedModelReference)
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
 	sub.NoteTier(tier)
 	legs.Law(tb, sub,
 		func() Mixed { return sub.New(tb) }, buildRef,
@@ -1163,5 +1402,37 @@ func mixedAssertCounts(
 		})
 }
 
+// mixedAssertSnapshotIsolationG2 binds AUTO-SNAPSHOT-ISOLATION-G2 over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func mixedAssertSnapshotIsolationG2(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			law.SnapshotIsolationG2[serializable.Mixed, string]{
+				History: suite.Provided[func(*model.T, serializable.Mixed) []law.Txn[string]](tb, sub, "history"),
+			},
+		})
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 7fcaaaf9eae1e081ee1d7b9fcc23c0ce68292b648898841660c2ec9254db0c5d
+// testkit:provenance 8a7117b3f2f37b4e280d40ea5c31fa29623719f5e8af8a6db72f2abbb28199e5

@@ -8,6 +8,7 @@ package partnernamingtest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -58,12 +59,10 @@ import (
 //	Emit/cancel
 //	Emit/deadline
 //	Emit/nilcontext
-//	Emit/sideeffect
 //	Emit/smoke
 //	Move/cancel
 //	Move/deadline
 //	Move/nilcontext
-//	Move/sideeffect
 //	Move/smoke
 //	Seen/cancel
 //	Seen/deadline
@@ -76,6 +75,14 @@ import (
 //	Touch/nilcontext
 //	Touch/sideeffect
 //	Touch/smoke
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	Emit's side-effect check — its observe partner asks about a value Emit takes none of, so a check has nothing to hand it. To close it: name a readable partner with //testkit:mixin sideeffect observe=…, on a line of its own — a directive naming several mixins takes no parameters, because the owner of one would be a guess.
+//	Move's side-effect check — its observe partner asks about one of Move's arguments and more than one has that type, so which of them the observation is about would be a guess. To close it: name a readable partner with //testkit:mixin sideeffect observe=…, on a line of its own — a directive naming several mixins takes no parameters, because the owner of one would be a guess.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -374,7 +381,6 @@ var storeIndexPath = map[suite.ID]string{
 	storeCheckIndex.Move.Cancels():      "StoreSuite.Checks.Move.Cancels()",
 	storeCheckIndex.Move.NilContext():   "StoreSuite.Checks.Move.NilContext()",
 	storeCheckIndex.Move.Deadline():     "StoreSuite.Checks.Move.Deadline()",
-	storeCheckIndex.Move.Sideeffect():   "StoreSuite.Checks.Move.Sideeffect()",
 	storeCheckIndex.At.Smoke():          "StoreSuite.Checks.At.Smoke()",
 	storeCheckIndex.At.Cancels():        "StoreSuite.Checks.At.Cancels()",
 	storeCheckIndex.At.NilContext():     "StoreSuite.Checks.At.NilContext()",
@@ -385,7 +391,6 @@ var storeIndexPath = map[suite.ID]string{
 	storeCheckIndex.Emit.Cancels():      "StoreSuite.Checks.Emit.Cancels()",
 	storeCheckIndex.Emit.NilContext():   "StoreSuite.Checks.Emit.NilContext()",
 	storeCheckIndex.Emit.Deadline():     "StoreSuite.Checks.Emit.Deadline()",
-	storeCheckIndex.Emit.Sideeffect():   "StoreSuite.Checks.Emit.Sideeffect()",
 	storeCheckIndex.Count.Smoke():       "StoreSuite.Checks.Count.Smoke()",
 	storeCheckIndex.Count.Cancels():     "StoreSuite.Checks.Count.Cancels()",
 	storeCheckIndex.Count.NilContext():  "StoreSuite.Checks.Count.NilContext()",
@@ -528,17 +533,12 @@ func (storeMoveChecks) Deadline() suite.ID {
 	return suite.MethodID(storeMove, suite.SegDeadline)
 }
 
-func (storeMoveChecks) Sideeffect() suite.ID {
-	return suite.MethodID(storeMove, suite.SegSideEffect)
-}
-
 func (storeMoveChecks) All() []suite.ID {
 	return []suite.ID{
 		storeMoveChecks{}.Smoke(),
 		storeMoveChecks{}.Cancels(),
 		storeMoveChecks{}.NilContext(),
 		storeMoveChecks{}.Deadline(),
-		storeMoveChecks{}.Sideeffect(),
 	}
 }
 
@@ -597,17 +597,12 @@ func (storeEmitChecks) Deadline() suite.ID {
 	return suite.MethodID(storeEmit, suite.SegDeadline)
 }
 
-func (storeEmitChecks) Sideeffect() suite.ID {
-	return suite.MethodID(storeEmit, suite.SegSideEffect)
-}
-
 func (storeEmitChecks) All() []suite.ID {
 	return []suite.ID{
 		storeEmitChecks{}.Smoke(),
 		storeEmitChecks{}.Cancels(),
 		storeEmitChecks{}.NilContext(),
 		storeEmitChecks{}.Deadline(),
-		storeEmitChecks{}.Sideeffect(),
 	}
 }
 
@@ -816,20 +811,10 @@ func storeSignatureChecks(fx StoreFixture) []suite.Check[Store] {
 			func(tb testing.TB, s Store) {
 				storeAssertSeenMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
-		sig(ix.Move.Sideeffect(), suite.ClassSideEffect,
-			"Move changes what At observes",
-			func(tb testing.TB, s Store) {
-				storeAssertMoveSideeffect(tb, s, fx)
-			}).At(suite.StrengthObserved),
 		sig(ix.At.Miss(), suite.ClassReader,
 			"At reports zero for a where nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertAtMiss(tb, s, fx)
-			}).At(suite.StrengthObserved),
-		sig(ix.Emit.Sideeffect(), suite.ClassSideEffect,
-			"Emit changes what Count observes",
-			func(tb testing.TB, s Store) {
-				storeAssertEmitSideeffect(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Count.Miss(), suite.ClassReader,
 			"Count reports zero for a bucket nothing has written",
@@ -1208,7 +1193,7 @@ func storeAssertTouchSideeffect(
 	tb.Helper()
 	ctx := tb.Context()
 
-	before, beforeErr := s.Seen(ctx, fx.K())
+	before, beforeErr := s.Seen(ctx, fx.Key())
 	if beforeErr != nil {
 		tb.Fatalf("Seen must be readable before Touch runs: %v", beforeErr)
 	}
@@ -1217,7 +1202,7 @@ func storeAssertTouchSideeffect(
 		tb.Fatalf("Touch must succeed before the two readings mean anything: %v", err)
 	}
 
-	after, afterErr := s.Seen(ctx, fx.K())
+	after, afterErr := s.Seen(ctx, fx.Key())
 	if afterErr != nil {
 		tb.Fatalf("Seen must still be readable after Touch runs: %v", afterErr)
 	}
@@ -1245,34 +1230,6 @@ func storeAssertSeenMiss(
 	}
 }
 
-// storeAssertMoveSideeffect asserts Move changes what At observes.
-func storeAssertMoveSideeffect(
-	tb testing.TB,
-	s Store,
-	fx StoreFixture,
-) {
-	tb.Helper()
-	ctx := tb.Context()
-
-	before, beforeErr := s.At(ctx, fx.Where())
-	if beforeErr != nil {
-		tb.Fatalf("At must be readable before Move runs: %v", beforeErr)
-	}
-
-	if err := s.Move(ctx, fx.From(), fx.To()); err != nil {
-		tb.Fatalf("Move must succeed before the two readings mean anything: %v", err)
-	}
-
-	after, afterErr := s.At(ctx, fx.Where())
-	if afterErr != nil {
-		tb.Fatalf("At must still be readable after Move runs: %v", afterErr)
-	}
-
-	if after == before {
-		tb.Errorf("Move must change what At observes: both read %+v", before)
-	}
-}
-
 // storeAssertAtMiss asserts At reports zero for a where nothing has written.
 func storeAssertAtMiss(
 	tb testing.TB,
@@ -1288,34 +1245,6 @@ func storeAssertAtMiss(
 	if got != zero {
 		tb.Errorf("At must return the zero value for an input nothing supplied: got %+v, want %+v (err %v)",
 			got, zero, err)
-	}
-}
-
-// storeAssertEmitSideeffect asserts Emit changes what Count observes.
-func storeAssertEmitSideeffect(
-	tb testing.TB,
-	s Store,
-	fx StoreFixture,
-) {
-	tb.Helper()
-	ctx := tb.Context()
-
-	before, beforeErr := s.Count(ctx, fx.Bucket())
-	if beforeErr != nil {
-		tb.Fatalf("Count must be readable before Emit runs: %v", beforeErr)
-	}
-
-	if err := s.Emit(ctx, fx.ID()); err != nil {
-		tb.Fatalf("Emit must succeed before the two readings mean anything: %v", err)
-	}
-
-	after, afterErr := s.Count(ctx, fx.Bucket())
-	if afterErr != nil {
-		tb.Fatalf("Count must still be readable after Emit runs: %v", afterErr)
-	}
-
-	if after == before {
-		tb.Errorf("Emit must change what Count observes: both read %+v", before)
 	}
 }
 
@@ -1468,8 +1397,15 @@ func (c StoreCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, storeMethods); err != nil {
 			return out, err
@@ -1487,10 +1423,10 @@ func (c StoreCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -1542,11 +1478,327 @@ func RunStore(
 		rc.Subjects...)
 }
 
-// ProveStore runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// storeProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveStore(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func storeProofs() prove.Defects[Store] {
+	ix := StoreSuite.Checks
+	return prove.Defects[Store]{
+		ix.Touch.Smoke(): prove.One("a Store whose Touch panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreTouch(
+					func(_ context.Context, _ string, _ int) error {
+						panic("planted: Touch panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Touch.Cancels(): prove.One("a Store whose Touch ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreTouch(
+					func(_ context.Context, _ string, _ int) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Touch.NilContext(): prove.One("a Store whose Touch forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreTouch(
+					func(_ context.Context, _ string, _ int) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Touch.Deadline(): prove.One("a Store whose Touch ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreTouch(
+					func(_ context.Context, _ string, _ int) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Seen.Smoke(): prove.One("a Store whose Seen panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreSeen(
+					func(_ context.Context, _ string) (int, error) {
+						panic("planted: Seen panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Seen.Cancels(): prove.One("a Store whose Seen ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreSeen(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Seen.NilContext(): prove.One("a Store whose Seen forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreSeen(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Seen.Deadline(): prove.One("a Store whose Seen ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreSeen(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Seen.ZeroOnError(): prove.One("a Store whose Seen answers a believable value beside its error",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreSeen(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = 2
+						err = errors.New("planted: Seen refused with a believable value")
+						return
+					}))
+			}),
+		ix.Move.Smoke(): prove.One("a Store whose Move panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreMove(
+					func(_ context.Context, _ string, _ string) error {
+						panic("planted: Move panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Move.Cancels(): prove.One("a Store whose Move ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreMove(
+					func(_ context.Context, _ string, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Move.NilContext(): prove.One("a Store whose Move forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreMove(
+					func(_ context.Context, _ string, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Move.Deadline(): prove.One("a Store whose Move ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreMove(
+					func(_ context.Context, _ string, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.At.Smoke(): prove.One("a Store whose At panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreAt(
+					func(_ context.Context, _ string) (int, error) {
+						panic("planted: At panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.At.Cancels(): prove.One("a Store whose At ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreAt(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.At.NilContext(): prove.One("a Store whose At forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreAt(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.At.Deadline(): prove.One("a Store whose At ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreAt(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.At.ZeroOnError(): prove.One("a Store whose At answers a believable value beside its error",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreAt(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = 2
+						err = errors.New("planted: At refused with a believable value")
+						return
+					}))
+			}),
+		ix.Emit.Smoke(): prove.One("a Store whose Emit panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreEmit(
+					func(_ context.Context, _ string) error {
+						panic("planted: Emit panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Emit.Cancels(): prove.One("a Store whose Emit ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreEmit(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Emit.NilContext(): prove.One("a Store whose Emit forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreEmit(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Emit.Deadline(): prove.One("a Store whose Emit ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreEmit(
+					func(_ context.Context, _ string) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Count.Smoke(): prove.One("a Store whose Count panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreCount(
+					func(_ context.Context, _ int) (int, error) {
+						panic("planted: Count panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Count.Cancels(): prove.One("a Store whose Count ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreCount(
+					func(_ context.Context, _ int) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Count.NilContext(): prove.One("a Store whose Count forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreCount(
+					func(_ context.Context, _ int) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Count.Deadline(): prove.One("a Store whose Count ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreCount(
+					func(_ context.Context, _ int) (r0 int, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Count.ZeroOnError(): prove.One("a Store whose Count answers a believable value beside its error",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreCount(
+					func(_ context.Context, _ int) (r0 int, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = 2
+						err = errors.New("planted: Count refused with a believable value")
+						return
+					}))
+			}),
+		ix.Touch.Sideeffect(): prove.One("a Store whose Touch reports success and keeps nothing",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreTouch(
+					func(_ context.Context, _ string, _ int) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+		ix.Seen.Miss(): prove.One("a Store whose Seen answers for an input nothing wrote",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreSeen(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = 2
+						return
+					}))
+			}),
+		ix.At.Miss(): prove.One("a Store whose At answers for an input nothing wrote",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreAt(
+					func(_ context.Context, _ string) (r0 int, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = 2
+						return
+					}))
+			}),
+		ix.Count.Miss(): prove.One("a Store whose Count answers for an input nothing wrote",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreCount(
+					func(_ context.Context, _ int) (r0 int, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = 2
+						return
+					}))
+			}),
+	}
+}
+
+// ProveStore runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveStore(t, StoreHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -1556,23 +1808,40 @@ func RunStore(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunStore does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveStore(
-	t *testing.T, checks StoreChecks,
+	t *testing.T, opts ...StoreRunOpt,
 ) {
 	t.Helper()
+	var rc storeRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := storeNewFixture()
-	bound := make([]suite.Check[Store], 0, len(checks))
-	defects := prove.Defects[Store]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveStore")
+	s := storeSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := storeProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveStore: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -1582,8 +1851,14 @@ func ProveStore(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance 5e4e7f860e3e41f3d28993e5f67025af14129071b83e5d64a905297c54ef51a0
+// testkit:provenance 983743ddb7c36282e8c7c470138eb00b8c8750b80e4630f10fa08ac9454cd712

@@ -23,6 +23,20 @@ func TestCompositeWriterContract(t *testing.T) {
 	)
 }
 
+// TestCompositeWriterChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestCompositeWriterChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	compositewritertest.ProveCompositeWriter(
+		t,
+		compositewritertest.CompositeWriterHarness[*compositewritertest.InMemory]{
+			Name: "in-memory",
+			New:  compositewritertest.NewInMemory,
+		},
+	)
+}
+
 // Dropping a check is written against the typed index rather than a string, so
 // a check that is renamed or stops being emitted breaks this compile instead of
 // silently declining nothing.

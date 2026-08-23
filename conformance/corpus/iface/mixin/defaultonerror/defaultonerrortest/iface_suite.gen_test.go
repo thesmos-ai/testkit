@@ -7,147 +7,44 @@
 package defaultonerrortest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/defaultonerror"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/defaultonerror/defaultonerrortest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		defaultonerrortest.MixedSuite.Suite(defaultonerrortest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[defaultonerrortest.Mixed] {
-	ix := defaultonerrortest.MixedSuite.Checks
-	return prove.Defects[defaultonerrortest.Mixed]{
-		ix.Store.Smoke(): prove.One("a Mixed whose Store panics",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedStore(
-					func(_ context.Context, _ defaultonerror.Value) error {
-						panic("planted: Store panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Store.Cancels(): prove.One("a Mixed whose Store ignores the context it is handed",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedStore(
-					func(_ context.Context, _ defaultonerror.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Store.NilContext(): prove.One("a Mixed whose Store forgives a nil context and answers",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedStore(
-					func(_ context.Context, _ defaultonerror.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Store.Deadline(): prove.One("a Mixed whose Store ignores the context it is handed",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedStore(
-					func(_ context.Context, _ defaultonerror.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.Smoke(): prove.One("a Mixed whose Get panics",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedGet(
-					func(_ context.Context, _ string) (defaultonerror.Value, error) {
-						panic("planted: Get panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Get.Cancels(): prove.One("a Mixed whose Get ignores the context it is handed",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 defaultonerror.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Get.NilContext(): prove.One("a Mixed whose Get forgives a nil context and answers",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 defaultonerror.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Get.Deadline(): prove.One("a Mixed whose Get ignores the context it is handed",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 defaultonerror.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.ZeroOnError(): prove.One("a Mixed whose Get answers a believable value beside its error",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 defaultonerror.Value, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = defaultonerror.Value{Key: "other-value"}
-						err = errors.New("planted: Get refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Miss(): prove.One("a Mixed whose Get answers for an input nothing wrote",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedGet(
-					func(_ context.Context, _ string) (r0 defaultonerror.Value, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = defaultonerror.Value{Key: "other-value"}
-						return
-					}))
-			}),
-		ix.Model.Agrees(): prove.One("a Mixed whose Store reports success and keeps nothing",
-			func(tb testing.TB) defaultonerrortest.Mixed {
-				return defaultonerrortest.NewMixedStub(tb, defaultonerrortest.WithMixedStore(
-					func(_ context.Context, _ defaultonerror.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Store.Smoke — a Mixed whose Store panics
+//
+//	Store.Cancels — a Mixed whose Store ignores the context it is handed
+//
+//	Store.NilContext — a Mixed whose Store forgives a nil context and answers
+//
+//	Store.Deadline — a Mixed whose Store ignores the context it is handed
+//
+//	Get.Smoke — a Mixed whose Get panics
+//
+//	Get.Cancels — a Mixed whose Get ignores the context it is handed
+//
+//	Get.NilContext — a Mixed whose Get forgives a nil context and answers
+//
+//	Get.Deadline — a Mixed whose Get ignores the context it is handed
+//
+//	Get.ZeroOnError — a Mixed whose Get answers a believable value beside its error
+//
+//	Get.Miss — a Mixed whose Get answers for an input nothing wrote
+//
+//	Model.Agrees — a Mixed whose Store reports success and keeps nothing
+//
+//	Model.WriteObservable — a Mixed whose Store reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -177,4 +74,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 70e94bda38592e4566efa78233fb1cbad18c0d7faae78b73a434e6b10007a721
+// testkit:provenance f331d4b885c0f0c0ac77dd6bdc64a068ff528e5c037503625cbf12a0cb64ad3a

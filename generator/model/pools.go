@@ -12,6 +12,7 @@ import (
 	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 )
 
@@ -89,6 +90,46 @@ func poolsOf(
 	pinValues(ctx, b, keyed, valued, composite)
 }
 
+// poolFields records which shared pools draw from a config field, so the
+// tier samples the whole pool rather than the fixture's pair.
+//
+// The pair is two values a fixed sequence needs; the pool is what a drawn
+// one does, and the difference is the hostile member the transforms add to
+// a derived pool. It was derived for every roled declaration and read by
+// nothing at all until this.
+func poolFields(ctx *sdk.GeneratorContext, b *Bindings, pools []projection.PoolPlan) {
+	for _, p := range pools {
+		// Matched on the ROLE the declaration stamped, not on the element
+		// type: the role is the author saying what a value is FOR, and two
+		// roles at one type — a key and a payload both spelled string — are
+		// two pools whichever way their members render.
+		switch {
+		case p.Role == projection.RolePayload && b.Values.Type != nil:
+			b.Values.PoolField = p.Field
+			b.Values.Hostile = stringUnder(ctx, b.Values.Q)
+		case p.Role == projection.RoleKey && b.Keys.Type != nil:
+			b.Keys.PoolField = p.Field
+			b.Keys.Hostile = stringUnder(ctx, b.Keys.Q)
+		}
+	}
+}
+
+// stringUnder reports whether the named type is a string under its own
+// name — the one shape a hostile string converts into without a
+// constructor this generator would have to invent.
+func stringUnder(ctx *sdk.GeneratorContext, typeQ string) bool {
+	for cand := range ctx.Reader.Aliases().All() {
+		if cand.Package+"."+cand.Name != typeQ {
+			continue
+		}
+		// The target rather than the kind: the kind answers "basic" for
+		// every predeclared scalar, and a hostile string converts into a
+		// string and nothing else.
+		return cand.Target != nil && shape.QName(cand.Target) == builtinString
+	}
+	return false
+}
+
 // Pool is one shared value source: a fixture field and its companion, and how
 // far past them the draws reach.
 type Pool struct {
@@ -111,6 +152,22 @@ type Pool struct {
 	// [model.Make] draws; WhyNarrow is the header's reason where it cannot.
 	Wide      bool
 	WhyNarrow string
+
+	// Hostile marks a pool the adversarial half of the string space can be
+	// blended into: the element is a string under its own name, so a
+	// hostile string converts to it without a constructor anyone has to
+	// guess.
+	Hostile bool
+
+	// PoolField is the config field this pool draws from where the role
+	// declared one, empty otherwise.
+	//
+	// Drawing the FIELD rather than the fixture's pair is what puts the
+	// hostile member in reach: the transforms add one to a pool derived
+	// from the type, and a pool the run passed carries exactly what it
+	// passed. The provenance rule needs no flag — pass a pool and the
+	// hostile member is not in it.
+	PoolField string
 
 	// Pin is the value field overwritten with a keys-pool draw, so every
 	// drawn value lands on a key the reads revisit — empty where the key is

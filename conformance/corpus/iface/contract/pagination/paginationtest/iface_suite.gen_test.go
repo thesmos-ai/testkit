@@ -7,137 +7,40 @@
 package paginationtest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/pagination"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/pagination/paginationtest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		paginationtest.ContractSuite.Suite(paginationtest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[paginationtest.Contract] {
-	ix := paginationtest.ContractSuite.Checks
-	return prove.Defects[paginationtest.Contract]{
-		ix.Page.Smoke(): prove.One("a Contract whose Page panics",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) ([]pagination.Value, pagination.Cursor, bool, error) {
-						panic("planted: Page panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Page.Cancels(): prove.One("a Contract whose Page ignores the context it is handed",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) (items []pagination.Value, next pagination.Cursor, more bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Page.NilContext(): prove.One("a Contract whose Page forgives a nil context and answers",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) (items []pagination.Value, next pagination.Cursor, more bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Page.Deadline(): prove.One("a Contract whose Page ignores the context it is handed",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) (items []pagination.Value, next pagination.Cursor, more bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Page.ZeroOnError(): prove.One("a Contract whose Page answers a believable value beside its error",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) (items []pagination.Value, next pagination.Cursor, more bool, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						items = []pagination.Value{{Key: "other-"}}
-						err = errors.New("planted: Page refused with a believable value")
-						return
-					}))
-			}),
-		ix.Put.Smoke(): prove.One("a Contract whose Put panics",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPut(
-					func(_ context.Context, _ pagination.Value) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Contract whose Put ignores the context it is handed",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPut(
-					func(_ context.Context, _ pagination.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Contract whose Put forgives a nil context and answers",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPut(
-					func(_ context.Context, _ pagination.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Contract whose Put ignores the context it is handed",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPut(
-					func(_ context.Context, _ pagination.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Page.Miss(): prove.One("a Contract whose Page answers for an input nothing wrote",
-			func(tb testing.TB) paginationtest.Contract {
-				return paginationtest.NewContractStub(tb, paginationtest.WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) (items []pagination.Value, next pagination.Cursor, more bool, err error) {
-						// A value for a call a correct subject answers nothing for.
-						items = []pagination.Value{{Key: "other-"}}
-						return
-					}))
-			}),
-	}
-}
+//	Page.Smoke — a Contract whose Page panics
+//
+//	Page.Cancels — a Contract whose Page ignores the context it is handed
+//
+//	Page.NilContext — a Contract whose Page forgives a nil context and answers
+//
+//	Page.Deadline — a Contract whose Page ignores the context it is handed
+//
+//	Page.ZeroOnError — a Contract whose Page answers a believable value beside its error
+//
+//	Put.Smoke — a Contract whose Put panics
+//
+//	Put.Cancels — a Contract whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Contract whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Contract whose Put ignores the context it is handed
+//
+//	Page.Miss — a Contract whose Page answers for an input nothing wrote
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -167,4 +70,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance fd8855de7020594d3e3f219737a1540108f10875ff4d00ad62110287881ab5c0
+// testkit:provenance a5d8595e594ccf9b7b5b2c0b1fd1b33f97c8e3678ab0d4059735004acf170a17

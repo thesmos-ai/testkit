@@ -72,6 +72,27 @@ const (
 	// compile error over generated code.
 	SlotSuiteDecls = "suite.decls"
 
+	// SlotCheckFields is the row type's fields — the body forms a
+	// contributing tier lets a consumer write beyond Run and RunWith.
+	//
+	// Paired with SlotCheckBodies for the reason the harness pair is
+	// paired: a field nothing dispatches is a body a consumer writes and
+	// the run never calls, which reads as a check that passed.
+	SlotCheckFields = "check.fields"
+
+	// SlotCheckBodies is the block inside a row's bind that turns a
+	// contributed field into the runner's own Run or RunWith.
+	//
+	// Three locals are in scope and a contribution may touch all three.
+	// `bodies` counts what the row set, and the runtime refuses any
+	// answer but one. `fields` is the listing that refusal offers, which
+	// has to name what THIS interface can set — a message offering Prop
+	// to a row that has no Prop field sends a reader looking for it.
+	// `scoped` says some body set here takes the row's Method, so the
+	// guard against a Method beside a self-scoping body does not fire on
+	// one that reads it.
+	SlotCheckBodies = "check.bodies"
+
 	// SlotHarnessLowering is the body of the harness's Subject method,
 	// after the runtime subject is built and before it is returned.
 	//
@@ -91,5 +112,9 @@ const (
 // renders without it, which compiles. That is why the list exists rather
 // than the constants alone.
 func Slots() []string {
-	return []string{SlotHarnessFields, SlotHarnessLowering, SlotSuiteChecks, SlotSuiteDecls}
+	return []string{
+		SlotHarnessFields, SlotHarnessLowering,
+		SlotCheckFields, SlotCheckBodies,
+		SlotSuiteChecks, SlotSuiteDecls,
+	}
 }

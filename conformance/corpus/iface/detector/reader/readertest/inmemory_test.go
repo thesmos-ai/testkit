@@ -39,7 +39,7 @@ func TestReaderContractWithoutSmoke(t *testing.T) {
 func TestReaderChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	readertest.ProveReader(t, readerChecks)
+	readertest.ProveReader(t, inMemory("in-memory"), readerChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

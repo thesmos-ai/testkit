@@ -7,138 +7,40 @@
 package noduplicatestest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/noduplicates"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/noduplicates/noduplicatestest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		noduplicatestest.MixedSuite.Suite(noduplicatestest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[noduplicatestest.Mixed] {
-	ix := noduplicatestest.MixedSuite.Checks
-	return prove.Defects[noduplicatestest.Mixed]{
-		ix.Add.Smoke(): prove.One("a Mixed whose Add panics",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedAdd(
-					func(_ context.Context, _ noduplicates.Value) error {
-						panic("planted: Add panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Add.Cancels(): prove.One("a Mixed whose Add ignores the context it is handed",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedAdd(
-					func(_ context.Context, _ noduplicates.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Add.NilContext(): prove.One("a Mixed whose Add forgives a nil context and answers",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedAdd(
-					func(_ context.Context, _ noduplicates.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Add.Deadline(): prove.One("a Mixed whose Add ignores the context it is handed",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedAdd(
-					func(_ context.Context, _ noduplicates.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Items.Smoke(): prove.One("a Mixed whose Items panics",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedItems(
-					func(_ context.Context) ([]noduplicates.Value, error) {
-						panic("planted: Items panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Items.Cancels(): prove.One("a Mixed whose Items ignores the context it is handed",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedItems(
-					func(_ context.Context) (r0 []noduplicates.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Items.NilContext(): prove.One("a Mixed whose Items forgives a nil context and answers",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedItems(
-					func(_ context.Context) (r0 []noduplicates.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Items.Deadline(): prove.One("a Mixed whose Items ignores the context it is handed",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedItems(
-					func(_ context.Context) (r0 []noduplicates.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Items.ZeroOnError(): prove.One("a Mixed whose Items answers a believable value beside its error",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedItems(
-					func(_ context.Context) (r0 []noduplicates.Value, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = []noduplicates.Value{{Key: "other-"}}
-						err = errors.New("planted: Items refused with a believable value")
-						return
-					}))
-			}),
-		ix.Model.Agrees(): prove.One("a Mixed whose Add reports success and keeps nothing",
-			func(tb testing.TB) noduplicatestest.Mixed {
-				return noduplicatestest.NewMixedStub(tb, noduplicatestest.WithMixedAdd(
-					func(_ context.Context, _ noduplicates.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Add.Smoke — a Mixed whose Add panics
+//
+//	Add.Cancels — a Mixed whose Add ignores the context it is handed
+//
+//	Add.NilContext — a Mixed whose Add forgives a nil context and answers
+//
+//	Add.Deadline — a Mixed whose Add ignores the context it is handed
+//
+//	Items.Smoke — a Mixed whose Items panics
+//
+//	Items.Cancels — a Mixed whose Items ignores the context it is handed
+//
+//	Items.NilContext — a Mixed whose Items forgives a nil context and answers
+//
+//	Items.Deadline — a Mixed whose Items ignores the context it is handed
+//
+//	Items.ZeroOnError — a Mixed whose Items answers a believable value beside its error
+//
+//	Model.Agrees — a Mixed whose Add reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -168,4 +70,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 75921a8204a9624e37dcb5d7492fd4d2174c5c3d3beeca601bd2543595b912bb
+// testkit:provenance a3ef8ef74e957368a651e58797da70c1df5f49fd5575f5082226696d24b59399

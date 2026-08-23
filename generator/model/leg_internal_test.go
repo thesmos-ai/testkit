@@ -125,3 +125,71 @@ func TestABodyDrawsOnlyWhatBothSidesHave(t *testing.T) {
 	testkit.False(t, drawsFixture(legBindings(), &suite.Contract{DrawsFixture: true}),
 		"and a tier reading none takes none, or the parameter does not compile")
 }
+
+// The crash claim is refused for a store whose acknowledgement does not
+// mean "this key holds this record until something else writes it".
+//
+// Every arm below is a store that breaks that sentence honestly. Running
+// the schedule against one would red correct code rather than find a
+// lost write, and a red nobody can fix is a red everybody learns to
+// ignore — so the row is not planned and the header carries the reason
+// in words.
+func TestSimLegRefusesWhatItCannotHold(t *testing.T) {
+	t.Parallel()
+
+	keyed := func() *Bindings {
+		return &Bindings{Reference: Reference{
+			Oracle: OracleMap, CtorName: "newRef", KeyField: fieldKey,
+		}}
+	}
+
+	t.Run("a plain keyed store carries it", func(t *testing.T) {
+		t.Parallel()
+		b := keyed()
+		b.Actions = []*Action{{Pool: poolKeys}, {Pool: poolValues}}
+		testkit.Equal(t, simLegReason(b), "", "nothing here breaks the sentence")
+	})
+
+	t.Run("a pinning store does not", func(t *testing.T) {
+		t.Parallel()
+		b := keyed()
+		b.Actions = []*Action{{Pool: poolKeys}, {Pool: poolValues}}
+		b.Reference.Pins = true
+		testkit.Contains(t, simLegReason(b), "pins it",
+			"a later acknowledged write is one the store never promised to answer with")
+	})
+
+	t.Run("a deduplicating store does not", func(t *testing.T) {
+		t.Parallel()
+		b := keyed()
+		b.Actions = []*Action{{Pool: poolKeys}, {Pool: poolValues}}
+		b.Reference.Dedupe = true
+		testkit.Contains(t, simLegReason(b), "acknowledged and not installed",
+			"and the schedule holds every acknowledgement to a read")
+	})
+
+	t.Run("a store that stamps what it stores does not", func(t *testing.T) {
+		t.Parallel()
+		b := keyed()
+		b.Actions = []*Action{{Pool: poolKeys}, {Pool: poolValues}}
+		b.Reference.VersionField = "Version"
+		testkit.Contains(t, simLegReason(b), "stamps what it stores",
+			"a read answers a record the write did not hand it")
+	})
+
+	t.Run("a run with no pool to draw from does not", func(t *testing.T) {
+		t.Parallel()
+		b := keyed()
+		testkit.Contains(t, simLegReason(b), "declares no pool",
+			"the schedule draws a key to read and a record to write")
+	})
+
+	t.Run("a store with no key projection does not", func(t *testing.T) {
+		t.Parallel()
+		b := keyed()
+		b.Actions = []*Action{{Pool: poolKeys}, {Pool: poolValues}}
+		b.Reference.KeyField = ""
+		testkit.Contains(t, simLegReason(b), "no projection derives",
+			"a write is filed under the key it lands on, and nothing says which member")
+	})
+}

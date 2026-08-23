@@ -74,6 +74,12 @@ func suppliedFieldOf(
 	}
 	field.KindName = sdk.Kind(LawFieldKindPrefix + "SuppliedField")
 	field.Pool = opt.Config
+	// The refs the door's own type is spelled from. Copied onto the field
+	// rather than looked up through the option, because the field renders
+	// standalone: the backend dispatches it by kind with no path back to
+	// the binding that holds it.
+	field.Shape, field.Iface, field.Key, field.Elem, field.Out =
+		opt.Shape, opt.Iface, opt.Key, opt.Elem, opt.Out
 	return field, ""
 }
 

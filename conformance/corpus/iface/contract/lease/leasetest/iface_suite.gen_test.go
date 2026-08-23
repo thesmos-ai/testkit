@@ -7,123 +7,38 @@
 package leasetest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/lease/leasetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		leasetest.ContractSuite.Suite(leasetest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[leasetest.Contract] {
-	ix := leasetest.ContractSuite.Checks
-	return prove.Defects[leasetest.Contract]{
-		ix.Acquire.Smoke(): prove.One("a Contract whose Acquire panics",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractAcquire(
-					func(_ context.Context, _ string) error {
-						panic("planted: Acquire panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Acquire.Cancels(): prove.One("a Contract whose Acquire ignores the context it is handed",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Acquire.NilContext(): prove.One("a Contract whose Acquire forgives a nil context and answers",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Acquire.Deadline(): prove.One("a Contract whose Acquire ignores the context it is handed",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Release.Smoke(): prove.One("a Contract whose Release panics",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractRelease(
-					func(_ context.Context, _ string) error {
-						panic("planted: Release panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Release.Cancels(): prove.One("a Contract whose Release ignores the context it is handed",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractRelease(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Release.NilContext(): prove.One("a Contract whose Release forgives a nil context and answers",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractRelease(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Release.Deadline(): prove.One("a Contract whose Release ignores the context it is handed",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractRelease(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Model.Agrees(): prove.One("a Contract whose Acquire reports success and keeps nothing",
-			func(tb testing.TB) leasetest.Contract {
-				return leasetest.NewContractStub(tb, leasetest.WithContractAcquire(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Acquire.Smoke — a Contract whose Acquire panics
+//
+//	Acquire.Cancels — a Contract whose Acquire ignores the context it is handed
+//
+//	Acquire.NilContext — a Contract whose Acquire forgives a nil context and answers
+//
+//	Acquire.Deadline — a Contract whose Acquire ignores the context it is handed
+//
+//	Release.Smoke — a Contract whose Release panics
+//
+//	Release.Cancels — a Contract whose Release ignores the context it is handed
+//
+//	Release.NilContext — a Contract whose Release forgives a nil context and answers
+//
+//	Release.Deadline — a Contract whose Release ignores the context it is handed
+//
+//	Model.Agrees — a Contract whose Acquire reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -153,4 +68,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 2694439dd33239088fcc78bec1d9520793600e616eb831b15b258fb00f2be191
+// testkit:provenance d3899860c0d2504514929acf9a6d87986f430c3430a4049212813fc90a26fb79

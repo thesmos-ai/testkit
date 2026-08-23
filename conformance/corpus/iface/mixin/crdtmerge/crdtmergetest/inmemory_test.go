@@ -45,7 +45,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	crdtmergetest.ProveMixed(t, mixedChecks)
+	crdtmergetest.ProveMixed(t, inMemoryMixed("in-memory"), mixedChecks)
 }
 
 // TestReplicaContract runs the peer, which is a contract in its own right — and

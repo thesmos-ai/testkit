@@ -38,7 +38,7 @@ func TestRankedContractWithoutSmoke(t *testing.T) {
 func TestRankedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	indexedtest.ProveRanked(t, rankedChecks)
+	indexedtest.ProveRanked(t, inMemory("in-memory"), rankedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

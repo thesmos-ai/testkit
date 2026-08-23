@@ -48,6 +48,7 @@ func renderFuncs() template.FuncMap {
 		"docsIdent":         func() string { return string(projection.ExprDocs) },
 		"runName":           projection.RunName,
 		"proveName":         projection.ProveName,
+		"proofsName":        projection.ProofsName,
 		"runOptName":        projection.RunOptName,
 		"runConfigName":     projection.RunConfigName,
 		"dropOptName":       projection.DropOptName,

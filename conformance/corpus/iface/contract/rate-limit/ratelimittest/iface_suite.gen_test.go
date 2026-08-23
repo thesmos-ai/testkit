@@ -7,76 +7,28 @@
 package ratelimittest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/rate-limit/ratelimittest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		ratelimittest.ContractSuite.Suite(ratelimittest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[ratelimittest.Contract] {
-	ix := ratelimittest.ContractSuite.Checks
-	return prove.Defects[ratelimittest.Contract]{
-		ix.Run.Smoke(): prove.One("a Contract whose Run panics",
-			func(tb testing.TB) ratelimittest.Contract {
-				return ratelimittest.NewContractStub(tb, ratelimittest.WithContractRun(
-					func(_ context.Context, _ string) error {
-						panic("planted: Run panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Run.Cancels(): prove.One("a Contract whose Run ignores the context it is handed",
-			func(tb testing.TB) ratelimittest.Contract {
-				return ratelimittest.NewContractStub(tb, ratelimittest.WithContractRun(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Run.NilContext(): prove.One("a Contract whose Run forgives a nil context and answers",
-			func(tb testing.TB) ratelimittest.Contract {
-				return ratelimittest.NewContractStub(tb, ratelimittest.WithContractRun(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Run.Deadline(): prove.One("a Contract whose Run ignores the context it is handed",
-			func(tb testing.TB) ratelimittest.Contract {
-				return ratelimittest.NewContractStub(tb, ratelimittest.WithContractRun(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-	}
-}
+//	Run.Smoke — a Contract whose Run panics
+//
+//	Run.Cancels — a Contract whose Run ignores the context it is handed
+//
+//	Run.NilContext — a Contract whose Run forgives a nil context and answers
+//
+//	Run.Deadline — a Contract whose Run ignores the context it is handed
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -106,4 +58,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance df6d41e6a815fc33f62868c927ff34b4dd485bca70b05c2ac0ac07650e38039d
+// testkit:provenance 9f57638c376893f74f5725a99539664703e7236c0fcfbd3b6b5661b74e194bd0

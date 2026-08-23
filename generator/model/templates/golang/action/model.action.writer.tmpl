@@ -1,20 +1,15 @@
 {{- /*
 A writer draws a value from the shared pool and writes it to both sides, so
-the reads that follow have the same history to disagree about. A recording
-writer logs each success into the append history the no-drops law reads —
-both sides' successes land, which a membership check is indifferent to.
+the reads that follow have the same history to disagree about.
+
+A recording writer takes the run's log beside the pool rather than closing
+over it: the constructor is handed the subject and then the reference, so a
+log filled from inside the closure counts each write twice — which a
+membership check is indifferent to and a count is not.
 */ -}}
 {{- define "model.action.writer" -}}
-{{ renderExpr .Ctor }}({{ printf "%q" .Method }}, {{ .Pool }},
+{{ renderExpr .Ctor }}({{ printf "%q" .Method }}, {{ .Pool }},{{ if .Records }} appendHist,{{ if .Partitioned }} func({{ renderType .Value }}) string { return "" },{{ end }}{{ end }}
 				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) error {
-{{- if .Records }}
-					err := s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}v)
-					if err == nil {
-						appendHist.Record("", v)
-					}
-					return err
-{{- else }}
 					return s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}v)
-{{- end }}
 				})
 {{- end -}}

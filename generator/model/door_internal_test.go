@@ -51,3 +51,52 @@ func TestADoorFollowsTheRowThatNeedsIt(t *testing.T) {
 		testkit.Len(t, fields, 1, "one clock, however many checks move it")
 	})
 }
+
+// Each capability opens its own door, and the two arrive in a fixed
+// order.
+//
+// Two now, and the second is what made the order worth pinning: a
+// generated harness whose fields reshuffle between runs is a diff nobody
+// can review, and the clock came first only because it was first
+// written. A row needing both gets both, because a check that moves time
+// and kills the process needs the field for each.
+func TestEachCapabilityOpensItsOwnDoor(t *testing.T) {
+	t.Parallel()
+
+	clocked := projection.CheckPlan{
+		Needs: []projection.NeedPlan{{Capability: vocab.CapClock}},
+	}
+	crashing := projection.CheckPlan{
+		Needs: []projection.NeedPlan{{Capability: vocab.CapRecover}},
+	}
+
+	t.Run("a row needing recovery opens the crash seam", func(t *testing.T) {
+		t.Parallel()
+		b := &Bindings{Rows: []projection.CheckPlan{crashing}}
+		fields, lowerings := doorsFor(b, "Mixed")
+		testkit.Len(t, fields, 1, "the field a crash schedule needs")
+		testkit.Equal(t, fields[0].Kind(), KindRecoverDoor,
+			"and it is the crash seam, not the clock")
+		testkit.Len(t, lowerings, 1, "with the line that carries it onto the runtime")
+	})
+
+	t.Run("a clocked row opens no crash seam", func(t *testing.T) {
+		t.Parallel()
+		b := &Bindings{Rows: []projection.CheckPlan{clocked}}
+		fields, _ := doorsFor(b, "Mixed")
+		testkit.Len(t, fields, 1, "one door, for the one capability asked for")
+		testkit.Equal(t, fields[0].Kind(), KindClockDoor,
+			"a door opens because a check asks, never because another door did")
+	})
+
+	t.Run("both are opened in declaration order", func(t *testing.T) {
+		t.Parallel()
+		b := &Bindings{Rows: []projection.CheckPlan{crashing, clocked}}
+		fields, lowerings := doorsFor(b, "Mixed")
+		testkit.Len(t, fields, 2, "a field for each capability the rows demand")
+		testkit.Equal(t, fields[0].Kind(), KindClockDoor,
+			"the clock first whichever row asked first, so the harness does not reshuffle")
+		testkit.Equal(t, fields[1].Kind(), KindRecoverDoor, "then the crash seam")
+		testkit.Len(t, lowerings, 2, "and both halves of both")
+	})
+}

@@ -15,4 +15,4 @@ Record/deadline	signature/deadline	Record reports an expired deadline as exceede
 Record/nilcontext	signature/nilcontext	Record returns an error rather than panicking on a nil context	
 Record/smoke	signature/smoke	Record survives a call with a derived entry	
 model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
-model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+model/mixed/AUTO-SNAPSHOT-ISOLATION-G2	model/laws	the recorded transaction history has no write skew	AUTO-SNAPSHOT-ISOLATION-G2

@@ -7,90 +7,30 @@
 package xsssafetest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/xsssafe/xsssafetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		xsssafetest.MixedSuite.Suite(xsssafetest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[xsssafetest.Mixed] {
-	ix := xsssafetest.MixedSuite.Checks
-	return prove.Defects[xsssafetest.Mixed]{
-		ix.Render.Smoke(): prove.One("a Mixed whose Render panics",
-			func(tb testing.TB) xsssafetest.Mixed {
-				return xsssafetest.NewMixedStub(tb, xsssafetest.WithMixedRender(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Render panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Render.Cancels(): prove.One("a Mixed whose Render ignores the context it is handed",
-			func(tb testing.TB) xsssafetest.Mixed {
-				return xsssafetest.NewMixedStub(tb, xsssafetest.WithMixedRender(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Render.NilContext(): prove.One("a Mixed whose Render forgives a nil context and answers",
-			func(tb testing.TB) xsssafetest.Mixed {
-				return xsssafetest.NewMixedStub(tb, xsssafetest.WithMixedRender(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Render.Deadline(): prove.One("a Mixed whose Render ignores the context it is handed",
-			func(tb testing.TB) xsssafetest.Mixed {
-				return xsssafetest.NewMixedStub(tb, xsssafetest.WithMixedRender(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Render.ZeroOnError(): prove.One("a Mixed whose Render answers a believable value beside its error",
-			func(tb testing.TB) xsssafetest.Mixed {
-				return xsssafetest.NewMixedStub(tb, xsssafetest.WithMixedRender(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Render refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Render.Smoke — a Mixed whose Render panics
+//
+//	Render.Cancels — a Mixed whose Render ignores the context it is handed
+//
+//	Render.NilContext — a Mixed whose Render forgives a nil context and answers
+//
+//	Render.Deadline — a Mixed whose Render ignores the context it is handed
+//
+//	Render.ZeroOnError — a Mixed whose Render answers a believable value beside its error
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -120,4 +60,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance b050acf5773b209ec2deed3706e364c9d9d38341959528e881d31e0d7cae5ce5
+// testkit:provenance cd0faa404ad8fb6cf50618269408c2b82c1b8699383c7658aabc388da49c58c4

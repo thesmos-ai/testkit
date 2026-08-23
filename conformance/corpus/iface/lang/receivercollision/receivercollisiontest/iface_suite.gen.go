@@ -8,6 +8,7 @@ package receivercollisiontest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -751,8 +752,15 @@ func (c StoreCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, storeMethods); err != nil {
 			return out, err
@@ -770,10 +778,10 @@ func (c StoreCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -825,11 +833,132 @@ func RunStore(
 		rc.Subjects...)
 }
 
-// ProveStore runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// storeProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveStore(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func storeProofs() prove.Defects[Store] {
+	ix := StoreSuite.Checks
+	return prove.Defects[Store]{
+		ix.Put.Smoke(): prove.One("a Store whose Put panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ receivercollision.Session) error {
+						panic("planted: Put panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Put.Cancels(): prove.One("a Store whose Put ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ receivercollision.Session) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Put.NilContext(): prove.One("a Store whose Put forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ receivercollision.Session) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Put.Deadline(): prove.One("a Store whose Put ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStorePut(
+					func(_ context.Context, _ receivercollision.Session) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.Smoke(): prove.One("a Store whose Get panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ string) (receivercollision.Session, error) {
+						panic("planted: Get panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Get.Cancels(): prove.One("a Store whose Get ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ string) (r0 receivercollision.Session, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Get.NilContext(): prove.One("a Store whose Get forgives a nil context and answers",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ string) (r0 receivercollision.Session, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Get.Deadline(): prove.One("a Store whose Get ignores the context it is handed",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ string) (r0 receivercollision.Session, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.ZeroOnError(): prove.One("a Store whose Get answers a believable value beside its error",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ string) (r0 receivercollision.Session, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = receivercollision.Session{ID: "other-session"}
+						err = errors.New("planted: Get refused with a believable value")
+						return
+					}))
+			}),
+		ix.Touch.Smoke(): prove.One("a Store whose Touch panics",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreTouch(
+					func(_ context.Context, _ receivercollision.Session) {
+						panic("planted: Touch panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Get.Miss(): prove.One("a Store whose Get answers for an input nothing wrote",
+			func(tb testing.TB) Store {
+				return NewStoreStub(tb, WithStoreGet(
+					func(_ context.Context, _ string) (r0 receivercollision.Session, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = receivercollision.Session{ID: "other-session"}
+						return
+					}))
+			}),
+	}
+}
+
+// ProveStore runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveStore(t, StoreHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -839,23 +968,40 @@ func RunStore(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunStore does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveStore(
-	t *testing.T, checks StoreChecks,
+	t *testing.T, opts ...StoreRunOpt,
 ) {
 	t.Helper()
+	var rc storeRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := storeNewFixture()
-	bound := make([]suite.Check[Store], 0, len(checks))
-	defects := prove.Defects[Store]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveStore")
+	s := storeSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := storeProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveStore: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -865,8 +1011,14 @@ func ProveStore(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3438d9d18cba3ae4781c8eda92c9bab461f69bdafedcd92c45ac04ffbad8d252
+// testkit:provenance 7b2ce1acb28b3c4fd8de64d6ed480a1af9a1cc1fe6cce9a210439ea479bfa9c2

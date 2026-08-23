@@ -287,7 +287,6 @@ func TestArguedButEvidencedSelects(t *testing.T) {
 // they are asked here, over a single fixture rather than the corpus: the point
 // is that the entry point answers, not that it answers about everything.
 func TestSinglePurposeEntryPointsAnswer(t *testing.T) {
-	skipUntilModelRelinked(t)
 	t.Parallel()
 
 	one := "./corpus/iface/mixin/monotonic"

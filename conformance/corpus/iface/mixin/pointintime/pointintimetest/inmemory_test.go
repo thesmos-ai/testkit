@@ -38,7 +38,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	pointintimetest.ProveMixed(t, mixedChecks)
+	pointintimetest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -46,6 +46,10 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) pointintimetest.MixedHarness[*pointintimetest.InMemory] {
 	return pointintimetest.MixedHarness[*pointintimetest.InMemory]{
 		Name: name, New: pointintimetest.NewInMemory,
+		// The crash seam. The map outlives the instance holding it, which
+		// is what makes a rebuild over it mean anything: an acknowledged
+		// write is still there when the process that took it is not.
+		Recover: pointintimetest.Reopen,
 	}
 }
 

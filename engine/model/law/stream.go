@@ -11,6 +11,7 @@ import (
 	"pgregory.net/rapid"
 
 	"go.thesmos.sh/testkit/core/lawid"
+	"go.thesmos.sh/testkit/engine/model/history"
 )
 
 // StreamReentrancy checks that iterating a StreamReader-shaped method
@@ -149,13 +150,21 @@ func (l StreamStableOrder[T, V]) Check(rt *rapid.T, sut, _ T) error {
 	return nil
 }
 
-// StreamPermutation verifies a Stream's drain is a permutation of
-// the consumer-supplied expected multiset. Auto-emitted for Streams
-// carrying //testkit:mixin permutation.
+// StreamPermutation verifies a Stream's drain is a permutation of what
+// the run wrote. Auto-emitted for Streams carrying //testkit:mixin
+// permutation.
+//
+// The expectation is the [history.History] the recording write fills,
+// not a closure over the subject. It was one, and a closure over the
+// subject cannot answer this: what a collection SHOULD hold is what went
+// into it, and the action stream is the only party that knows. Asked for
+// it, a consumer had a choice between reading the drain again — which
+// makes the law a tautology — and keeping a second copy of the state by
+// hand, for a question the run already has the answer to.
 type StreamPermutation[T any, V any, H comparable] struct {
-	Drain    func(*rapid.T, T) ([]V, error)
-	Expected func(*rapid.T, T) []V
-	Hash     func(V) H
+	Drain   func(*rapid.T, T) ([]V, error)
+	History *history.History[string, V]
+	Hash    func(V) H
 }
 
 // ID returns the stable identifier for this law.
@@ -164,13 +173,13 @@ func (StreamPermutation[T, V, H]) ID() string { return lawid.StreamPermutation }
 // REQID returns an empty string (auto-derived laws have no REQ tag).
 func (StreamPermutation[T, V, H]) REQID() string { return "" }
 
-// Check verifies got is a permutation of expected (by hash).
+// Check verifies got is a permutation of what was written (by hash).
 func (l StreamPermutation[T, V, H]) Check(rt *rapid.T, sut, _ T) error {
 	got, err := l.Drain(rt, sut)
 	if err != nil {
 		return Vacuous // a precondition this run supplies was refused
 	}
-	expected := l.Expected(rt, sut)
+	expected := l.History.Snapshot("")
 	if len(got) != len(expected) {
 		return fmt.Errorf("StreamPermutation: drained %d items, expected %d", len(got), len(expected))
 	}
@@ -192,13 +201,17 @@ func (l StreamPermutation[T, V, H]) Check(rt *rapid.T, sut, _ T) error {
 	return nil
 }
 
-// StreamOverMatch verifies the SUT's stream drain is a superset of
-// the consumer-supplied required-elements set. Auto-emitted for
-// Streams carrying //testkit:mixin overmatch.
+// StreamOverMatch verifies the SUT's stream drain holds everything the
+// run wrote, and permits it to hold more. Auto-emitted for Streams
+// carrying //testkit:mixin overmatch.
+//
+// The required set is the [history.History] the recording write fills,
+// for the reason [StreamPermutation] gives: what a drain OWES is what
+// went into it, and the action stream is the only party that knows.
 type StreamOverMatch[T any, V any, H comparable] struct {
-	Drain    func(*rapid.T, T) ([]V, error)
-	Required func(*rapid.T, T) []V
-	Hash     func(V) H
+	Drain   func(*rapid.T, T) ([]V, error)
+	History *history.History[string, V]
+	Hash    func(V) H
 }
 
 // ID returns the stable identifier for this law.
@@ -217,9 +230,9 @@ func (l StreamOverMatch[T, V, H]) Check(rt *rapid.T, sut, _ T) error {
 	for _, v := range got {
 		seen[l.Hash(v)] = struct{}{}
 	}
-	for _, want := range l.Required(rt, sut) {
+	for _, want := range l.History.Snapshot("") {
 		if _, ok := seen[l.Hash(want)]; !ok {
-			return fmt.Errorf("StreamOverMatch: required element %v missing from drain", want)
+			return fmt.Errorf("StreamOverMatch: written element %v missing from drain", want)
 		}
 	}
 	return nil

@@ -569,7 +569,14 @@ var VacuityDebt = map[string]VacuityRow{
 		// eidos added for it, so `mode=atomic` has something to be
 		// observed through. Its Get takes a context, which lands at its
 		// zero exactly as this row's reason describes.
-		Ceiling: 325,
+		//
+		// 325 -> 330: the restrictedpool fixture, added because pool
+		// provenance had no fixture at all — the hostile member every
+		// derived pool carries reached no draw, and no corpus package had
+		// both a config a run can replace and a tier that draws from one.
+		// Its Put and Get each take a context, attributed by removing the
+		// fixture and watching the count return to 325.
+		Ceiling: 330,
 		Why: "what is left of the generated stub's zero arguments after pinning every one a " +
 			"literal can be written for: a context, an interface, a variadic tail, a type " +
 			"from a package the run never read. Those are handed in at their zero and the " +

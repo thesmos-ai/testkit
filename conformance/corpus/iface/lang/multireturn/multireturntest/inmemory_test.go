@@ -36,7 +36,7 @@ func TestWideContractWithoutSmoke(t *testing.T) {
 func TestWideChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	multireturntest.ProveWide(t, wideChecks)
+	multireturntest.ProveWide(t, inMemory("in-memory"), wideChecks)
 }
 
 // TestQuadZeroOnErrorReadsEverySlot is a package test rather than a row: a

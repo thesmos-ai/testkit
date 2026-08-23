@@ -8,6 +8,7 @@ package causalchaintest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"testing"
@@ -264,19 +265,20 @@ func (logVeneer) Suite(fx LogFixture) suite.Suite[Log] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var logIndexPath = map[suite.ID]string{
-	logCheckIndex.Append.Smoke():              "LogSuite.Checks.Append.Smoke()",
-	logCheckIndex.Append.Cancels():            "LogSuite.Checks.Append.Cancels()",
-	logCheckIndex.Append.NilContext():         "LogSuite.Checks.Append.NilContext()",
-	logCheckIndex.Append.Deadline():           "LogSuite.Checks.Append.Deadline()",
-	logCheckIndex.Replay.Smoke():              "LogSuite.Checks.Replay.Smoke()",
-	logCheckIndex.Replay.Cancels():            "LogSuite.Checks.Replay.Cancels()",
-	logCheckIndex.Replay.NilContext():         "LogSuite.Checks.Replay.NilContext()",
-	logCheckIndex.Replay.Deadline():           "LogSuite.Checks.Replay.Deadline()",
-	logCheckIndex.Replay.ZeroOnError():        "LogSuite.Checks.Replay.ZeroOnError()",
-	logCheckIndex.Model.Grows():               "LogSuite.Checks.Model.Grows()",
-	logCheckIndex.Model.NoDrops():             "LogSuite.Checks.Model.NoDrops()",
-	logCheckIndex.Model.ReplayDeterministic(): "LogSuite.Checks.Model.ReplayDeterministic()",
-	logCheckIndex.Model.Counts():              "LogSuite.Checks.Model.Counts()",
+	logCheckIndex.Append.Smoke():               "LogSuite.Checks.Append.Smoke()",
+	logCheckIndex.Append.Cancels():             "LogSuite.Checks.Append.Cancels()",
+	logCheckIndex.Append.NilContext():          "LogSuite.Checks.Append.NilContext()",
+	logCheckIndex.Append.Deadline():            "LogSuite.Checks.Append.Deadline()",
+	logCheckIndex.Replay.Smoke():               "LogSuite.Checks.Replay.Smoke()",
+	logCheckIndex.Replay.Cancels():             "LogSuite.Checks.Replay.Cancels()",
+	logCheckIndex.Replay.NilContext():          "LogSuite.Checks.Replay.NilContext()",
+	logCheckIndex.Replay.Deadline():            "LogSuite.Checks.Replay.Deadline()",
+	logCheckIndex.Replay.ZeroOnError():         "LogSuite.Checks.Replay.ZeroOnError()",
+	logCheckIndex.Model.Grows():                "LogSuite.Checks.Model.Grows()",
+	logCheckIndex.Model.NoDrops():              "LogSuite.Checks.Model.NoDrops()",
+	logCheckIndex.Model.ReplayDeterministic():  "LogSuite.Checks.Model.ReplayDeterministic()",
+	logCheckIndex.Model.ReplayCausalOrdering(): "LogSuite.Checks.Model.ReplayCausalOrdering()",
+	logCheckIndex.Model.Counts():               "LogSuite.Checks.Model.Counts()",
 }
 
 var logDropHint = suite.DropHinter(
@@ -389,6 +391,10 @@ func (logModelChecks) ReplayDeterministic() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, logQualifier, lawid.ReplayDeterministic)
 }
 
+func (logModelChecks) ReplayCausalOrdering() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, logQualifier, lawid.ReplayCausalOrdering)
+}
+
 func (logModelChecks) Counts() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, logQualifier, lawid.CountEqualsReference)
 }
@@ -398,6 +404,7 @@ func (logModelChecks) All() []suite.ID {
 		logModelChecks{}.Grows(),
 		logModelChecks{}.NoDrops(),
 		logModelChecks{}.ReplayDeterministic(),
+		logModelChecks{}.ReplayCausalOrdering(),
 		logModelChecks{}.Counts(),
 	}
 }
@@ -694,6 +701,20 @@ type LogCheck struct {
 	ProvenBy     LogDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Log, fx LogFixture)
+
+	// PropAppend is Prop with Append's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Append, so leave Method empty.
+	PropAppend func(rt *PropT, s Log, value causalchain.Entry)
 }
 
 // logMethods is the interface's method names, used to catch a typo in
@@ -718,8 +739,15 @@ func (c LogCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, logMethods); err != nil {
 			return out, err
@@ -737,10 +765,34 @@ func (c LogCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop, PropAppend"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, logMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Log]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropAppend != nil {
+		bodies++
+		out.ID = suite.MethodID(logAppend, c.Name)
+		fn := c.PropAppend
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Log]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), logModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -792,11 +844,116 @@ func RunLog(
 		rc.Subjects...)
 }
 
-// ProveLog runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// logProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveLog(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func logProofs() prove.Defects[Log] {
+	ix := LogSuite.Checks
+	return prove.Defects[Log]{
+		ix.Append.Smoke(): prove.One("a Log whose Append panics",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogAppend(
+					func(_ context.Context, _ causalchain.Entry) error {
+						panic("planted: Append panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Append.Cancels(): prove.One("a Log whose Append ignores the context it is handed",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogAppend(
+					func(_ context.Context, _ causalchain.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Append.NilContext(): prove.One("a Log whose Append forgives a nil context and answers",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogAppend(
+					func(_ context.Context, _ causalchain.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Append.Deadline(): prove.One("a Log whose Append ignores the context it is handed",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogAppend(
+					func(_ context.Context, _ causalchain.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Replay.Smoke(): prove.One("a Log whose Replay panics",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogReplay(
+					func(_ context.Context) ([]causalchain.Entry, error) {
+						panic("planted: Replay panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Replay.Cancels(): prove.One("a Log whose Replay ignores the context it is handed",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogReplay(
+					func(_ context.Context) (r0 []causalchain.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Replay.NilContext(): prove.One("a Log whose Replay forgives a nil context and answers",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogReplay(
+					func(_ context.Context) (r0 []causalchain.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Replay.Deadline(): prove.One("a Log whose Replay ignores the context it is handed",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogReplay(
+					func(_ context.Context) (r0 []causalchain.Entry, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Replay.ZeroOnError(): prove.One("a Log whose Replay answers a believable value beside its error",
+			func(tb testing.TB) Log {
+				return NewLogStub(tb, WithLogReplay(
+					func(_ context.Context) (r0 []causalchain.Entry, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = []causalchain.Entry{{ID: "other-"}}
+						err = errors.New("planted: Replay refused with a believable value")
+						return
+					}))
+			}),
+	}
+}
+
+// ProveLog runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveLog(t, LogHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -806,23 +963,40 @@ func RunLog(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunLog does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveLog(
-	t *testing.T, checks LogChecks,
+	t *testing.T, opts ...LogRunOpt,
 ) {
 	t.Helper()
+	var rc logRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := logNewFixture()
-	bound := make([]suite.Check[Log], 0, len(checks))
-	defects := prove.Defects[Log]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveLog")
+	s := logSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := logProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveLog: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -832,8 +1006,19 @@ func ProveLog(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // logModelRows is what this package's model tier claims.
 //
@@ -882,6 +1067,23 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
 				logAssertReplayDeterministic(tb, sub, fx)
+			},
+		},
+		{
+			ID:    logCheckIndex.Model.ReplayCausalOrdering(),
+			Class: suite.ClassLaws,
+			Claim: "every replayed entry appears after the entries it depends on",
+			Binds: []string{
+				lawid.ReplayCausalOrdering,
+			},
+			Needs: suite.Caps{
+				"entryID":   nil,
+				"dependsOn": nil,
+			},
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
+				logAssertReplayCausalOrdering(tb, sub, fx)
 			},
 		},
 		{
@@ -935,13 +1137,9 @@ func logModelValues(fx LogFixture) *model.Generator[causalchain.Entry] {
 func logModelActions(fx LogFixture, appendHist *history.History[string, causalchain.Entry]) []model.Action[Log] {
 	values := logModelValues(fx)
 	return []model.Action[Log]{
-		action.ChainAppend("Append", values,
+		action.ChainAppendRecording("Append", values, appendHist, func(causalchain.Entry) string { return "" },
 			func(ctx context.Context, s causalchain.Log, v causalchain.Entry) error {
-				err := s.Append(ctx, v)
-				if err == nil {
-					appendHist.Record("", v)
-				}
-				return err
+				return s.Append(ctx, v)
 			}),
 		action.Stream("Replay",
 			func(ctx context.Context, s causalchain.Log) ([]causalchain.Entry, error) {
@@ -1082,6 +1280,52 @@ func logAssertReplayDeterministic(
 		model.WithHistoryReset[Log](appendHist.Reset))
 }
 
+// logAssertReplayCausalOrdering binds AUTO-REPLAY-CAUSAL-ORDERING over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func logAssertReplayCausalOrdering(
+	tb testing.TB,
+	sub suite.Subject[Log],
+	fx LogFixture,
+) {
+	tb.Helper()
+	// The log the recording actions fill and the runner clears each
+	// iteration: a law reading a history the sequences never wrote into is
+	// a law over an empty record.
+	appendHist := history.New[string, causalchain.Entry]()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Log { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Log { return sub.New(tb) }, buildRef,
+		logModelActions(fx, appendHist),
+		[]law.Law[Log]{
+			law.ReplayRespectsCausality[causalchain.Log, string, causalchain.Entry]{
+				Replay: func(rt *model.T, s causalchain.Log, _ string) iter.Seq2[causalchain.Entry, error] {
+					return func(yield func(causalchain.Entry, error) bool) {
+						entries, err := s.Replay(rt.Context())
+						if err != nil {
+							var zero causalchain.Entry
+							yield(zero, err)
+							return
+						}
+						for _, e := range entries {
+							if !yield(e, nil) {
+								return
+							}
+						}
+					}
+				},
+				Partitions: func() []string { return []string{""} },
+				EntryID:    suite.Provided[func(causalchain.Entry) string](tb, sub, "entryID"),
+				DependsOn:  suite.Provided[func(causalchain.Entry) []string](tb, sub, "dependsOn"),
+			},
+		},
+		model.WithHistoryReset[Log](appendHist.Reset))
+}
+
 // logAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
 //
 // One law, and the run's only oracle. The differential is off here, as
@@ -1114,5 +1358,13 @@ func logAssertCounts(
 		model.WithHistoryReset[Log](appendHist.Reset))
 }
 
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 9fe86fb6f098a53ab7e4611cf16b5a04e4dcb3d49798c3456bde1aaa164b1862
+// testkit:provenance 66849d231b6bb2c7ce69b8be10c670922111dce8f5e8470edbefe9e80353905b

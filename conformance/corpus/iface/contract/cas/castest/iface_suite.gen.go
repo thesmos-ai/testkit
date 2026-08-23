@@ -18,6 +18,7 @@ import (
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/model/linearize"
 	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
@@ -268,6 +269,7 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Get.Deadline():             "ContractSuite.Checks.Get.Deadline()",
 	contractCheckIndex.Get.ZeroOnError():          "ContractSuite.Checks.Get.ZeroOnError()",
 	contractCheckIndex.Model.Agrees():             "ContractSuite.Checks.Model.Agrees()",
+	contractCheckIndex.Model.Linearizable():       "ContractSuite.Checks.Model.Linearizable()",
 	contractCheckIndex.Model.CASAtomicOneWinner(): "ContractSuite.Checks.Model.CASAtomicOneWinner()",
 	contractCheckIndex.Model.Counts():             "ContractSuite.Checks.Model.Counts()",
 }
@@ -374,6 +376,10 @@ func (contractModelChecks) Agrees() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, suite.SegDifferential)
 }
 
+func (contractModelChecks) Linearizable() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, suite.SegLinearizable)
+}
+
 func (contractModelChecks) CASAtomicOneWinner() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CASAtomicOneWinner)
 }
@@ -385,6 +391,7 @@ func (contractModelChecks) Counts() suite.ID {
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
 		contractModelChecks{}.Agrees(),
+		contractModelChecks{}.Linearizable(),
 		contractModelChecks{}.CASAtomicOneWinner(),
 		contractModelChecks{}.Counts(),
 	}
@@ -684,6 +691,14 @@ type ContractCheck struct {
 	ProvenBy     ContractDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Contract, fx ContractFixture)
 }
 
 // contractMethods is the interface's method names, used to catch a typo in
@@ -708,8 +723,15 @@ func (c ContractCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, contractMethods); err != nil {
 			return out, err
@@ -727,10 +749,24 @@ func (c ContractCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, contractMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Contract]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -782,11 +818,116 @@ func RunContract(
 		rc.Subjects...)
 }
 
-// ProveContract runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// contractProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveContract(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func contractProofs() prove.Defects[Contract] {
+	ix := ContractSuite.Checks
+	return prove.Defects[Contract]{
+		ix.Put.Smoke(): prove.One("a Contract whose Put panics",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ cas.Value) error {
+						panic("planted: Put panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Put.Cancels(): prove.One("a Contract whose Put ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ cas.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Put.NilContext(): prove.One("a Contract whose Put forgives a nil context and answers",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ cas.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Put.Deadline(): prove.One("a Contract whose Put ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ cas.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.Smoke(): prove.One("a Contract whose Get panics",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractGet(
+					func(_ context.Context) (cas.Value, error) {
+						panic("planted: Get panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Get.Cancels(): prove.One("a Contract whose Get ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractGet(
+					func(_ context.Context) (r0 cas.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Get.NilContext(): prove.One("a Contract whose Get forgives a nil context and answers",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractGet(
+					func(_ context.Context) (r0 cas.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Get.Deadline(): prove.One("a Contract whose Get ignores the context it is handed",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractGet(
+					func(_ context.Context) (r0 cas.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Get.ZeroOnError(): prove.One("a Contract whose Get answers a believable value beside its error",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractGet(
+					func(_ context.Context) (r0 cas.Value, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = cas.Value{Body: "other-value"}
+						err = errors.New("planted: Get refused with a believable value")
+						return
+					}))
+			}),
+	}
+}
+
+// ProveContract runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveContract(t, ContractHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -796,23 +937,40 @@ func RunContract(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunContract does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveContract(
-	t *testing.T, checks ContractChecks,
+	t *testing.T, opts ...ContractRunOpt,
 ) {
 	t.Helper()
+	var rc contractRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := contractNewFixture()
-	bound := make([]suite.Check[Contract], 0, len(checks))
-	defects := prove.Defects[Contract]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveContract")
+	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := contractProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveContract: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -822,8 +980,19 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // contractModelRows is what this package's model tier claims.
 //
@@ -843,6 +1012,16 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertAgrees(tb, sub, fx)
+			},
+		},
+		{
+			ID:          contractCheckIndex.Model.Linearizable(),
+			Class:       suite.ClassConcurrent,
+			Claim:       "concurrent operation histories are linearizable",
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertLinearizable(tb, sub, fx)
 			},
 		},
 		{
@@ -970,6 +1149,44 @@ func contractAssertAgrees(
 		contractModelActions(fx))
 }
 
+// contractAssertLinearizable drives concurrent workers against one instance and asks
+// whether the history they recorded has a serial explanation.
+//
+// A claim no sequential leg can state. The differential compares one
+// ordered run against a reference and the laws hold after each step of
+// one; this is about what a caller may observe when there is no single
+// order at all, and the model is what decides whether one exists.
+//
+// The engine owns the interleaving, the property loop and the artifact a
+// failing history is written to. This supplies the verbs and the model.
+func contractAssertLinearizable(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+	keys := contractModelKeys(fx)
+	legs.Concurrent(tb, sub,
+		NewContractModelReference,
+		model.ConcurrentConfig[Contract]{
+			Model: linearize.CASCell[cas.Value, int64](
+				nil, cas.ErrMismatch,
+				func(v cas.Value) int64 { return v.Version },
+				func(seen int64) int64 { return seen + 1 },
+			),
+			Actions: []model.ConcurrentAction[Contract]{
+				linearize.ConcurrentCellReader(linearize.OpGet,
+					func(ctx context.Context, s cas.Contract) (cas.Value, error) {
+						return s.Get(ctx)
+					}),
+				linearize.ConcurrentCAS(linearize.OpCAS, keys,
+					func(ctx context.Context, s cas.Contract, v cas.Value) error {
+						return s.Put(ctx, v)
+					}),
+			},
+		})
+}
+
 // contractAssertCASAtomicOneWinner binds AUTO-CAS-ATOMIC-ONE-WINNER over the shared sequences.
 //
 // One law, and the run's only oracle. The differential is off here, as
@@ -1039,5 +1256,13 @@ func contractAssertCounts(
 		})
 }
 
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 12f4ec70a1753a0af13c0867b39936624770e721c96b1815bdfa990e9590a8f3
+// testkit:provenance f36d7eafe6ffbd4865542fefa4e57d21feb747fbcf62a5742be813df7daaa83e

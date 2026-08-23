@@ -20,47 +20,49 @@ import (
 // InMemory is the implementation the generated conformance harness is run
 // against.
 type InMemory struct {
-	mu     sync.Mutex
-	values map[string]permutation.Value
+	mu    sync.Mutex
+	items []permutation.Value
 }
 
 var _ permutation.Mixed = (*InMemory)(nil)
 
 // NewInMemory returns an empty collection.
-func NewInMemory() *InMemory {
-	return &InMemory{values: map[string]permutation.Value{}}
-}
+func NewInMemory() *InMemory { return &InMemory{} }
 
-// Add records the element under its own key, so a repeated append is one
-// element rather than two — which is what makes the drain duplicate-free
-// by construction rather than by filtering.
+// Add keeps the element, and keeps a repeat beside the first.
+//
+// A bag rather than a keyed map, because that is what the mixin above this
+// fixture declares: a collection that overwrote by key would drop an
+// element it had accepted, and both `AUTO-STREAM-OVER-MATCH` and
+// `AUTO-STREAM-PERMUTATION` are the claim that it does not.
 func (s *InMemory) Add(ctx context.Context, v permutation.Value) error {
 	if err := contextErr(ctx); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.values[v.Key] = v
+	s.items = append(s.items, v)
 	return nil
 }
 
-// Items drains the collection in key order.
+// Items drains the collection in key order, ties broken by body.
 //
-// Sorted rather than in map order: Go randomises map iteration, and a drain
-// that answered differently on each call would fail a stability claim for a
-// reason that has nothing to do with the subject under test.
+// Sorted rather than in arrival order, and by both members rather than the
+// key alone: two elements sharing a key must still come out the same way
+// on every call, or a drain compared against its own second reading
+// disagrees for a reason that has nothing to do with the subject.
 func (s *InMemory) Items(ctx context.Context) ([]permutation.Value, error) {
 	if err := contextErr(ctx); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]permutation.Value, 0, len(s.values))
-	for _, v := range s.values {
-		out = append(out, v)
-	}
+	out := slices.Clone(s.items)
 	slices.SortFunc(out, func(a, b permutation.Value) int {
-		return strings.Compare(a.Key, b.Key)
+		if k := strings.Compare(a.Key, b.Key); k != 0 {
+			return k
+		}
+		return strings.Compare(a.Body, b.Body)
 	})
 	return out, nil
 }

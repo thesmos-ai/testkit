@@ -40,7 +40,7 @@ func TestLookupContractWithoutSmoke(t *testing.T) {
 func TestLookupChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	lookuptest.ProveLookup(t, lookupChecks)
+	lookuptest.ProveLookup(t, inMemory("in-memory"), lookupChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

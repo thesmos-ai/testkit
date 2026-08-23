@@ -7,104 +7,34 @@
 package multireturntest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/multireturn/multireturntest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestWideProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveWide.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestWideProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		multireturntest.WideSuite.Suite(multireturntest.DefaultWideFixture()).Checks,
-		wideProofs())
-}
-
-// wideProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveWide
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func wideProofs() prove.Defects[multireturntest.Wide] {
-	ix := multireturntest.WideSuite.Checks
-	return prove.Defects[multireturntest.Wide]{
-		ix.Quad.Smoke(): prove.One("a Wide whose Quad panics",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideQuad(
-					func(_ context.Context, _ string) (string, int, bool, error) {
-						panic("planted: Quad panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Quad.Cancels(): prove.One("a Wide whose Quad ignores the context it is handed",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideQuad(
-					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Quad.NilContext(): prove.One("a Wide whose Quad forgives a nil context and answers",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideQuad(
-					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Quad.Deadline(): prove.One("a Wide whose Quad ignores the context it is handed",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideQuad(
-					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Quad.ZeroOnError(): prove.One("a Wide whose Quad answers a believable value beside its error",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideQuad(
-					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Quad refused with a believable value")
-						return
-					}))
-			}),
-		ix.Triple.Smoke(): prove.One("a Wide whose Triple panics",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideTriple(
-					func(_ context.Context, _ string) (string, int, bool) {
-						panic("planted: Triple panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.NoError.Smoke(): prove.One("a Wide whose NoError panics",
-			func(tb testing.TB) multireturntest.Wide {
-				return multireturntest.NewWideStub(tb, multireturntest.WithWideNoError(
-					func(_ context.Context, _ string) (string, int) {
-						panic("planted: NoError panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Quad.Smoke — a Wide whose Quad panics
+//
+//	Quad.Cancels — a Wide whose Quad ignores the context it is handed
+//
+//	Quad.NilContext — a Wide whose Quad forgives a nil context and answers
+//
+//	Quad.Deadline — a Wide whose Quad ignores the context it is handed
+//
+//	Quad.ZeroOnError — a Wide whose Quad answers a believable value beside its error
+//
+//	Triple.Smoke — a Wide whose Triple panics
+//
+//	NoError.Smoke — a Wide whose NoError panics
 
 // TestWideInvariants holds this package to what it says about itself.
 //
@@ -134,4 +64,4 @@ func TestWideInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3d833fa07b57ca7856cd4ae3c75a8b7849c348778316b6a7c59100f78d4dc339
+// testkit:provenance 8f17165b8b719e0b5f8b30bb57d6737709211af4202e2bec6c2abd009e5a7bf8

@@ -54,6 +54,10 @@ func (c *Contract) Slot(name string) *sdk.Slot {
 		return c.Rows()
 	case naming.SlotSuiteDecls:
 		return c.Decls()
+	case naming.SlotCheckFields:
+		return c.CheckFields()
+	case naming.SlotCheckBodies:
+		return c.CheckBodies()
 	}
 	return sdk.NewSlot(name, "")
 }
@@ -85,6 +89,41 @@ func (c *Contract) HarnessLowering() *sdk.Slot {
 
 // LoweringSlotName is the region's name, for the template's helper.
 func (*Contract) LoweringSlotName() string { return naming.SlotHarnessLowering }
+
+// CheckFields returns the region another tier contributes row-body
+// fields into: the forms a consumer may write beyond Run and RunWith.
+//
+// The same arrangement the harness fields use, and for the same reason.
+// This generator emits the row type and has no property engine behind
+// it — a drawn-input body needs one, and the tier that has one is the
+// tier that can offer the field.
+func (c *Contract) CheckFields() *sdk.Slot {
+	if c.checkFields == nil {
+		c.checkFields = sdk.NewSlot(naming.SlotCheckFields, "")
+		c.checkFields.Owner = c
+	}
+	return c.checkFields
+}
+
+// CheckFieldsSlotName is the region's name, for the template's helper.
+func (*Contract) CheckFieldsSlotName() string { return naming.SlotCheckFields }
+
+// CheckBodies returns the region a contributed field's dispatch lands
+// in: the block that turns it into the runner's Run or RunWith.
+//
+// Paired with CheckFields. A field nothing dispatches is a body a
+// consumer writes and the run never calls, which is worse than an
+// absent field: the check is counted, reported and green.
+func (c *Contract) CheckBodies() *sdk.Slot {
+	if c.checkBodies == nil {
+		c.checkBodies = sdk.NewSlot(naming.SlotCheckBodies, "")
+		c.checkBodies.Owner = c
+	}
+	return c.checkBodies
+}
+
+// CheckBodiesSlotName is the region's name, for the template's helper.
+func (*Contract) CheckBodiesSlotName() string { return naming.SlotCheckBodies }
 
 // ClockPkg surfaces the clock package to the templates, whose harness
 // spells its test clock in type position.

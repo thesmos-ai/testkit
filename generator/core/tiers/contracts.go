@@ -135,6 +135,8 @@ const (
 	opRelease   = "Release"
 
 	roleRelease = "release"
+	roleGet     = "get"
+	rolePut     = "put"
 	roleAppend  = "append"
 	roleReplay  = "replay"
 	roleVerify  = "verify"

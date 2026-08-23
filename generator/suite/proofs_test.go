@@ -213,8 +213,10 @@ func TestSetOutputPackagesRepointsTheFileAndItsDefects(t *testing.T) {
 	t.Parallel()
 
 	p := &Proofs{
-		Pkg:     "example.com/provisional",
-		Defects: []*ProofEmit{{defectView: defectView{Pkg: "example.com/provisional"}}},
+		Pkg: "example.com/provisional",
+		Defects: &PlantedDefects{Rows: []*ProofEmit{
+			{defectView: defectView{Pkg: "example.com/provisional"}},
+		}},
 	}
 
 	t.Run("takes the primary output's package", func(t *testing.T) {
@@ -222,7 +224,7 @@ func TestSetOutputPackagesRepointsTheFileAndItsDefects(t *testing.T) {
 		q := &Proofs{Pkg: "example.com/provisional", Defects: p.Defects}
 		q.SetOutputPackages(map[string]string{"": "example.com/routed"})
 		testkit.Equal(t, q.Pkg, "example.com/routed", "the file follows the harness")
-		testkit.Equal(t, q.Defects[0].Pkg, "example.com/routed",
+		testkit.Equal(t, q.Defects.Rows[0].Pkg, "example.com/routed",
 			"and so does every defect, which the backend renders on its own")
 	})
 
@@ -299,8 +301,8 @@ func TestPlantRecordsAContributedDefect(t *testing.T) {
 	planted := p.Plant(nil, iface.Methods[0], panicPlan(), "Smoke")
 
 	testkit.True(t, planted, "a variant with a template is written out")
-	testkit.Len(t, p.Defects, 1, "and joins the map this file renders")
-	testkit.Equal(t, p.Defects[0].Accessor(), "Smoke",
+	testkit.Len(t, p.Defects.Rows, 1, "and joins the map the run surface renders")
+	testkit.Equal(t, p.Defects.Rows[0].Accessor(), "Smoke",
 		"under the accessor the contributor named it by")
 }
 
@@ -322,5 +324,6 @@ func TestPlantRefusesWhatItCannotWrite(t *testing.T) {
 
 	testkit.False(t, p.Plant(nil, iface.Methods[0], bare, "Smoke"),
 		"a row carrying no defect plants nothing")
-	testkit.Len(t, p.Defects, 0, "and adds no entry the gate would then demand a claim for")
+	testkit.True(t, p.Defects == nil,
+		"and adds no entry the gate would then demand a claim for")
 }

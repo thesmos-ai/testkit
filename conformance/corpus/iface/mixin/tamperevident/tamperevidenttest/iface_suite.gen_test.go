@@ -7,130 +7,40 @@
 package tamperevidenttest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/tamperevident/tamperevidenttest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		tamperevidenttest.MixedSuite.Suite(tamperevidenttest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[tamperevidenttest.Mixed] {
-	ix := tamperevidenttest.MixedSuite.Checks
-	return prove.Defects[tamperevidenttest.Mixed]{
-		ix.Store.Smoke(): prove.One("a Mixed whose Store panics",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedStore(
-					func(_ context.Context, _ string) error {
-						panic("planted: Store panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Store.Cancels(): prove.One("a Mixed whose Store ignores the context it is handed",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedStore(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Store.NilContext(): prove.One("a Mixed whose Store forgives a nil context and answers",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedStore(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Store.Deadline(): prove.One("a Mixed whose Store ignores the context it is handed",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedStore(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Corrupt.Smoke(): prove.One("a Mixed whose Corrupt panics",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedCorrupt(
-					func(_ context.Context) error {
-						panic("planted: Corrupt panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Corrupt.Cancels(): prove.One("a Mixed whose Corrupt ignores the context it is handed",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedCorrupt(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Corrupt.NilContext(): prove.One("a Mixed whose Corrupt forgives a nil context and answers",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedCorrupt(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Verify.Smoke(): prove.One("a Mixed whose Verify panics",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedVerify(
-					func(_ context.Context) error {
-						panic("planted: Verify panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Verify.Cancels(): prove.One("a Mixed whose Verify ignores the context it is handed",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedVerify(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Verify.NilContext(): prove.One("a Mixed whose Verify forgives a nil context and answers",
-			func(tb testing.TB) tamperevidenttest.Mixed {
-				return tamperevidenttest.NewMixedStub(tb, tamperevidenttest.WithMixedVerify(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-	}
-}
+//	Store.Smoke — a Mixed whose Store panics
+//
+//	Store.Cancels — a Mixed whose Store ignores the context it is handed
+//
+//	Store.NilContext — a Mixed whose Store forgives a nil context and answers
+//
+//	Store.Deadline — a Mixed whose Store ignores the context it is handed
+//
+//	Corrupt.Smoke — a Mixed whose Corrupt panics
+//
+//	Corrupt.Cancels — a Mixed whose Corrupt ignores the context it is handed
+//
+//	Corrupt.NilContext — a Mixed whose Corrupt forgives a nil context and answers
+//
+//	Verify.Smoke — a Mixed whose Verify panics
+//
+//	Verify.Cancels — a Mixed whose Verify ignores the context it is handed
+//
+//	Verify.NilContext — a Mixed whose Verify forgives a nil context and answers
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -160,4 +70,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 955707a5ed5cdb0233f23c6a1f981b6fefaab4976238b063315d00d89ad81e0f
+// testkit:provenance bd6be9f708b46c65eb4f09162feaf9fa0dcd67962e75438fe1b8f93cceda8784

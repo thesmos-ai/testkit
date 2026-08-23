@@ -4,10 +4,33 @@
 package model
 
 import (
+	"go.thesmos.sh/eidos/sdk"
+
 	"go.thesmos.sh/testkit/generator/internal/projection"
 )
 
-// RowKinds is the set of check-body shapes this tier renders.
+// LegTemplates maps each check-body kind this tier renders to the emit
+// kinds its dispatch can produce for it.
+//
+// An emit kind IS its template's name, so this table and the embedded
+// template set can be held equal — which is the check the composition
+// root cannot make. That census reads [RowKinds] from both tiers and
+// catches a kind NEITHER claims; a kind this tier claims and spells no
+// template for looks identical to one it renders, because a claim is all
+// the root can see. Deriving the claim from the dispatch is what closes
+// that: the list below is now a fact about the templates rather than a
+// sentence written beside them.
+func LegTemplates() map[projection.BodyKind][]sdk.Kind {
+	return map[projection.BodyKind][]sdk.Kind{
+		projection.KindLawLeg:          {KindLawsLeg, KindOwnLeg, KindClockedLeg},
+		projection.KindDifferentialLeg: {KindDifferentialLeg},
+		projection.KindConcurrentLeg:   {KindConcurrent},
+		projection.KindSimLeg:          {KindSimLeg},
+	}
+}
+
+// RowKinds is the set of check-body shapes this tier renders, in the
+// projection's declaration order.
 //
 // The harness generator plans them and lists them under Withheld,
 // because a row planned by one tier and rendered by another is exactly
@@ -16,11 +39,14 @@ import (
 // puts the Clock on the harness — so the row and the field it needs have
 // to be worked out together. See [projection.HarnessOf].
 func RowKinds() []projection.BodyKind {
-	return []projection.BodyKind{
-		projection.KindLawLeg,
-		projection.KindDifferentialLeg,
-		projection.KindSimLeg,
+	rendered := LegTemplates()
+	out := make([]projection.BodyKind, 0, len(rendered))
+	for _, k := range projection.BodyKinds() {
+		if _, ours := rendered[k]; ours {
+			out = append(out, k)
+		}
 	}
+	return out
 }
 
 // Rows selects the rows this tier renders out of a planned inventory, in

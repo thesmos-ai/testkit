@@ -51,7 +51,7 @@ func TestBatchedContractWithoutSmoke(t *testing.T) {
 func TestBatchedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	batchedmixinstest.ProveBatched(t, batchedChecks)
+	batchedmixinstest.ProveBatched(t, inMemory("in-memory"), batchedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

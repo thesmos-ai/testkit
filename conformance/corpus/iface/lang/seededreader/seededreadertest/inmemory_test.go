@@ -26,3 +26,17 @@ func TestCatalogContract(t *testing.T) {
 		},
 	)
 }
+
+// TestCatalogChecksCanFail drives every planted defect through the check it
+// is evidence for.
+func TestCatalogChecksCanFail(t *testing.T) {
+	t.Parallel()
+
+	seededreadertest.ProveCatalog(
+		t,
+		seededreadertest.CatalogHarness[*seededreadertest.InMemory]{
+			Name: "in-memory",
+			Seed: seededreadertest.NewInMemory,
+		},
+	)
+}

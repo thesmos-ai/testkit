@@ -19,6 +19,7 @@ import (
 	"go.thesmos.sh/testkit"
 	causalchain "go.thesmos.sh/testkit/conformance/corpus/iface/composite/causal-chain"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/composite/causal-chain/causalchaintest"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // TestLogContract runs the generated checks and this package's own.
@@ -44,7 +45,7 @@ func TestLogContractWithoutSmoke(t *testing.T) {
 func TestLogChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	causalchaintest.ProveLog(t, logChecks)
+	causalchaintest.ProveLog(t, inMemory("in-memory"), logChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -59,6 +60,14 @@ const (
 func inMemory(name string) causalchaintest.LogHarness[*causalchaintest.InMemory] {
 	return causalchaintest.LogHarness[*causalchaintest.InMemory]{
 		Name: name, New: causalchaintest.NewInMemory,
+		// The causal-ordering law reads an entry's identity and its
+		// dependencies. Neither is derivable from the shape — which
+		// field carries an ID and which carries the edges is a fact
+		// about this declaration — so the harness answers them.
+		Provide: map[suite.Capability]any{
+			"entryID":   func(e causalchain.Entry) string { return e.ID },
+			"dependsOn": func(e causalchain.Entry) []string { return e.DependsOn },
+		},
 	}
 }
 

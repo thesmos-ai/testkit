@@ -35,28 +35,34 @@ func TestCheckRowsCarryTheWholePlan(t *testing.T) {
 	testkit.Equal(t, r.Claim, "an entry stops being readable once its lifetime has run out",
 		"carried verbatim — the plan's claim is what the census measured")
 	testkit.True(t, r.Proven, "a plan with a defect behind it may be stamped Proven")
-	testkit.Equal(t, r.NeedsCtor, "NeedsClock", "and the capability it demands of the harness")
+	testkit.Len(t, r.Needs, 1, "and the capability it demands of the harness")
+	testkit.Equal(t, r.Needs[0].Const, "CapClock",
+		"a door the runtime names is spelled through its constant")
 }
 
-// A capability this tier cannot spell is spelled as none.
+// Every door a plan carries reaches the row, not just the first.
 //
-// The row names a runtime constructor, and the runtime is where the
-// pairing of a capability with its value is decided. A plan carrying a
-// capability with no constructor here would otherwise render as the
-// nearest one — a row demanding a clock where its law wanted a poisoned
-// subject, which fails naming the wrong field.
-func TestCheckRowsSpellOnlyTheCapabilitiesTheyKnow(t *testing.T) {
+// A law can read a clock and a consumer-supplied fact at once, and a row
+// naming only one of them is a row the runner admits against a subject
+// that cannot serve it — the check then fails inside the body, naming a
+// nil closure instead of the field that would have armed it.
+func TestCheckRowsCarryEveryDoor(t *testing.T) {
 	t.Parallel()
 
 	rows := model.CheckRows("mixed", []projection.CheckPlan{{
-		ID:    projection.IDPlan{Family: vocab.FamilyModel, Seg: "poison-consistent"},
-		Class: vocab.ClassPoison,
-		Needs: []projection.NeedPlan{{Capability: vocab.CapInduce, Value: "kv.ErrClosed"}},
+		ID:    projection.IDPlan{Family: vocab.FamilyModel, Seg: "windowed"},
+		Class: vocab.ClassLaws,
+		Needs: []projection.NeedPlan{
+			{Capability: vocab.CapClock},
+			{Capability: "history"},
+		},
 	}})
 
-	testkit.Equal(t, rows[0].NeedsCtor, "",
-		"an induction has no constructor here, so the row demands nothing "+
-			"rather than demanding the wrong thing")
+	testkit.Len(t, rows[0].Needs, 2, "both doors, in plan order")
+	testkit.Equal(t, rows[0].Needs[1].Const, "",
+		"a door the runtime declares no constant for has none to spell")
+	testkit.Equal(t, rows[0].Needs[1].Name, "history",
+		"so the row names it as the literal the harness answers under")
 }
 
 // An argued row is not stamped proven.

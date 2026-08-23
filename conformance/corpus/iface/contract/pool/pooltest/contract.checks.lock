@@ -11,3 +11,5 @@ Stats/nilcontext	signature/nilcontext	Stats returns an error rather than panicki
 Stats/smoke	signature/smoke	Stats survives a call	
 Stats/zero-on-error	signature/zero-on-error	Stats returns the zero Stats alongside any error	
 model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
+model/contract/AUTO-POOL-BALANCED	model/laws	the pool's outstanding count never goes negative and returns to zero at rest	AUTO-POOL-BALANCED
+model/contract/AUTO-POOL-LEAK-FREE	model/laws	with no cycle outstanding, the pool reports itself balanced	AUTO-POOL-LEAK-FREE

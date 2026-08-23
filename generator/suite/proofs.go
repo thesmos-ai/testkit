@@ -73,8 +73,18 @@ type Proofs struct {
 	SeedsCorpus bool
 	CorpusFunc  string
 
-	// Defects are the planted defects this file can render.
-	Defects []*ProofEmit
+	// Defects are the planted defects, shared with the run surface that
+	// renders them.
+	//
+	// A pointer to one value rather than a slice in each, because a
+	// contributing tier plants into it AFTER both emits are queued: a copy
+	// taken at queue time would hold this generator's own rows and none of
+	// the model tier's, and the parity gate would then fail naming every
+	// model row that claims Proven.
+	//
+	// Not a pointer back to the other emit — that would put a cycle in a
+	// graph that gets walked. Both hold the leaf.
+	Defects *PlantedDefects
 
 	// Unproven names the checks a deriver stamped Proven and this file
 	// has no defect template for.
@@ -92,6 +102,14 @@ type Proofs struct {
 	// same contract the double's companion keeps.
 	Generic bool
 }
+
+// PlantedDefects is the defect map the run surface renders and the
+// companion beside it lists.
+//
+// A named type rather than a bare slice pointer so both templates read
+// one field name, and so [Proofs.Plant] has somewhere to append that
+// every holder sees.
+type PlantedDefects struct{ Rows []*ProofEmit }
 
 // Kind returns [KindProofs].
 func (*Proofs) Kind() sdk.Kind { return KindProofs }
@@ -114,7 +132,10 @@ func (p *Proofs) SetOutputPackages(byTag map[string]string) {
 		return
 	}
 	p.Pkg = path
-	for _, d := range p.Defects {
+	if p.Defects == nil {
+		return
+	}
+	for _, d := range p.Defects.Rows {
 		d.Pkg = path
 	}
 }
@@ -123,11 +144,9 @@ func (p *Proofs) SetOutputPackages(byTag map[string]string) {
 // through.
 func (p *Proofs) VeneerVar() string { return projection.VeneerName(p.IfaceName) }
 
-// ProofsFunc is this file's own defect map.
-func (p *Proofs) ProofsFunc() string { return projection.ProofsName(p.Token) }
-
-// TestFunc is the test that drives them.
-func (p *Proofs) TestFunc() string { return projection.ProofsTestName(p.IfaceName) }
+// ProveFunc is the entry point that drives the defects, which this file
+// names in place of the test it used to run itself.
+func (p *Proofs) ProveFunc() string { return projection.ProveName(p.IfaceName) }
 
 // ProofEmit is one planted defect as its template renders it.
 //
@@ -389,7 +408,10 @@ func (p *Proofs) Plant(
 	if !spellsDefect(plan.Defect.DefectKind(), view) {
 		return false
 	}
-	p.Defects = append(p.Defects, &ProofEmit{
+	if p.Defects == nil {
+		p.Defects = &PlantedDefects{}
+	}
+	p.Defects.Rows = append(p.Defects.Rows, &ProofEmit{
 		BaseEmit:   p.BaseEmit,
 		defectView: view,
 		Plan:       plan,

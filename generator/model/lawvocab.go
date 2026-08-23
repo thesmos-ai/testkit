@@ -146,6 +146,7 @@ const (
 	handleCoalesce      = "coalesce-probe"
 	handleVersionStamp  = "version-stamp"
 	handleHistoryLog    = "history"
+	handleWriteLog      = "write-log"
 
 	// paramCASVersion is the cas contract's version member stamp — the
 	// field of the attempt the compare-and-set guards by.

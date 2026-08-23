@@ -7,140 +7,40 @@
 package deprecatedtest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/deprecated/deprecatedtest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		deprecatedtest.MixedSuite.Suite(deprecatedtest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[deprecatedtest.Mixed] {
-	ix := deprecatedtest.MixedSuite.Checks
-	return prove.Defects[deprecatedtest.Mixed]{
-		ix.Old.Smoke(): prove.One("a Mixed whose Old panics",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedOld(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Old panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Old.Cancels(): prove.One("a Mixed whose Old ignores the context it is handed",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedOld(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Old.NilContext(): prove.One("a Mixed whose Old forgives a nil context and answers",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedOld(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Old.Deadline(): prove.One("a Mixed whose Old ignores the context it is handed",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedOld(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Old.ZeroOnError(): prove.One("a Mixed whose Old answers a believable value beside its error",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedOld(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Old refused with a believable value")
-						return
-					}))
-			}),
-		ix.New.Smoke(): prove.One("a Mixed whose New panics",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedNew(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: New panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.New.Cancels(): prove.One("a Mixed whose New ignores the context it is handed",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedNew(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.New.NilContext(): prove.One("a Mixed whose New forgives a nil context and answers",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedNew(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.New.Deadline(): prove.One("a Mixed whose New ignores the context it is handed",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedNew(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.New.ZeroOnError(): prove.One("a Mixed whose New answers a believable value beside its error",
-			func(tb testing.TB) deprecatedtest.Mixed {
-				return deprecatedtest.NewMixedStub(tb, deprecatedtest.WithMixedNew(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: New refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Old.Smoke — a Mixed whose Old panics
+//
+//	Old.Cancels — a Mixed whose Old ignores the context it is handed
+//
+//	Old.NilContext — a Mixed whose Old forgives a nil context and answers
+//
+//	Old.Deadline — a Mixed whose Old ignores the context it is handed
+//
+//	Old.ZeroOnError — a Mixed whose Old answers a believable value beside its error
+//
+//	New.Smoke — a Mixed whose New panics
+//
+//	New.Cancels — a Mixed whose New ignores the context it is handed
+//
+//	New.NilContext — a Mixed whose New forgives a nil context and answers
+//
+//	New.Deadline — a Mixed whose New ignores the context it is handed
+//
+//	New.ZeroOnError — a Mixed whose New answers a believable value beside its error
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -170,4 +70,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8f3ee5d50a7809406f73c11c944e1141b9ddd1d8a18d3ecf2da35f40cc2dede3
+// testkit:provenance 46c974b791ea7076ada28ebb386c86493a4fad5e12ce2d519b720cd28e8c13c9

@@ -7,358 +7,82 @@
 package partnernamingtest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/partnernaming/partnernamingtest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestStoreProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveStore.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestStoreProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		partnernamingtest.StoreSuite.Suite(partnernamingtest.DefaultStoreFixture()).Checks,
-		storeProofs())
-}
-
-// storeProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveStore
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func storeProofs() prove.Defects[partnernamingtest.Store] {
-	ix := partnernamingtest.StoreSuite.Checks
-	return prove.Defects[partnernamingtest.Store]{
-		ix.Touch.Smoke(): prove.One("a Store whose Touch panics",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreTouch(
-					func(_ context.Context, _ string, _ int) error {
-						panic("planted: Touch panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Touch.Cancels(): prove.One("a Store whose Touch ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreTouch(
-					func(_ context.Context, _ string, _ int) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Touch.NilContext(): prove.One("a Store whose Touch forgives a nil context and answers",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreTouch(
-					func(_ context.Context, _ string, _ int) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Touch.Deadline(): prove.One("a Store whose Touch ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreTouch(
-					func(_ context.Context, _ string, _ int) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Seen.Smoke(): prove.One("a Store whose Seen panics",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreSeen(
-					func(_ context.Context, _ string) (int, error) {
-						panic("planted: Seen panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Seen.Cancels(): prove.One("a Store whose Seen ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreSeen(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Seen.NilContext(): prove.One("a Store whose Seen forgives a nil context and answers",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreSeen(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Seen.Deadline(): prove.One("a Store whose Seen ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreSeen(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Seen.ZeroOnError(): prove.One("a Store whose Seen answers a believable value beside its error",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreSeen(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Seen refused with a believable value")
-						return
-					}))
-			}),
-		ix.Move.Smoke(): prove.One("a Store whose Move panics",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreMove(
-					func(_ context.Context, _ string, _ string) error {
-						panic("planted: Move panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Move.Cancels(): prove.One("a Store whose Move ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreMove(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Move.NilContext(): prove.One("a Store whose Move forgives a nil context and answers",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreMove(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Move.Deadline(): prove.One("a Store whose Move ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreMove(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.At.Smoke(): prove.One("a Store whose At panics",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreAt(
-					func(_ context.Context, _ string) (int, error) {
-						panic("planted: At panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.At.Cancels(): prove.One("a Store whose At ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreAt(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.At.NilContext(): prove.One("a Store whose At forgives a nil context and answers",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreAt(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.At.Deadline(): prove.One("a Store whose At ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreAt(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.At.ZeroOnError(): prove.One("a Store whose At answers a believable value beside its error",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreAt(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: At refused with a believable value")
-						return
-					}))
-			}),
-		ix.Emit.Smoke(): prove.One("a Store whose Emit panics",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreEmit(
-					func(_ context.Context, _ string) error {
-						panic("planted: Emit panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Emit.Cancels(): prove.One("a Store whose Emit ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreEmit(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Emit.NilContext(): prove.One("a Store whose Emit forgives a nil context and answers",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreEmit(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Emit.Deadline(): prove.One("a Store whose Emit ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreEmit(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Count.Smoke(): prove.One("a Store whose Count panics",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreCount(
-					func(_ context.Context, _ int) (int, error) {
-						panic("planted: Count panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Count.Cancels(): prove.One("a Store whose Count ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreCount(
-					func(_ context.Context, _ int) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Count.NilContext(): prove.One("a Store whose Count forgives a nil context and answers",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreCount(
-					func(_ context.Context, _ int) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Count.Deadline(): prove.One("a Store whose Count ignores the context it is handed",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreCount(
-					func(_ context.Context, _ int) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Count.ZeroOnError(): prove.One("a Store whose Count answers a believable value beside its error",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreCount(
-					func(_ context.Context, _ int) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Count refused with a believable value")
-						return
-					}))
-			}),
-		ix.Touch.Sideeffect(): prove.One("a Store whose Touch reports success and keeps nothing",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreTouch(
-					func(_ context.Context, _ string, _ int) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-		ix.Seen.Miss(): prove.One("a Store whose Seen answers for an input nothing wrote",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreSeen(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
-						return
-					}))
-			}),
-		ix.Move.Sideeffect(): prove.One("a Store whose Move reports success and keeps nothing",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreMove(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-		ix.At.Miss(): prove.One("a Store whose At answers for an input nothing wrote",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreAt(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
-						return
-					}))
-			}),
-		ix.Emit.Sideeffect(): prove.One("a Store whose Emit reports success and keeps nothing",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreEmit(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-		ix.Count.Miss(): prove.One("a Store whose Count answers for an input nothing wrote",
-			func(tb testing.TB) partnernamingtest.Store {
-				return partnernamingtest.NewStoreStub(tb, partnernamingtest.WithStoreCount(
-					func(_ context.Context, _ int) (r0 int, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
-						return
-					}))
-			}),
-	}
-}
+//	Touch.Smoke — a Store whose Touch panics
+//
+//	Touch.Cancels — a Store whose Touch ignores the context it is handed
+//
+//	Touch.NilContext — a Store whose Touch forgives a nil context and answers
+//
+//	Touch.Deadline — a Store whose Touch ignores the context it is handed
+//
+//	Seen.Smoke — a Store whose Seen panics
+//
+//	Seen.Cancels — a Store whose Seen ignores the context it is handed
+//
+//	Seen.NilContext — a Store whose Seen forgives a nil context and answers
+//
+//	Seen.Deadline — a Store whose Seen ignores the context it is handed
+//
+//	Seen.ZeroOnError — a Store whose Seen answers a believable value beside its error
+//
+//	Move.Smoke — a Store whose Move panics
+//
+//	Move.Cancels — a Store whose Move ignores the context it is handed
+//
+//	Move.NilContext — a Store whose Move forgives a nil context and answers
+//
+//	Move.Deadline — a Store whose Move ignores the context it is handed
+//
+//	At.Smoke — a Store whose At panics
+//
+//	At.Cancels — a Store whose At ignores the context it is handed
+//
+//	At.NilContext — a Store whose At forgives a nil context and answers
+//
+//	At.Deadline — a Store whose At ignores the context it is handed
+//
+//	At.ZeroOnError — a Store whose At answers a believable value beside its error
+//
+//	Emit.Smoke — a Store whose Emit panics
+//
+//	Emit.Cancels — a Store whose Emit ignores the context it is handed
+//
+//	Emit.NilContext — a Store whose Emit forgives a nil context and answers
+//
+//	Emit.Deadline — a Store whose Emit ignores the context it is handed
+//
+//	Count.Smoke — a Store whose Count panics
+//
+//	Count.Cancels — a Store whose Count ignores the context it is handed
+//
+//	Count.NilContext — a Store whose Count forgives a nil context and answers
+//
+//	Count.Deadline — a Store whose Count ignores the context it is handed
+//
+//	Count.ZeroOnError — a Store whose Count answers a believable value beside its error
+//
+//	Touch.Sideeffect — a Store whose Touch reports success and keeps nothing
+//
+//	Seen.Miss — a Store whose Seen answers for an input nothing wrote
+//
+//	At.Miss — a Store whose At answers for an input nothing wrote
+//
+//	Count.Miss — a Store whose Count answers for an input nothing wrote
 
 // TestStoreInvariants holds this package to what it says about itself.
 //
@@ -388,4 +112,4 @@ func TestStoreInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 84d67b7bc6aa21b8aac2177d6c6472d48f767c5bd167b94b11db120e061b2ee0
+// testkit:provenance 45e417ef7c9d6e2d2681b5cc61dd1f907115eab6dd023576c9692fcd19124e7c

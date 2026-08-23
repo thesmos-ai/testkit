@@ -7,136 +7,40 @@
 package workflowtest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/workflow/workflowtest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		workflowtest.ContractSuite.Suite(workflowtest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[workflowtest.Contract] {
-	ix := workflowtest.ContractSuite.Checks
-	return prove.Defects[workflowtest.Contract]{
-		ix.Run.Smoke(): prove.One("a Contract whose Run panics",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractRun(
-					func(_ context.Context, _ string) error {
-						panic("planted: Run panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Run.Cancels(): prove.One("a Contract whose Run ignores the context it is handed",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractRun(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Run.NilContext(): prove.One("a Contract whose Run forgives a nil context and answers",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractRun(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Run.Deadline(): prove.One("a Contract whose Run ignores the context it is handed",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractRun(
-					func(_ context.Context, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.State.Smoke(): prove.One("a Contract whose State panics",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractState(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: State panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.State.Cancels(): prove.One("a Contract whose State ignores the context it is handed",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractState(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.State.NilContext(): prove.One("a Contract whose State forgives a nil context and answers",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractState(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.State.Deadline(): prove.One("a Contract whose State ignores the context it is handed",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractState(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.State.ZeroOnError(): prove.One("a Contract whose State answers a believable value beside its error",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractState(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: State refused with a believable value")
-						return
-					}))
-			}),
-		ix.State.Miss(): prove.One("a Contract whose State answers for an input nothing wrote",
-			func(tb testing.TB) workflowtest.Contract {
-				return workflowtest.NewContractStub(tb, workflowtest.WithContractState(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = "other-"
-						return
-					}))
-			}),
-	}
-}
+//	Run.Smoke — a Contract whose Run panics
+//
+//	Run.Cancels — a Contract whose Run ignores the context it is handed
+//
+//	Run.NilContext — a Contract whose Run forgives a nil context and answers
+//
+//	Run.Deadline — a Contract whose Run ignores the context it is handed
+//
+//	State.Smoke — a Contract whose State panics
+//
+//	State.Cancels — a Contract whose State ignores the context it is handed
+//
+//	State.NilContext — a Contract whose State forgives a nil context and answers
+//
+//	State.Deadline — a Contract whose State ignores the context it is handed
+//
+//	State.ZeroOnError — a Contract whose State answers a believable value beside its error
+//
+//	State.Miss — a Contract whose State answers for an input nothing wrote
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -166,4 +70,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance dc4db9eb1a9695e34a4aa9b01b84ce21f634a6a71a8f369579c699c8298e70e7
+// testkit:provenance 2b16f04c44eec0e76d12f6e8ae135a634aa14164b99404e37d7f329129b4eb3a

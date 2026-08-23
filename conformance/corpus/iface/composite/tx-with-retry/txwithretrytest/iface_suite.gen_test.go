@@ -7,120 +7,40 @@
 package txwithretrytest_test
 
 import (
-	"context"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/composite/tx-with-retry/txwithretrytest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestTxWithRetryProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveTxWithRetry.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestTxWithRetryProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		txwithretrytest.TxWithRetrySuite.Suite().Checks,
-		txWithRetryProofs())
-}
-
-// txWithRetryProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveTxWithRetry
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func txWithRetryProofs() prove.Defects[txwithretrytest.TxWithRetry] {
-	ix := txwithretrytest.TxWithRetrySuite.Checks
-	return prove.Defects[txwithretrytest.TxWithRetry]{
-		ix.Begin.Smoke(): prove.One("a TxWithRetry whose Begin panics",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryBegin(
-					func(_ context.Context) error {
-						panic("planted: Begin panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Begin.Cancels(): prove.One("a TxWithRetry whose Begin ignores the context it is handed",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryBegin(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Begin.NilContext(): prove.One("a TxWithRetry whose Begin forgives a nil context and answers",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryBegin(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Commit.Smoke(): prove.One("a TxWithRetry whose Commit panics",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryCommit(
-					func(_ context.Context) error {
-						panic("planted: Commit panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Commit.Cancels(): prove.One("a TxWithRetry whose Commit ignores the context it is handed",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryCommit(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Commit.NilContext(): prove.One("a TxWithRetry whose Commit forgives a nil context and answers",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryCommit(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Rollback.Smoke(): prove.One("a TxWithRetry whose Rollback panics",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryRollback(
-					func(_ context.Context) error {
-						panic("planted: Rollback panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Rollback.Cancels(): prove.One("a TxWithRetry whose Rollback ignores the context it is handed",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryRollback(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Rollback.NilContext(): prove.One("a TxWithRetry whose Rollback forgives a nil context and answers",
-			func(tb testing.TB) txwithretrytest.TxWithRetry {
-				return txwithretrytest.NewTxWithRetryStub(tb, txwithretrytest.WithTxWithRetryRollback(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-	}
-}
+//	Begin.Smoke — a TxWithRetry whose Begin panics
+//
+//	Begin.Cancels — a TxWithRetry whose Begin ignores the context it is handed
+//
+//	Begin.NilContext — a TxWithRetry whose Begin forgives a nil context and answers
+//
+//	Commit.Smoke — a TxWithRetry whose Commit panics
+//
+//	Commit.Cancels — a TxWithRetry whose Commit ignores the context it is handed
+//
+//	Commit.NilContext — a TxWithRetry whose Commit forgives a nil context and answers
+//
+//	Rollback.Smoke — a TxWithRetry whose Rollback panics
+//
+//	Rollback.Cancels — a TxWithRetry whose Rollback ignores the context it is handed
+//
+//	Rollback.NilContext — a TxWithRetry whose Rollback forgives a nil context and answers
+//
+//	Model.RespectsContext — a TxWithRetry whose Begin reports success and keeps nothing
 
 // TestTxWithRetryInvariants holds this package to what it says about itself.
 //
@@ -150,4 +70,4 @@ func TestTxWithRetryInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance ceafba50d46ed5b63fa95aa0094dcfb7914b46b7aafa7d2c374bae17f76585c8
+// testkit:provenance a24a748e08ca2d84d826f597838db8c799d7027da8b4f529e7f5d937f8893d1a

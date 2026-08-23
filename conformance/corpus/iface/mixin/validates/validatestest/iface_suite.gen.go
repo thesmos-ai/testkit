@@ -17,7 +17,9 @@ import (
 	"go.thesmos.sh/testkit/engine/legs"
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
+	"go.thesmos.sh/testkit/engine/model/crash"
 	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/model/linearize"
 	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
@@ -192,6 +194,19 @@ type MixedHarness[T Mixed] struct {
 	// a fixed port.
 	Serial bool
 
+	// Recover builds the process again over the medium the prior instance
+	// left behind — no Close first, because a crash is the goodbye that
+	// never happens. Checks that kill the process need it, and fail
+	// naming this field when it is nil. StartRecover is its Start-shaped
+	// sibling, for a reopen that also needs the test's lifetime; set at
+	// most one of the two.
+	//
+	// If your implementation keeps everything in memory, it has no medium
+	// to recover and this is the wrong answer: list the check in Excuse
+	// instead, which reports it as excused rather than as passed.
+	Recover      func(prior T) T
+	StartRecover func(tb testing.TB, prior T) T
+
 	// Provide supplies anything a check needs that has no field of its
 	// own above. You will not need it unless a check fails asking for a
 	// named capability, and that failure tells you the name to use here.
@@ -205,14 +220,29 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 	if err != nil {
 		return suite.Subject[Mixed]{}, err
 	}
-	return suite.Subject[Mixed]{
+	out := suite.Subject[Mixed]{
 		Name:     h.Name,
 		Provides: h.Provide,
 		New:      func(tb testing.TB) Mixed { return build(tb) },
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  suite.ExcuseSet(h.Excuse),
-	}, nil
+	}
+	if err := suite.ExclusivePair(h.Name, "Recover", "StartRecover",
+		h.Recover != nil, h.StartRecover != nil); err != nil {
+		return suite.Subject[Mixed]{}, err
+	}
+	if reopen := h.Recover; reopen != nil {
+		out.Recover = func(tb testing.TB, prior Mixed) Mixed {
+			return reopen(legs.AsBuilt[T](tb, h.Name, prior))
+		}
+	}
+	if reopen := h.StartRecover; reopen != nil {
+		out.Recover = func(tb testing.TB, prior Mixed) Mixed {
+			return reopen(tb, legs.AsBuilt[T](tb, h.Name, prior))
+		}
+	}
+	return out, nil
 }
 
 func (h MixedHarness[T]) applyTo(rc *mixedRunConfig) {
@@ -286,7 +316,9 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Read.ZeroOnError():      "MixedSuite.Checks.Read.ZeroOnError()",
 	mixedCheckIndex.Read.Miss():             "MixedSuite.Checks.Read.Miss()",
 	mixedCheckIndex.Model.Agrees():          "MixedSuite.Checks.Model.Agrees()",
+	mixedCheckIndex.Model.Linearizable():    "MixedSuite.Checks.Model.Linearizable()",
 	mixedCheckIndex.Model.WriteObservable(): "MixedSuite.Checks.Model.WriteObservable()",
+	mixedCheckIndex.Sim.Recovery():          "MixedSuite.Checks.Sim.Recovery()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -311,6 +343,7 @@ var mixedCheckIndex = mixedCheckIndexT{
 	Validate: mixedValidateChecks{},
 	Read:     mixedReadChecks{},
 	Model:    mixedModelChecks{},
+	Sim:      mixedSimChecks{},
 }
 
 type mixedCheckIndexT struct {
@@ -318,6 +351,7 @@ type mixedCheckIndexT struct {
 	Validate mixedValidateChecks
 	Read     mixedReadChecks
 	Model    mixedModelChecks
+	Sim      mixedSimChecks
 }
 
 // All returns every ID this package emits.
@@ -327,6 +361,7 @@ func (mixedCheckIndexT) All() []suite.ID {
 	out = append(out, mixedValidateChecks{}.All()...)
 	out = append(out, mixedReadChecks{}.All()...)
 	out = append(out, mixedModelChecks{}.All()...)
+	out = append(out, mixedSimChecks{}.All()...)
 	return out
 }
 
@@ -417,6 +452,10 @@ func (mixedModelChecks) Agrees() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, suite.SegDifferential)
 }
 
+func (mixedModelChecks) Linearizable() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, suite.SegLinearizable)
+}
+
 func (mixedModelChecks) WriteObservable() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.WriteObservable)
 }
@@ -424,7 +463,20 @@ func (mixedModelChecks) WriteObservable() suite.ID {
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedModelChecks{}.Agrees(),
+		mixedModelChecks{}.Linearizable(),
 		mixedModelChecks{}.WriteObservable(),
+	}
+}
+
+type mixedSimChecks struct{}
+
+func (mixedSimChecks) Recovery() suite.ID {
+	return suite.FamilyID(suite.FamilySim, mixedQualifier, suite.SegRecovery)
+}
+
+func (mixedSimChecks) All() []suite.ID {
+	return []suite.ID{
+		mixedSimChecks{}.Recovery(),
 	}
 }
 
@@ -789,6 +841,26 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropStore is Prop with Store's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Store, so leave Method empty.
+	PropStore func(rt *PropT, s Mixed, value validates.Payload)
+
+	// PropRead is Prop with Read's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Read, so leave Method empty.
+	PropRead func(rt *PropT, s Mixed, key string)
 }
 
 // mixedMethods is the interface's method names, used to catch a typo in
@@ -813,8 +885,15 @@ func (c MixedCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
 			return out, err
@@ -832,10 +911,44 @@ func (c MixedCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop, PropStore, PropRead"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropStore != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedStore, c.Name)
+		fn := c.PropStore
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if c.PropRead != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedRead, c.Name)
+		fn := c.PropRead
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -887,11 +1000,160 @@ func RunMixed(
 		rc.Subjects...)
 }
 
-// ProveMixed runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// mixedProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveMixed(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func mixedProofs() prove.Defects[Mixed] {
+	ix := MixedSuite.Checks
+	return prove.Defects[Mixed]{
+		ix.Store.Smoke(): prove.One("a Mixed whose Store panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) error {
+						panic("planted: Store panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Store.Cancels(): prove.One("a Mixed whose Store ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Store.NilContext(): prove.One("a Mixed whose Store forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Store.Deadline(): prove.One("a Mixed whose Store ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Validate.Smoke(): prove.One("a Mixed whose Validate panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedValidate(
+					func(_ validates.Payload) error {
+						panic("planted: Validate panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Read.Smoke(): prove.One("a Mixed whose Read panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (validates.Payload, error) {
+						panic("planted: Read panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Read.Cancels(): prove.One("a Mixed whose Read ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 validates.Payload, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Read.NilContext(): prove.One("a Mixed whose Read forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 validates.Payload, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Read.Deadline(): prove.One("a Mixed whose Read ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 validates.Payload, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Read.ZeroOnError(): prove.One("a Mixed whose Read answers a believable value beside its error",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 validates.Payload, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = validates.Payload{Key: "other-payload"}
+						err = errors.New("planted: Read refused with a believable value")
+						return
+					}))
+			}),
+		ix.Store.Validates(): prove.One("a Mixed whose Store refuses everything it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) (err error) {
+						err = errors.New("planted: Store refuses everything it is handed")
+						return
+					}))
+			}),
+		ix.Read.Miss(): prove.One("a Mixed whose Read answers for an input nothing wrote",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 validates.Payload, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = validates.Payload{Key: "other-payload"}
+						return
+					}))
+			}),
+		ix.Model.Agrees(): prove.One("a Mixed whose Store reports success and keeps nothing",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+		ix.Model.WriteObservable(): prove.One("a Mixed whose Store reports success and keeps nothing",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedStore(
+					func(_ context.Context, _ validates.Payload) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+	}
+}
+
+// ProveMixed runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveMixed(t, MixedHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -901,23 +1163,40 @@ func RunMixed(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunMixed does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveMixed(
-	t *testing.T, checks MixedChecks,
+	t *testing.T, opts ...MixedRunOpt,
 ) {
 	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := mixedNewFixture()
-	bound := make([]suite.Check[Mixed], 0, len(checks))
-	defects := prove.Defects[Mixed]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := mixedProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveMixed: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -927,8 +1206,19 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // mixedModelRows is what this package's model tier claims.
 //
@@ -951,13 +1241,36 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			},
 		},
 		{
+			ID:          mixedCheckIndex.Model.Linearizable(),
+			Class:       suite.ClassConcurrent,
+			Claim:       "concurrent operation histories are linearizable",
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertLinearizable(tb, sub, fx)
+			},
+		},
+		{
+			ID:    mixedCheckIndex.Sim.Recovery(),
+			Class: suite.ClassSimRecovery,
+			Claim: "every acknowledged write is still readable after the process is rebuilt over its medium",
+			Needs: suite.Caps{
+				suite.CapRecover: nil,
+			},
+			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertRecovery(tb, sub, fx)
+			},
+		},
+		{
 			ID:    mixedCheckIndex.Model.WriteObservable(),
 			Class: suite.ClassLaws,
 			Claim: "a written value is readable under the key it was written with",
 			Binds: []string{
 				lawid.WriteObservable,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertWriteObservable(tb, sub, fx)
@@ -1077,6 +1390,74 @@ func mixedAssertAgrees(
 		mixedModelActions(fx))
 }
 
+// mixedAssertLinearizable drives concurrent workers against one instance and asks
+// whether the history they recorded has a serial explanation.
+//
+// A claim no sequential leg can state. The differential compares one
+// ordered run against a reference and the laws hold after each step of
+// one; this is about what a caller may observe when there is no single
+// order at all, and the model is what decides whether one exists.
+//
+// The engine owns the interleaving, the property loop and the artifact a
+// failing history is written to. This supplies the verbs and the model.
+func mixedAssertLinearizable(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+	keys := mixedModelKeys(fx)
+	values := mixedModelValues(fx)
+	legs.Concurrent(tb, sub,
+		NewMixedModelReference,
+		model.ConcurrentConfig[Mixed]{
+			Model: linearize.KV[string, validates.Payload](nil),
+			Actions: []model.ConcurrentAction[Mixed]{
+				linearize.ConcurrentReader(linearize.OpGet, keys,
+					func(ctx context.Context, s validates.Mixed, k string) (validates.Payload, error) {
+						return s.Read(ctx, k)
+					}),
+				linearize.ConcurrentWriter(linearize.OpPut, values,
+					func(ctx context.Context, s validates.Mixed, v validates.Payload) error {
+						return s.Store(ctx, v)
+					},
+					mixedModelKeyOf),
+			},
+		})
+}
+
+// mixedAssertRecovery drives a drawn schedule of writes, reads and crashes,
+// and asks whether the medium still owes what the writes promised.
+//
+// A claim no other leg in this file can state. The differential compares
+// two live instances and the laws hold after each step of one; this is
+// about what is left when an instance stops existing mid-run, which is a
+// question only the medium can answer.
+//
+// The engine owns the interleaving, the shrinking and the oracle. This
+// supplies the verbs and the two pools they draw from.
+func mixedAssertRecovery(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+	legs.Recover[Mixed, string, validates.Payload](tb, sub,
+		crash.Schedule[Mixed, string, validates.Payload]{
+			Values: mixedModelValues(fx),
+			Keys:   mixedModelKeys(fx),
+			KeyOf:  mixedModelKeyOf,
+			Write: func(ctx context.Context, world Mixed, v validates.Payload) error {
+				return validates.Mixed(world).Store(ctx, v)
+			},
+			Read: func(ctx context.Context, world Mixed, k string) (validates.Payload, error) {
+				return validates.Mixed(world).Read(ctx, k)
+			},
+			Equal:  func(a, b validates.Payload) bool { return a == b },
+			Absent: nil,
+		}, nil)
+}
+
 // mixedAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
 //
 // One law, and the run's only oracle. The differential is off here, as
@@ -1109,5 +1490,13 @@ func mixedAssertWriteObservable(
 		})
 }
 
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 48d604e45a65199c8d4338b7e76d2e145707967734adc712cbae43f9b3a30896
+// testkit:provenance abd7ca985a6e02e8f1db21e93362974ca10f877e294f27b499d4fe7b4ac8453b

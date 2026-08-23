@@ -5,6 +5,8 @@ package gate_test
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -80,7 +82,6 @@ var assertionOnce = sync.OnceValue(func() assertionState {
 // experiment proved what the gap costs: a fixture's whole claim deleted, the
 // corpus green. A red line here names the law that would go the same way.
 func TestEveryOwedLawIsBoundOrRegistered(t *testing.T) {
-	skipUntilModelRelinked(t)
 	t.Parallel()
 
 	s := assertionOnce()
@@ -88,11 +89,18 @@ func TestEveryOwedLawIsBoundOrRegistered(t *testing.T) {
 		t.Fatalf("measure the corpus: %v", s.err)
 	}
 	testkit.True(t, len(s.owed) > 0, "the corpus stamps select laws at all")
+	// Every one, not the first: a census that stops at the first gap makes
+	// closing the rest a run apiece, and the whole point of measuring the
+	// set is to see its size.
+	var unbound []string
 	for law := range s.owed {
-		_, registered := gate.UnboundLaws[law]
-		testkit.True(t, s.bound[law] || registered,
-			law+" is selected by the corpus and bound nowhere — bind it, or register the debt with its chokepoint")
+		if _, registered := gate.UnboundLaws[law]; !registered && !s.bound[law] {
+			unbound = append(unbound, law)
+		}
 	}
+	slices.Sort(unbound)
+	testkit.Len(t, unbound, 0, "selected by the corpus and bound nowhere — bind each, "+
+		"or register the debt with its chokepoint: "+strings.Join(unbound, ", "))
 }
 
 // TestUnboundRegisterOnlyShrinks holds the register to its contract: an entry
@@ -120,7 +128,6 @@ func TestUnboundRegisterOnlyShrinks(t *testing.T) {
 // audit hand-derived stays derivable — and a derived fixture regressing to
 // the twin is visible here before it is visible nowhere.
 func TestEmissionSeesTheTwinFloor(t *testing.T) {
-	skipUntilModelRelinked(t)
 	t.Parallel()
 
 	emitted, err := gate.Emission(t.Context(), corpusRoot,
@@ -138,8 +145,8 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 		"bounded rides the twin floor — the audit's break experiment, kept measurable")
 }
 
-// twinCeiling is the corpus's twin count, ratcheted: 92 of 114 references
-// ride the twin floor today, and the number only sinks — an oracle upgrade
+// twinCeiling is the corpus's twin count, ratcheted: 58 references ride the
+// twin floor today, and the number only sinks — an oracle upgrade
 // lowers it, and a derived fixture regressing to the twin raises it past the
 // ceiling and reddens this build by name. Lower the constant with every
 // floor raised; raise it only for a fixture whose floor is argued, as
@@ -173,14 +180,21 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 // rollback claim needed pairs with the read, and Get/Put is a map. The
 // oracle upgrade was a side effect of making the law falsifiable, which is
 // the direction this ratchet exists to record.
-const twinCeiling = 92
+//
+// The count fell from 92 to 58 in one step, and none of that was earned in
+// the step that banked it. The census had been reading the model tier off
+// the pending emit queue, which the tier stopped writing to when it became
+// a contributor to the harness — so every fixture measured as no laws and
+// no twin, and the ratchet sat un-turnable while real oracle upgrades
+// landed unrecorded. 58 is the first honest reading since; the two
+// isolation fixtures joining the floor in the same step are counted in it.
+const twinCeiling = 58
 
 // TestTwinFloorOnlySinks is the twin-count ratchet the audit's second item
 // commissioned: the twin is the honest floor, not the resting state, and a
 // regression from a derived oracle back to it must be visible somewhere
 // before it is visible nowhere.
 func TestTwinFloorOnlySinks(t *testing.T) {
-	skipUntilModelRelinked(t)
 	t.Parallel()
 
 	s := assertionOnce()
@@ -190,8 +204,11 @@ func TestTwinFloorOnlySinks(t *testing.T) {
 	testkit.True(t, s.twins <= twinCeiling,
 		"the twin floor only sinks — a derived fixture regressed, or a new fixture "+
 			"needs its oracle argued for before it rides the floor")
-	testkit.True(t, s.twins == twinCeiling,
-		"the floor sank — lower twinCeiling to the new count and bank the progress")
+	// Equal rather than True, so the message carries the count: "lower it to
+	// the new number" is advice nobody can act on without being told the
+	// number, and finding it meant instrumenting this test by hand.
+	testkit.Equal(t, s.twins, twinCeiling,
+		"the floor sank — lower twinCeiling to the count on the left and bank the progress")
 }
 
 // TestEmissionSurfacesARunFailure pins the error arm: a pattern matching

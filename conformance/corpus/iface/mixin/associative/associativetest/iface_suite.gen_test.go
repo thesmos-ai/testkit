@@ -7,128 +7,38 @@
 package associativetest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/associative"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/associative/associativetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		associativetest.MixedSuite.Suite(associativetest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[associativetest.Mixed] {
-	ix := associativetest.MixedSuite.Checks
-	return prove.Defects[associativetest.Mixed]{
-		ix.Apply.Smoke(): prove.One("a Mixed whose Apply panics",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedApply(
-					func(_ context.Context, _ associative.Delta) error {
-						panic("planted: Apply panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Apply.Cancels(): prove.One("a Mixed whose Apply ignores the context it is handed",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedApply(
-					func(_ context.Context, _ associative.Delta) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Apply.NilContext(): prove.One("a Mixed whose Apply forgives a nil context and answers",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedApply(
-					func(_ context.Context, _ associative.Delta) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Apply.Deadline(): prove.One("a Mixed whose Apply ignores the context it is handed",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedApply(
-					func(_ context.Context, _ associative.Delta) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Total.Smoke(): prove.One("a Mixed whose Total panics",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedTotal(
-					func(_ context.Context) (int, error) {
-						panic("planted: Total panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Total.Cancels(): prove.One("a Mixed whose Total ignores the context it is handed",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedTotal(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Total.NilContext(): prove.One("a Mixed whose Total forgives a nil context and answers",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedTotal(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Total.Deadline(): prove.One("a Mixed whose Total ignores the context it is handed",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedTotal(
-					func(_ context.Context) (r0 int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Total.ZeroOnError(): prove.One("a Mixed whose Total answers a believable value beside its error",
-			func(tb testing.TB) associativetest.Mixed {
-				return associativetest.NewMixedStub(tb, associativetest.WithMixedTotal(
-					func(_ context.Context) (r0 int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = 2
-						err = errors.New("planted: Total refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Apply.Smoke — a Mixed whose Apply panics
+//
+//	Apply.Cancels — a Mixed whose Apply ignores the context it is handed
+//
+//	Apply.NilContext — a Mixed whose Apply forgives a nil context and answers
+//
+//	Apply.Deadline — a Mixed whose Apply ignores the context it is handed
+//
+//	Total.Smoke — a Mixed whose Total panics
+//
+//	Total.Cancels — a Mixed whose Total ignores the context it is handed
+//
+//	Total.NilContext — a Mixed whose Total forgives a nil context and answers
+//
+//	Total.Deadline — a Mixed whose Total ignores the context it is handed
+//
+//	Total.ZeroOnError — a Mixed whose Total answers a believable value beside its error
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -158,4 +68,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance c389eaa9d0ccf3da57604730deea043b63f83de965139c122a83e787ca5e17a3
+// testkit:provenance 770e5acd57bfb1ad22f4191a53edfa91f9129a5ab4ca7841adf1e261489187f6

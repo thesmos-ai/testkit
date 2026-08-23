@@ -7,57 +7,24 @@
 package nilsafetest_test
 
 import (
-	"context"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/nilsafe"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/nilsafe/nilsafetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		nilsafetest.MixedSuite.Suite(nilsafetest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[nilsafetest.Mixed] {
-	ix := nilsafetest.MixedSuite.Checks
-	return prove.Defects[nilsafetest.Mixed]{
-		ix.Store.Smoke(): prove.One("a Mixed whose Store panics",
-			func(tb testing.TB) nilsafetest.Mixed {
-				return nilsafetest.NewMixedStub(tb, nilsafetest.WithMixedStore(
-					func(_ context.Context, _ *nilsafe.Payload) error {
-						panic("planted: Store panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Store.Nilargument(): prove.One("a Mixed whose Store accepts a nil argument and answers",
-			func(tb testing.TB) nilsafetest.Mixed {
-				return nilsafetest.NewMixedStub(tb, nilsafetest.WithMixedStore(
-					func(_ context.Context, _ *nilsafe.Payload) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilArgument),
-	}
-}
+//	Store.Smoke — a Mixed whose Store panics
+//
+//	Store.Nilargument — a Mixed whose Store accepts a nil argument and answers
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -87,4 +54,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9f38645b90f1972074196e4bd1e7a263c7b2876ba62b6fe36a4879ee03c72efc
+// testkit:provenance 973dcb009f07d4743c351e9db93c23ee78fad035c8ea600bff68bc4ba3fe3da3

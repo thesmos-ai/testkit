@@ -14,6 +14,9 @@ import (
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/serializable"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/serializable/serializabletest"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // TestMixedContract runs the generated checks and this package's own.
@@ -39,7 +42,7 @@ func TestMixedContractWithoutSmoke(t *testing.T) {
 func TestMixedChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	serializabletest.ProveMixed(t, mixedChecks)
+	serializabletest.ProveMixed(t, inMemory("in-memory"), mixedChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------
@@ -47,7 +50,50 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) serializabletest.MixedHarness[*serializabletest.InMemory] {
 	return serializabletest.MixedHarness[*serializabletest.InMemory]{
 		Name: name, New: serializabletest.NewInMemory,
+		// The anomaly checks read transactions, and this interface reports
+		// operations. Which field groups them, which one says read from
+		// write and which carries the version, is what the declaration
+		// knows and the shape does not.
+		Provide: map[suite.Capability]any{"history": transactions},
 	}
+}
+
+// transactions folds the recorded operations into the transactions the
+// anomaly checks walk.
+//
+// Grouped by Txn and ordered by it, because the checkers index into the
+// slice and a map's order would make one iteration's verdict differ from
+// the next on the same history. Nothing is marked aborted: this interface
+// records no outcome, so every recorded transaction reads as committed —
+// which is the stricter reading, since an aborted transaction contributes
+// no edges and could only make an anomaly disappear.
+func transactions(rt *model.T, s serializable.Mixed) []law.Txn[string] {
+	entries, err := s.History(rt.Context())
+	if err != nil {
+		return nil
+	}
+	byTxn := map[int]*law.Txn[string]{}
+	var ids []int
+	for _, e := range entries {
+		t, seen := byTxn[e.Txn]
+		if !seen {
+			t = &law.Txn[string]{ID: e.Txn}
+			byTxn[e.Txn] = t
+			ids = append(ids, e.Txn)
+		}
+		op := law.TxnOp[string]{Key: e.Key, Version: e.Version}
+		if e.Write {
+			t.Writes = append(t.Writes, op)
+			continue
+		}
+		t.Reads = append(t.Reads, op)
+	}
+	slices.Sort(ids)
+	out := make([]law.Txn[string], 0, len(ids))
+	for _, id := range ids {
+		out = append(out, *byTxn[id])
+	}
+	return out
 }
 
 // --- The checks: claims, bodies and defects, by name --------------------------

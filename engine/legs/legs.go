@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/crash"
 	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/suite"
 )
@@ -125,6 +126,90 @@ func Differential[S any](
 	)
 	opts = append(opts, extra...)
 	model.Assert(tb, func() S { return sub.New(tb) }, opts...)
+}
+
+// Concurrent is the linearizability leg: workers driving one instance at
+// once, the recorded history checked against the model this interface's
+// shape selects.
+//
+// The reference [Reference] picks, and the tier noted for the report, as
+// every other leg does. It is not what decides the claim — a
+// linearizability verdict comes from the model searching the history for
+// a serial order — but the run still builds a pair, and a leg that
+// skipped the pick would report a tier nobody chose.
+//
+// The engine owns the interleaving, the property loop and the artifact a
+// failing history is written to. This supplies the verbs and the model.
+func Concurrent[S any](
+	tb testing.TB, sub suite.Subject[S], derived func() S,
+	cfg model.ConcurrentConfig[S], laws ...law.Law[S],
+) {
+	tb.Helper()
+	buildRef, tier := Reference(tb, sub, derived)
+	sub.NoteTier(tier)
+	opts := make([]model.Option[S], 0, 2+len(laws))
+	opts = append(opts,
+		model.WithReference(buildRef),
+		model.WithConcurrent(cfg),
+	)
+	// The laws a STEPLESS family's verdict comes from. A model that steps
+	// nothing partitions nothing and decides nothing, and the runner
+	// refuses that pair outright rather than passing a run that asserted
+	// nothing — which is the check this argument exists to satisfy.
+	for _, l := range laws {
+		opts = append(opts, model.WithLaw(l))
+	}
+	model.Assert(tb, func() S { return sub.New(tb) }, opts...)
+}
+
+// Recover is the crash-recovery leg: a drawn schedule of writes, reads
+// and crash points, every read judged against what the writes
+// acknowledged.
+//
+// No reference is picked and none is wanted. Every other leg compares the
+// subject against something that models it; this one compares the subject
+// against its own acknowledgements, because a reference that never lost
+// power has nothing to say about what survives losing it.
+//
+// [suite.Subject.Recover] is read without a nil guard on purpose: a row
+// driving this declares [suite.NeedsRecover], so the runner has already
+// refused a subject without one — by name, and naming the field that
+// would arm it. A guard here would answer the same question a second
+// time, in a worse place, and only for the rows that remembered it.
+func Recover[S any, K comparable, V any](
+	tb testing.TB, sub suite.Subject[S], sch crash.Schedule[S, K, V],
+	wrap func(*model.T, S) S,
+) {
+	tb.Helper()
+	sch.Rebuild = func(prior S) S { return sub.Recover(tb, prior) }
+	model.Check(tb, func(rt *model.T) {
+		crash.Run(rt, sub.New(tb), sch, wrap)
+	})
+}
+
+// AsBuilt narrows an instance the run is holding back to the type the
+// harness that built it declares.
+//
+// One field needs this and the rest never will. Every other field on a
+// generated harness hands an instance OUT — a constructor returns the
+// consumer's own type and the subject holds it as the interface — and
+// [suite.Subject.Recover] is the one that takes one back in, because
+// recovery is over the medium a particular instance left behind.
+//
+// It cannot fail for an instance the harness built: the only value that
+// reaches it came from that harness's own constructor. The guard is for
+// the case where that stops being true, where a bare assertion would
+// panic naming two interface types and this names the harness instead.
+func AsBuilt[T any](tb testing.TB, harness string, held any) T {
+	tb.Helper()
+	own, built := held.(T)
+	if !built {
+		var zero T
+		tb.Fatalf("harness %q was handed a %T to recover over, and it builds %T; "+
+			"every subject in one run comes from one harness", harness, held, zero)
+		return zero
+	}
+	return own
 }
 
 // Blend is the provenance-gated adversarial widening: a DERIVED pool

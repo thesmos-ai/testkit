@@ -19,6 +19,7 @@ import (
 	"pgregory.net/rapid"
 
 	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/history"
 )
 
 // Reader creates an action for a Reader-shaped method: func(ctx, K) (V, error).
@@ -212,6 +213,45 @@ func Writer[T, V any](
 					Err:   fmt.Errorf("%s(%v): SUT err=%v, ref err=%v", name, v, sutErr, refErr),
 					Input: v,
 				}
+			}
+			return model.ActionResult{Input: v, CallErr: sutErr}
+		},
+	}
+}
+
+// WriterRecording is [Writer] with the run's record of what went in: a
+// write both sides accepted is logged once, into the [history.History] a
+// drain claim is judged against.
+//
+// Once, not once per side. That is what a closure inside the write cannot
+// do — it is handed the subject, then handed the reference, and a log
+// filled from inside it says twice as much went in as did. A membership
+// check is indifferent to the difference; a claim about HOW MANY elements
+// a drain owes reads it as every element having been dropped.
+//
+// Unpartitioned, under the empty key: a collection mixin declares no
+// partitioning, and the history's key exists for chains that do.
+func WriterRecording[T, V any](
+	name string,
+	values *rapid.Generator[V],
+	hist *history.History[string, V],
+	write func(context.Context, T, V) error,
+) model.Action[T] {
+	return model.Action[T]{
+		Name: name,
+		Kind: model.FailureSemantic,
+		Run: func(rt *rapid.T, sut, ref T) model.ActionResult {
+			v := values.Draw(rt, name+"_value")
+			sutErr := write(rt.Context(), sut, v)
+			refErr := write(rt.Context(), ref, v)
+			if (sutErr == nil) != (refErr == nil) {
+				return model.ActionResult{
+					Err:   fmt.Errorf("%s(%v): SUT err=%v, ref err=%v", name, v, sutErr, refErr),
+					Input: v,
+				}
+			}
+			if sutErr == nil {
+				hist.Record("", v)
 			}
 			return model.ActionResult{Input: v, CallErr: sutErr}
 		},

@@ -11,4 +11,5 @@ Store/deadline	signature/deadline	Store reports an expired deadline as exceeded
 Store/nilcontext	signature/nilcontext	Store returns an error rather than panicking on a nil context	
 Store/smoke	signature/smoke	Store survives a call with a derived value	
 Store/zero-on-error	signature/zero-on-error	Store returns the zero Value alongside any error	
+model/mixed/AUTO-LINEARIZABLE	model/concurrent	concurrent operation histories are linearizable	
 model/mixed/AUTO-MONOTONIC-WRITES	model/laws	a client's successive writes to a key are stamped in issue order	AUTO-MONOTONIC-WRITES

@@ -7,146 +7,42 @@
 package injectionsafetest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/injectionsafe/injectionsafetest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestMixedProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveMixed.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestMixedProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		injectionsafetest.MixedSuite.Suite(injectionsafetest.DefaultMixedFixture()).Checks,
-		mixedProofs())
-}
-
-// mixedProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveMixed
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func mixedProofs() prove.Defects[injectionsafetest.Mixed] {
-	ix := injectionsafetest.MixedSuite.Checks
-	return prove.Defects[injectionsafetest.Mixed]{
-		ix.Store.Smoke(): prove.One("a Mixed whose Store panics",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedStore(
-					func(_ context.Context, _ string, _ string) error {
-						panic("planted: Store panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Store.Cancels(): prove.One("a Mixed whose Store ignores the context it is handed",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedStore(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Store.NilContext(): prove.One("a Mixed whose Store forgives a nil context and answers",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedStore(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Store.Deadline(): prove.One("a Mixed whose Store ignores the context it is handed",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedStore(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Load.Smoke(): prove.One("a Mixed whose Load panics",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedLoad(
-					func(_ context.Context, _ string) (string, error) {
-						panic("planted: Load panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Load.Cancels(): prove.One("a Mixed whose Load ignores the context it is handed",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedLoad(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Load.NilContext(): prove.One("a Mixed whose Load forgives a nil context and answers",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedLoad(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Load.Deadline(): prove.One("a Mixed whose Load ignores the context it is handed",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedLoad(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Load.ZeroOnError(): prove.One("a Mixed whose Load answers a believable value beside its error",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedLoad(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = "other-"
-						err = errors.New("planted: Load refused with a believable value")
-						return
-					}))
-			}),
-		ix.Load.Miss(): prove.One("a Mixed whose Load answers for an input nothing wrote",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedLoad(
-					func(_ context.Context, _ string) (r0 string, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = "other-"
-						return
-					}))
-			}),
-		ix.Model.Agrees(): prove.One("a Mixed whose Store reports success and keeps nothing",
-			func(tb testing.TB) injectionsafetest.Mixed {
-				return injectionsafetest.NewMixedStub(tb, injectionsafetest.WithMixedStore(
-					func(_ context.Context, _ string, _ string) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
-	}
-}
+//	Store.Smoke — a Mixed whose Store panics
+//
+//	Store.Cancels — a Mixed whose Store ignores the context it is handed
+//
+//	Store.NilContext — a Mixed whose Store forgives a nil context and answers
+//
+//	Store.Deadline — a Mixed whose Store ignores the context it is handed
+//
+//	Load.Smoke — a Mixed whose Load panics
+//
+//	Load.Cancels — a Mixed whose Load ignores the context it is handed
+//
+//	Load.NilContext — a Mixed whose Load forgives a nil context and answers
+//
+//	Load.Deadline — a Mixed whose Load ignores the context it is handed
+//
+//	Load.ZeroOnError — a Mixed whose Load answers a believable value beside its error
+//
+//	Load.Miss — a Mixed whose Load answers for an input nothing wrote
+//
+//	Model.Agrees — a Mixed whose Store reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -176,4 +72,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance ddce742bea7f077b62f4642a0e187b9952de46c1d1e232bb315b19e0b2615063
+// testkit:provenance 31adff1c6bcb6d7d6d041464e0353a85883ab6d750d384d6e4e95ae5daee2bda

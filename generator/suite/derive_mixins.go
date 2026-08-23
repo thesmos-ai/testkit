@@ -37,6 +37,49 @@ func idempotentRule(f Iface, m subject.Method, call projection.CallPlan) ([]proj
 	}}, nil
 }
 
+// observingCall renders the observer's invocation against the SAME values
+// the effect was handed, and refuses where it cannot.
+//
+// The observer's own fixture draws will not do. A fixture field is keyed on
+// the parameter's NAME, so an effect spelling its key `key` and an observer
+// spelling it `k` draw two different strings: the effect writes under one
+// and the check reads the other, and no correct subject can pass. The corpus
+// carried three such checks for as long as the fixture that declares them
+// had no implementation to run them against.
+//
+// Two refusals, both of them cases that fixture documents. An observer
+// parameter matched by NO argument of the effect has nothing to be handed —
+// an int bucket where the effect took only a string. One matched by SEVERAL
+// is a guess: an observation about one end of a move would be about the
+// right end half the time, which is worse than an absence the header names.
+func observingCall(effect, observer subject.Method) (projection.CallPlan, string) {
+	var args []projection.Expr
+	if observer.TakesContext() {
+		args = append(args, projection.ExprCtx)
+	}
+	effectArgs := effect.CallArgs()
+	for _, p := range observer.CallArgs() {
+		var found projection.Expr
+		for j, e := range effectArgs {
+			if !sameNamed(p.Source, e.Source) {
+				continue
+			}
+			if found != "" {
+				return projection.CallPlan{}, "its observe partner asks about one of " +
+					effect.Name + "'s arguments and more than one has that type, so which " +
+					"of them the observation is about would be a guess"
+			}
+			found = projection.FixtureCall(projection.ExprFixture, effect.ArgFields[j])
+		}
+		if found == "" {
+			return projection.CallPlan{}, "its observe partner asks about a value " +
+				effect.Name + " takes none of, so a check has nothing to hand it"
+		}
+		args = append(args, found)
+	}
+	return projection.CallPlan{Method: observer.Name, Args: args}, ""
+}
+
 // accumulatesRule probes the repeat from the other side: two calls, and
 // the second taken rather than refused.
 //
@@ -91,13 +134,17 @@ func sideEffectRule(f Iface, m subject.Method, call projection.CallPlan) ([]proj
 	if _, _, missing := undeliverableArgs(f.Fixture, observer.ArgFields); missing {
 		return refuse("its observe partner draws a value no literal can be written for")
 	}
+	observe, why := observingCall(m, *observer)
+	if why != "" {
+		return refuse(why)
+	}
 	return []projection.CheckPlan{{
 		ID:    projection.IDPlan{Method: m.Name, Seg: vocab.SegSideEffect},
 		Class: vocab.ClassSideEffect,
 		Claim: SideEffectClaim(m, observer.Name),
 		Body: projection.ReadActRead{
 			Call:    call,
-			Observe: callOf(*observer),
+			Observe: observe,
 			Must:    SideEffectRequirement(observer.Name),
 		},
 		Falsifiable: vocab.Proven(),

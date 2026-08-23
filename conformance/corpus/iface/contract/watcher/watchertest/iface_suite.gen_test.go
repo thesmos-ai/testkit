@@ -7,114 +7,38 @@
 package watchertest_test
 
 import (
-	"context"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/watcher"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/watcher/watchertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		watchertest.ContractSuite.Suite(watchertest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[watchertest.Contract] {
-	ix := watchertest.ContractSuite.Checks
-	return prove.Defects[watchertest.Contract]{
-		ix.Watch.Smoke(): prove.One("a Contract whose Watch panics",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractWatch(
-					func(_ context.Context, _ string) (watcher.Subscription, error) {
-						panic("planted: Watch panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Watch.Cancels(): prove.One("a Contract whose Watch ignores the context it is handed",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractWatch(
-					func(_ context.Context, _ string) (r0 watcher.Subscription, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Watch.NilContext(): prove.One("a Contract whose Watch forgives a nil context and answers",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractWatch(
-					func(_ context.Context, _ string) (r0 watcher.Subscription, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Watch.Deadline(): prove.One("a Contract whose Watch ignores the context it is handed",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractWatch(
-					func(_ context.Context, _ string) (r0 watcher.Subscription, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Trigger.Smoke(): prove.One("a Contract whose Trigger panics",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractTrigger(
-					func(_ context.Context, _ string, _ watcher.Value) error {
-						panic("planted: Trigger panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Trigger.Cancels(): prove.One("a Contract whose Trigger ignores the context it is handed",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractTrigger(
-					func(_ context.Context, _ string, _ watcher.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Trigger.NilContext(): prove.One("a Contract whose Trigger forgives a nil context and answers",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractTrigger(
-					func(_ context.Context, _ string, _ watcher.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Trigger.Deadline(): prove.One("a Contract whose Trigger ignores the context it is handed",
-			func(tb testing.TB) watchertest.Contract {
-				return watchertest.NewContractStub(tb, watchertest.WithContractTrigger(
-					func(_ context.Context, _ string, _ watcher.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-	}
-}
+//	Watch.Smoke — a Contract whose Watch panics
+//
+//	Watch.Cancels — a Contract whose Watch ignores the context it is handed
+//
+//	Watch.NilContext — a Contract whose Watch forgives a nil context and answers
+//
+//	Watch.Deadline — a Contract whose Watch ignores the context it is handed
+//
+//	Trigger.Smoke — a Contract whose Trigger panics
+//
+//	Trigger.Cancels — a Contract whose Trigger ignores the context it is handed
+//
+//	Trigger.NilContext — a Contract whose Trigger forgives a nil context and answers
+//
+//	Trigger.Deadline — a Contract whose Trigger ignores the context it is handed
+//
+//	Model.WatcherReturnsOnChange — a Contract whose Watch reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -155,4 +79,4 @@ func TestContractInvariants(t *testing.T) {
 // one nobody has written the falsification for.
 
 // testkit: end of generated content.
-// testkit:provenance 11cdc03817333c42404727ae1c63ff9b9347696f7268c39ad9f330026d3cd941
+// testkit:provenance 054a60c5604e09c2e835f2e061e7d17c516ec61bcf5d95d04330593dc416da58

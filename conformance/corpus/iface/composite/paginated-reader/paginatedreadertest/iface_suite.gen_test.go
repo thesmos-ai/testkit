@@ -7,91 +7,30 @@
 package paginatedreadertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	paginatedreader "go.thesmos.sh/testkit/conformance/corpus/iface/composite/paginated-reader"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/composite/paginated-reader/paginatedreadertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestPaginatedReaderProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProvePaginatedReader.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestPaginatedReaderProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		paginatedreadertest.PaginatedReaderSuite.Suite(paginatedreadertest.DefaultPaginatedReaderFixture()).Checks,
-		paginatedReaderProofs())
-}
-
-// paginatedReaderProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProvePaginatedReader
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func paginatedReaderProofs() prove.Defects[paginatedreadertest.PaginatedReader] {
-	ix := paginatedreadertest.PaginatedReaderSuite.Checks
-	return prove.Defects[paginatedreadertest.PaginatedReader]{
-		ix.Page.Smoke(): prove.One("a PaginatedReader whose Page panics",
-			func(tb testing.TB) paginatedreadertest.PaginatedReader {
-				return paginatedreadertest.NewPaginatedReaderStub(tb, paginatedreadertest.WithPaginatedReaderPage(
-					func(_ context.Context, _ int) ([]paginatedreader.Value, int, error) {
-						panic("planted: Page panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Page.Cancels(): prove.One("a PaginatedReader whose Page ignores the context it is handed",
-			func(tb testing.TB) paginatedreadertest.PaginatedReader {
-				return paginatedreadertest.NewPaginatedReaderStub(tb, paginatedreadertest.WithPaginatedReaderPage(
-					func(_ context.Context, _ int) (items []paginatedreader.Value, next int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Page.NilContext(): prove.One("a PaginatedReader whose Page forgives a nil context and answers",
-			func(tb testing.TB) paginatedreadertest.PaginatedReader {
-				return paginatedreadertest.NewPaginatedReaderStub(tb, paginatedreadertest.WithPaginatedReaderPage(
-					func(_ context.Context, _ int) (items []paginatedreader.Value, next int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Page.Deadline(): prove.One("a PaginatedReader whose Page ignores the context it is handed",
-			func(tb testing.TB) paginatedreadertest.PaginatedReader {
-				return paginatedreadertest.NewPaginatedReaderStub(tb, paginatedreadertest.WithPaginatedReaderPage(
-					func(_ context.Context, _ int) (items []paginatedreader.Value, next int, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Page.ZeroOnError(): prove.One("a PaginatedReader whose Page answers a believable value beside its error",
-			func(tb testing.TB) paginatedreadertest.PaginatedReader {
-				return paginatedreadertest.NewPaginatedReaderStub(tb, paginatedreadertest.WithPaginatedReaderPage(
-					func(_ context.Context, _ int) (items []paginatedreader.Value, next int, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						items = []paginatedreader.Value{{Key: "other-"}}
-						err = errors.New("planted: Page refused with a believable value")
-						return
-					}))
-			}),
-	}
-}
+//	Page.Smoke — a PaginatedReader whose Page panics
+//
+//	Page.Cancels — a PaginatedReader whose Page ignores the context it is handed
+//
+//	Page.NilContext — a PaginatedReader whose Page forgives a nil context and answers
+//
+//	Page.Deadline — a PaginatedReader whose Page ignores the context it is handed
+//
+//	Page.ZeroOnError — a PaginatedReader whose Page answers a believable value beside its error
 
 // TestPaginatedReaderInvariants holds this package to what it says about itself.
 //
@@ -121,4 +60,4 @@ func TestPaginatedReaderInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance b1eb0c7b21513a153859aa7d2705207792e750ff892a1dd4189abf99e627563f
+// testkit:provenance 099cb7d06ecb31e6e6e8091682e9338de3ac5fc0114495ac16f67622b14fbd92

@@ -7,80 +7,30 @@
 package lifecycletest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/lifecycle/lifecycletest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestLifecycleProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveLifecycle.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestLifecycleProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		lifecycletest.LifecycleSuite.Suite().Checks,
-		lifecycleProofs())
-}
-
-// lifecycleProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveLifecycle
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func lifecycleProofs() prove.Defects[lifecycletest.Lifecycle] {
-	ix := lifecycletest.LifecycleSuite.Checks
-	return prove.Defects[lifecycletest.Lifecycle]{
-		ix.Close.Smoke(): prove.One("a Lifecycle whose Close panics",
-			func(tb testing.TB) lifecycletest.Lifecycle {
-				return lifecycletest.NewLifecycleStub(tb, lifecycletest.WithLifecycleClose(
-					func(_ context.Context) error {
-						panic("planted: Close panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Close.Cancels(): prove.One("a Lifecycle whose Close ignores the context it is handed",
-			func(tb testing.TB) lifecycletest.Lifecycle {
-				return lifecycletest.NewLifecycleStub(tb, lifecycletest.WithLifecycleClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Close.NilContext(): prove.One("a Lifecycle whose Close forgives a nil context and answers",
-			func(tb testing.TB) lifecycletest.Lifecycle {
-				return lifecycletest.NewLifecycleStub(tb, lifecycletest.WithLifecycleClose(
-					func(_ context.Context) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Close.Idempotent(): prove.One("a Lifecycle whose Close fails on the second call",
-			func(tb testing.TB) lifecycletest.Lifecycle {
-				called := false
-				return lifecycletest.NewLifecycleStub(tb, lifecycletest.WithLifecycleClose(
-					func(_ context.Context) (err error) {
-						if called {
-							err = errors.New("planted: Close refuses its repeat")
-							return
-						}
-						called = true
-						return
-					}))
-			}),
-	}
-}
+//	Close.Smoke — a Lifecycle whose Close panics
+//
+//	Close.Cancels — a Lifecycle whose Close ignores the context it is handed
+//
+//	Close.NilContext — a Lifecycle whose Close forgives a nil context and answers
+//
+//	Close.Idempotent — a Lifecycle whose Close fails on the second call
+//
+//	Model.RespectsContext — a Lifecycle whose Close reports success and keeps nothing
 
 // TestLifecycleInvariants holds this package to what it says about itself.
 //
@@ -110,4 +60,4 @@ func TestLifecycleInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance fdccf177ef0ce598a7fedffcc8b8230dfebb2d9ed3627aebb2b22d488783ceb5
+// testkit:provenance af8fafcfc255ec76050971137c8c7d30df381277b9b6ae5d1252387f0058a8f0

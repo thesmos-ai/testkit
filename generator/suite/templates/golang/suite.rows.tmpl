@@ -126,6 +126,10 @@ type {{ suite_rowName .IfaceName }}{{ renderTypeParams .TypeParams }} struct {
 	ProvenBy     {{ suite_defectTypeName .IfaceName }}{{ .TypeArgs }}
 	ProvenReason string
 	Argued       string
+{{- range (slot $c $c.CheckFieldsSlotName).Items }}
+
+	{{ render . }}
+{{- end }}
 }
 
 // {{ suite_methodsVar .Token }} is the interface's method names, used to catch a typo in
@@ -151,8 +155,15 @@ func (c {{ suite_rowName .IfaceName }}{{ .TypeArgs }}) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = {{ renderExpr (external $.Vocab "RowID") }}("Run", c.Method, c.Name, {{ suite_methodsVar .Token }}); err != nil {
 			return out, err
@@ -170,10 +181,13 @@ func (c {{ suite_rowName .IfaceName }}{{ .TypeArgs }}) bind(
 			rw(tb, sub, {{ suite_fixtureIdent }})
 		}
 	}
-	if err := {{ renderExpr (external $.Vocab "OneBody") }}(c.Name, bodies, "Run, RunWith"); err != nil {
+{{- range (slot $c $c.CheckBodiesSlotName).Items }}
+	{{ render . }}
+{{- end }}
+	if err := {{ renderExpr (external $.Vocab "OneBody") }}(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, {{ renderExpr (external "fmt" "Errorf") }}(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}

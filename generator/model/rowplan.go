@@ -19,6 +19,8 @@ import (
 const (
 	lawsClaim = "every bound law holds over random operation sequences"
 	refClaim  = "every operation sequence leaves the subject agreeing with the reference"
+	concClaim = "concurrent operation histories are linearizable"
+	simClaim  = "every acknowledged write is still readable after the process is rebuilt over its medium"
 )
 
 // unproven is why neither row claims to have been shown able to fail.
@@ -81,6 +83,40 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Claim: refClaim,
 			Body:  projection.DifferentialLeg{},
 		}, b, dropped, writer, drops))
+	}
+	if why := concLegReason(b); b.Concurrent() && why != "" {
+		b.Unbound = append(b.Unbound, Skip{Method: b.ConcFamily + " linearizability", Reason: why})
+	} else if b.Concurrent() {
+		// Its own row, and on no law leg. The verdict comes from a search
+		// for a serialisation of a recorded history rather than from an
+		// invariant after a step, and a row folding it into the bundle
+		// would report a linearizability violation as a law that failed.
+		out = append(out, proveOrArgue(projection.CheckPlan{
+			ID: projection.IDPlan{
+				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: vocab.SegLinearizable,
+			},
+			Class: vocab.ClassConcurrent,
+			Claim: concClaim,
+			Body:  projection.ConcurrentLeg{},
+		}, b, nil, nil, false))
+	}
+	if why := simLegReason(b); b.Sim() && why != "" {
+		b.Unbound = append(b.Unbound, Skip{Method: "crash recovery", Reason: why})
+	} else if b.Sim() {
+		// Under the sim family rather than the model one. Every other row
+		// here judges the subject against something that models it; this
+		// judges it against its own acknowledgements across a seam nothing
+		// else in the run crosses, and a report grouping the two would put
+		// a lost write beside a disagreeing reference.
+		out = append(out, proveOrArgue(projection.CheckPlan{
+			ID: projection.IDPlan{
+				Family: vocab.FamilySim, Qualifier: b.qualifier(), Seg: vocab.SegRecovery,
+			},
+			Class: vocab.ClassSimRecovery,
+			Claim: simClaim,
+			Needs: []projection.NeedPlan{{Capability: vocab.CapRecover}},
+			Body:  projection.SimLeg{Kind: projection.SimRecovery},
+		}, b, nil, nil, false))
 	}
 	return append(out, ownLegRows(b)...)
 }
@@ -168,10 +204,19 @@ func ownLegRows(b *Bindings) []projection.CheckPlan {
 // consumer must fill for a check that never reads it is worse than no
 // field at all.
 func needsFor(l *LawBinding) []projection.NeedPlan {
+	var out []projection.NeedPlan
 	if l.Clocked {
-		return []projection.NeedPlan{{Capability: vocab.CapClock}}
+		out = append(out, projection.NeedPlan{Capability: vocab.CapClock})
 	}
-	return nil
+	// Every door the law reads. Declared here so the runner refuses a
+	// subject supplying none BEFORE the body runs, which is what lets the
+	// body read each one unconditionally. Dropping the law instead is
+	// what this replaced: it bound, ran nowhere, and appeared in no
+	// header — the one absence nothing in the output would show.
+	for _, door := range SuppliedBy([]*LawBinding{l}) {
+		out = append(out, projection.NeedPlan{Capability: vocab.Capability(door)})
+	}
+	return out
 }
 
 // qualifier is the interface's word inside a family-scoped identity.

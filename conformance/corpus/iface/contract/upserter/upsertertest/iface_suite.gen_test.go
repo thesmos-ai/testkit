@@ -7,137 +7,44 @@
 package upsertertest_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/upserter"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/contract/upserter/upsertertest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestContractProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveContract.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestContractProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		upsertertest.ContractSuite.Suite(upsertertest.DefaultContractFixture()).Checks,
-		contractProofs())
-}
-
-// contractProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveContract
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func contractProofs() prove.Defects[upsertertest.Contract] {
-	ix := upsertertest.ContractSuite.Checks
-	return prove.Defects[upsertertest.Contract]{
-		ix.Put.Smoke(): prove.One("a Contract whose Put panics",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractPut(
-					func(_ context.Context, _ upserter.Value) error {
-						panic("planted: Put panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Put.Cancels(): prove.One("a Contract whose Put ignores the context it is handed",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractPut(
-					func(_ context.Context, _ upserter.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Put.NilContext(): prove.One("a Contract whose Put forgives a nil context and answers",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractPut(
-					func(_ context.Context, _ upserter.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Put.Deadline(): prove.One("a Contract whose Put ignores the context it is handed",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractPut(
-					func(_ context.Context, _ upserter.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.Smoke(): prove.One("a Contract whose Get panics",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractGet(
-					func(_ context.Context, _ string) (upserter.Value, error) {
-						panic("planted: Get panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-		ix.Get.Cancels(): prove.One("a Contract whose Get ignores the context it is handed",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractGet(
-					func(_ context.Context, _ string) (r0 upserter.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedCancelled),
-		ix.Get.NilContext(): prove.One("a Contract whose Get forgives a nil context and answers",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractGet(
-					func(_ context.Context, _ string) (r0 upserter.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedNilContext),
-		ix.Get.Deadline(): prove.One("a Contract whose Get ignores the context it is handed",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractGet(
-					func(_ context.Context, _ string) (r0 upserter.Value, err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}).Reasoned(suite.RedDeadline),
-		ix.Get.ZeroOnError(): prove.One("a Contract whose Get answers a believable value beside its error",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractGet(
-					func(_ context.Context, _ string) (r0 upserter.Value, err error) {
-						// A believable answer beside the refusal. A caller
-						// reading the error and one reading the value disagree
-						// about what happened, which is the claim's own
-						// violation rather than a subject that merely failed.
-						r0 = upserter.Value{Key: "other-value"}
-						err = errors.New("planted: Get refused with a believable value")
-						return
-					}))
-			}),
-		ix.Get.Miss(): prove.One("a Contract whose Get answers for an input nothing wrote",
-			func(tb testing.TB) upsertertest.Contract {
-				return upsertertest.NewContractStub(tb, upsertertest.WithContractGet(
-					func(_ context.Context, _ string) (r0 upserter.Value, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = upserter.Value{Key: "other-value"}
-						return
-					}))
-			}),
-	}
-}
+//	Put.Smoke — a Contract whose Put panics
+//
+//	Put.Cancels — a Contract whose Put ignores the context it is handed
+//
+//	Put.NilContext — a Contract whose Put forgives a nil context and answers
+//
+//	Put.Deadline — a Contract whose Put ignores the context it is handed
+//
+//	Get.Smoke — a Contract whose Get panics
+//
+//	Get.Cancels — a Contract whose Get ignores the context it is handed
+//
+//	Get.NilContext — a Contract whose Get forgives a nil context and answers
+//
+//	Get.Deadline — a Contract whose Get ignores the context it is handed
+//
+//	Get.ZeroOnError — a Contract whose Get answers a believable value beside its error
+//
+//	Get.Miss — a Contract whose Get answers for an input nothing wrote
+//
+//	Model.WriteObservable — a Contract whose Put reports success and keeps nothing
+//
+//	Model.UpserterIdempotent — a Contract whose Put refuses its repeat
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -167,4 +74,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 44735b8e49341ab002e90201801343c11fa258d7d09fa8e179e78bb4aa567d28
+// testkit:provenance 715654d5b93ce9ea5d320f9c6727f91963e3bd7f01369125590fb0e068a0aa30

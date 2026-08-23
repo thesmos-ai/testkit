@@ -1,0 +1,14 @@
+{{- /*
+model.compat — the leg package's version-skew witness.
+
+A generated file drives every model row through legs.Law or
+legs.Differential, and a breaking change to either would compile against a
+file generated before it and run the wrong idiom without saying so. The
+harness's own witness covers the check vocabulary; this covers the legs.
+*/ -}}
+{{- define "model.compat" -}}
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = {{ renderExpr (external .LegsPkg "CompatV1") }}
+{{- end -}}

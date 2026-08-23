@@ -11,41 +11,18 @@ import (
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/voidlifecycle/voidlifecycletest"
 	"go.thesmos.sh/testkit/engine/suite"
-	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
-// TestVoidLifecycleProofs drives every planted defect through the check it is
-// evidence for.
+// The planted defects live in the file beside this one, on ProveVoidLifecycle.
 //
-// A red here is the expected outcome for each one; a GREEN is the finding.
-// It means a check tolerated the implementation built to break it, and a
-// check that cannot fail is a line in a report rather than a claim about
-// the subject.
-func TestVoidLifecycleProofs(t *testing.T) {
-	t.Parallel()
-	prove.All(t,
-		voidlifecycletest.VoidLifecycleSuite.Suite().Checks,
-		voidLifecycleProofs())
-}
-
-// voidLifecycleProofs is every defect this run derived and can spell.
+// They were here once, and could not stay: a check may need a capability,
+// and only your harness answers it. A defect stands in for a real subject
+// and borrows the same answer — which a test function in this package has
+// no way to reach, because the harness is written in yours. So the map
+// went where the entry point that takes it lives, and ProveVoidLifecycle
+// drives every defect below alongside the ones your own rows name:
 //
-// Each is the smallest implementation that breaks exactly one claim: the
-// generated double with one method overridden, and nothing else changed.
-// The reason beside it is the substring the red must contain, so a defect
-// that died on an unrelated guard stops counting as evidence.
-func voidLifecycleProofs() prove.Defects[voidlifecycletest.VoidLifecycle] {
-	ix := voidlifecycletest.VoidLifecycleSuite.Checks
-	return prove.Defects[voidlifecycletest.VoidLifecycle]{
-		ix.Stop.Smoke(): prove.One("a VoidLifecycle whose Stop panics",
-			func(tb testing.TB) voidlifecycletest.VoidLifecycle {
-				return voidlifecycletest.NewVoidLifecycleStub(tb, voidlifecycletest.WithVoidLifecycleStop(
-					func() {
-						panic("planted: Stop panics")
-					}))
-			}).Reasoned(suite.RedPanicked),
-	}
-}
+//	Stop.Smoke — a VoidLifecycle whose Stop panics
 
 // TestVoidLifecycleInvariants holds this package to what it says about itself.
 //
@@ -75,4 +52,4 @@ func TestVoidLifecycleInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance b8b776b02c089268ca9da4cf215f8600d12eb00fa218139ecd3fe455ddfe9b23
+// testkit:provenance 94842ab6203a721299dc0d32d9b9135b5596ecf2002df0f155f6ff11042a3175

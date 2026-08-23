@@ -17,6 +17,7 @@ import (
 	"go.thesmos.sh/testkit/engine/legs"
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
+	"go.thesmos.sh/testkit/engine/model/history"
 	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
@@ -264,17 +265,18 @@ func (mixedVeneer) Suite(fx MixedFixture) suite.Suite[Mixed] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mixedIndexPath = map[suite.ID]string{
-	mixedCheckIndex.Add.Smoke():         "MixedSuite.Checks.Add.Smoke()",
-	mixedCheckIndex.Add.Cancels():       "MixedSuite.Checks.Add.Cancels()",
-	mixedCheckIndex.Add.NilContext():    "MixedSuite.Checks.Add.NilContext()",
-	mixedCheckIndex.Add.Deadline():      "MixedSuite.Checks.Add.Deadline()",
-	mixedCheckIndex.Items.Smoke():       "MixedSuite.Checks.Items.Smoke()",
-	mixedCheckIndex.Items.Cancels():     "MixedSuite.Checks.Items.Cancels()",
-	mixedCheckIndex.Items.NilContext():  "MixedSuite.Checks.Items.NilContext()",
-	mixedCheckIndex.Items.Deadline():    "MixedSuite.Checks.Items.Deadline()",
-	mixedCheckIndex.Items.ZeroOnError(): "MixedSuite.Checks.Items.ZeroOnError()",
-	mixedCheckIndex.Model.Agrees():      "MixedSuite.Checks.Model.Agrees()",
-	mixedCheckIndex.Model.Counts():      "MixedSuite.Checks.Model.Counts()",
+	mixedCheckIndex.Add.Smoke():               "MixedSuite.Checks.Add.Smoke()",
+	mixedCheckIndex.Add.Cancels():             "MixedSuite.Checks.Add.Cancels()",
+	mixedCheckIndex.Add.NilContext():          "MixedSuite.Checks.Add.NilContext()",
+	mixedCheckIndex.Add.Deadline():            "MixedSuite.Checks.Add.Deadline()",
+	mixedCheckIndex.Items.Smoke():             "MixedSuite.Checks.Items.Smoke()",
+	mixedCheckIndex.Items.Cancels():           "MixedSuite.Checks.Items.Cancels()",
+	mixedCheckIndex.Items.NilContext():        "MixedSuite.Checks.Items.NilContext()",
+	mixedCheckIndex.Items.Deadline():          "MixedSuite.Checks.Items.Deadline()",
+	mixedCheckIndex.Items.ZeroOnError():       "MixedSuite.Checks.Items.ZeroOnError()",
+	mixedCheckIndex.Model.Agrees():            "MixedSuite.Checks.Model.Agrees()",
+	mixedCheckIndex.Model.Counts():            "MixedSuite.Checks.Model.Counts()",
+	mixedCheckIndex.Model.StreamPermutation(): "MixedSuite.Checks.Model.StreamPermutation()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -383,10 +385,15 @@ func (mixedModelChecks) Counts() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
 }
 
+func (mixedModelChecks) StreamPermutation() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.StreamPermutation)
+}
+
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedModelChecks{}.Agrees(),
 		mixedModelChecks{}.Counts(),
+		mixedModelChecks{}.StreamPermutation(),
 	}
 }
 
@@ -682,6 +689,20 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropAdd is Prop with Add's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Add, so leave Method empty.
+	PropAdd func(rt *PropT, s Mixed, value permutation.Value)
 }
 
 // mixedMethods is the interface's method names, used to catch a typo in
@@ -706,8 +727,15 @@ func (c MixedCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, mixedMethods); err != nil {
 			return out, err
@@ -725,10 +753,34 @@ func (c MixedCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	fields += ", Prop, PropAdd"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropAdd != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedAdd, c.Name)
+		fn := c.PropAdd
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -780,11 +832,136 @@ func RunMixed(
 		rc.Subjects...)
 }
 
-// ProveMixed runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// mixedProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveMixed(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func mixedProofs() prove.Defects[Mixed] {
+	ix := MixedSuite.Checks
+	return prove.Defects[Mixed]{
+		ix.Add.Smoke(): prove.One("a Mixed whose Add panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ permutation.Value) error {
+						panic("planted: Add panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Add.Cancels(): prove.One("a Mixed whose Add ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ permutation.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Add.NilContext(): prove.One("a Mixed whose Add forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ permutation.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Add.Deadline(): prove.One("a Mixed whose Add ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ permutation.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Items.Smoke(): prove.One("a Mixed whose Items panics",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) ([]permutation.Value, error) {
+						panic("planted: Items panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Items.Cancels(): prove.One("a Mixed whose Items ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []permutation.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Items.NilContext(): prove.One("a Mixed whose Items forgives a nil context and answers",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []permutation.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Items.Deadline(): prove.One("a Mixed whose Items ignores the context it is handed",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []permutation.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Items.ZeroOnError(): prove.One("a Mixed whose Items answers a believable value beside its error",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []permutation.Value, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = []permutation.Value{{Key: "other-"}}
+						err = errors.New("planted: Items refused with a believable value")
+						return
+					}))
+			}),
+		ix.Model.Agrees(): prove.One("a Mixed whose Add reports success and keeps nothing",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAdd(
+					func(_ context.Context, _ permutation.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+		ix.Model.StreamPermutation(): prove.One("a Mixed whose Items reports success and keeps nothing",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedItems(
+					func(_ context.Context) (r0 []permutation.Value, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
+	}
+}
+
+// ProveMixed runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveMixed(t, MixedHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -794,23 +971,40 @@ func RunMixed(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunMixed does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveMixed(
-	t *testing.T, checks MixedChecks,
+	t *testing.T, opts ...MixedRunOpt,
 ) {
 	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := mixedNewFixture()
-	bound := make([]suite.Check[Mixed], 0, len(checks))
-	defects := prove.Defects[Mixed]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := mixedProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveMixed: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -820,8 +1014,19 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
 
 // mixedModelRows is what this package's model tier claims.
 //
@@ -856,6 +1061,19 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertCounts(tb, sub, fx)
 			},
 		},
+		{
+			ID:    mixedCheckIndex.Model.StreamPermutation(),
+			Class: suite.ClassLaws,
+			Claim: "the drain is a permutation of what was written",
+			Binds: []string{
+				lawid.StreamPermutation,
+			},
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertStreamPermutation(tb, sub, fx)
+			},
+		},
 	}
 }
 
@@ -865,22 +1083,12 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 // something that judges them from outside. The rows on the run surface
 // above carry it, and MixedSuite.Without declines any of them by name.
 //
-//	Reference: derived — a keyed map over the Value fixture pair,
-//	           keyed on Key; NewMixedModelReference replaces it
+//	Reference: derived — an append-and-drain collection over the
+//	           Value fixture pair; NewMixedModelReference replaces it
 //	Sequences: Add (writer), Items (collector)
-//	Values:    the fixture pair blended with arbitrary draws, each keyed
-//	           from the pool
+//	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
-
-// mixedModelKeys is the key pool every key slot draws from.
-//
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
-func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
-	return model.SampledFrom([]string{fx.Value().Key, fx.ValueOther().Key})
-}
+//	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 
 // mixedModelValues is the value pool every value slot draws from.
 //
@@ -888,57 +1096,32 @@ func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 // rewrites frequent, the wide arm reaches values no fixture spells, and
 // nothing in the claims licenses refusing either.
 func mixedModelValues(fx MixedFixture) *model.Generator[permutation.Value] {
-	keys := mixedModelKeys(fx)
 	bodies := model.OneOf(
 		model.SampledFrom([]permutation.Value{fx.Value(), fx.ValueOther()}),
 		model.Make[permutation.Value](),
 	)
-	// Every drawn value lands on a pooled key: a key rewritten under
-	// another body is the history latest-write-wins is about, and a
-	// fresh-keyed value would never collide with one already held.
-	return model.Custom(func(t *model.T) permutation.Value {
-		v := bodies.Draw(t, "value_body")
-		v.Key = keys.Draw(t, "value_key")
-		return v
-	})
+	return bodies
 }
 
-// mixedModelMiss is what the reference reports for a key nothing
-// wrote. Only its presence is compared — a subject reports its own miss
-// sentinel, and the run asks whether both sides missed, not how they spelled
-// it. Where the declaration stamps a sentinel of its own, the oracle takes
-// that identity instead and this var is not declared.
-var mixedModelMiss = errors.New("mixed: the model reference holds nothing under the key")
-
-// mixedModelKeyOf projects a value's identity — the one derivation the
-// reference keys on and every keyed law reuses, so the two cannot disagree
-// about which field is the key.
-func mixedModelKeyOf(v permutation.Value) string {
-	return v.Key
-}
-
-// mixedModelReference adapts the shipped MapStore oracle to Mixed.
+// mixedModelReference adapts the shipped Collection oracle to Mixed.
 // Deliberately simple: its correctness is read, not tested.
 type mixedModelReference struct {
-	store *ref.MapStore[string, permutation.Value]
+	store *ref.Collection[permutation.Value]
 }
 
 // NewMixedModelReference builds one. Exported because a consumer whose
 // semantics outrun their shape replaces it, and because the proof beside
 // this file drives it as a subject of its own.
 func NewMixedModelReference() Mixed {
-	return &mixedModelReference{store: ref.NewMapStore[string, permutation.Value](
-		mixedModelKeyOf,
-		mixedModelMiss,
-	)}
+	return &mixedModelReference{store: ref.NewCollection[permutation.Value]()}
 }
 
 func (r *mixedModelReference) Add(ctx context.Context, v permutation.Value) error {
-	return r.store.Put(ctx, v)
+	return r.store.Add(ctx, v)
 }
 
 func (r *mixedModelReference) Items(ctx context.Context) ([]permutation.Value, error) {
-	return r.store.Values(ctx)
+	return r.store.Items(ctx)
 }
 
 // mixedModelActions is the operation vocabulary both legs drive.
@@ -948,10 +1131,10 @@ func (r *mixedModelReference) Items(ctx context.Context) ([]permutation.Value, e
 // into the trace a law reads, compare the two sides the same way for every
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
-func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
+func mixedModelActions(fx MixedFixture, appendHist *history.History[string, permutation.Value]) []model.Action[Mixed] {
 	values := mixedModelValues(fx)
 	return []model.Action[Mixed]{
-		action.Writer("Add", values,
+		action.WriterRecording("Add", values, appendHist,
 			func(ctx context.Context, s permutation.Mixed, v permutation.Value) error {
 				return s.Add(ctx, v)
 			}),
@@ -974,9 +1157,14 @@ func mixedAssertAgrees(
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The log the recording actions fill and the runner clears each
+	// iteration: a law reading a history the sequences never wrote into is
+	// a law over an empty record.
+	appendHist := history.New[string, permutation.Value]()
 	legs.Differential(tb, sub,
 		NewMixedModelReference,
-		mixedModelActions(fx))
+		mixedModelActions(fx, appendHist),
+		model.WithHistoryReset[Mixed](appendHist.Reset))
 }
 
 // mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
@@ -990,12 +1178,16 @@ func mixedAssertCounts(
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The log the recording actions fill and the runner clears each
+	// iteration: a law reading a history the sequences never wrote into is
+	// a law over an empty record.
+	appendHist := history.New[string, permutation.Value]()
 
 	buildRef, tier := legs.Reference(tb, sub, NewMixedModelReference)
 	sub.NoteTier(tier)
 	legs.Law(tb, sub,
 		func() Mixed { return sub.New(tb) }, buildRef,
-		mixedModelActions(fx),
+		mixedModelActions(fx, appendHist),
 		[]law.Law[Mixed]{
 			law.CountEqualsReference[permutation.Mixed, int]{
 				Count: func(rt *model.T, s permutation.Mixed) (int, error) {
@@ -1003,8 +1195,50 @@ func mixedAssertCounts(
 					return len(items), err
 				},
 			},
-		})
+		},
+		model.WithHistoryReset[Mixed](appendHist.Reset))
 }
 
+// mixedAssertStreamPermutation binds AUTO-STREAM-PERMUTATION over the shared sequences.
+//
+// One law, and the run's only oracle. The differential is off here, as
+// on every law leg: with it armed a subject broken anywhere disagrees at
+// step 0, and whether THIS law can catch a defect stays unanswerable.
+func mixedAssertStreamPermutation(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+	// The log the recording actions fill and the runner clears each
+	// iteration: a law reading a history the sequences never wrote into is
+	// a law over an empty record.
+	appendHist := history.New[string, permutation.Value]()
+
+	buildRef, tier := legs.Reference(tb, sub, NewMixedModelReference)
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(fx, appendHist),
+		[]law.Law[Mixed]{
+			law.StreamPermutation[permutation.Mixed, permutation.Value, permutation.Value]{
+				Drain: func(rt *model.T, s permutation.Mixed) ([]permutation.Value, error) {
+					return s.Items(rt.Context())
+				},
+				History: appendHist,
+				Hash:    func(v permutation.Value) permutation.Value { return v },
+			},
+		},
+		model.WithHistoryReset[Mixed](appendHist.Reset))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance 34c043305cecf322428bb2b1555cee7b4fbddeba358fc133b15e03f940415746
+// testkit:provenance 4be86abfe97ee1a439eb664802681aa901f58030a3d3d1a6df9d6af94cf2f0ca

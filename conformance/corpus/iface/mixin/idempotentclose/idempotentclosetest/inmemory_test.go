@@ -38,7 +38,7 @@ func TestCloserContractWithoutSmoke(t *testing.T) {
 func TestCloserChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	idempotentclosetest.ProveCloser(t, closerChecks)
+	idempotentclosetest.ProveCloser(t, inMemory("in-memory"), closerChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

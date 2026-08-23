@@ -402,16 +402,8 @@ const (
 	missKeySuffix    = "MissKey"
 )
 
-// ProofsName is the companion's defect map — `calculatorProofs`.
+// ProofsName is the run surface's defect map — `calculatorProofs`.
 func ProofsName(token string) string { return token + proofsSuffix }
-
-// ProofsTestName is the test the companion runs the proofs from.
-//
-// Through [golang.TestFuncName] rather than composed here: what a Go
-// test function is called is a Go convention, and eidos states it once.
-func ProofsTestName(iface string) string {
-	return golang.TestFuncName(iface, proofsSuffix)
-}
 
 // DefectName words a planted defect for the report — "a Calculator whose
 // Add panics", the subject line [prove.One] takes.

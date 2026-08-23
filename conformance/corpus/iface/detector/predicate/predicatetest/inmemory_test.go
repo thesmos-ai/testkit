@@ -37,7 +37,7 @@ func TestPredicateContractWithoutSmoke(t *testing.T) {
 func TestPredicateChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	predicatetest.ProvePredicate(t, predicateChecks)
+	predicatetest.ProvePredicate(t, inMemory("in-memory"), predicateChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

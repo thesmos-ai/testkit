@@ -37,7 +37,7 @@ func TestVoidLifecycleContractWithoutSmoke(t *testing.T) {
 func TestVoidLifecycleChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	voidlifecycletest.ProveVoidLifecycle(t, voidLifecycleChecks)
+	voidlifecycletest.ProveVoidLifecycle(t, inMemory("in-memory"), voidLifecycleChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

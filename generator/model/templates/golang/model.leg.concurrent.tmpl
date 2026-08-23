@@ -1,0 +1,160 @@
+{{- /*
+model.leg.concurrent — the body behind the row claiming concurrent
+histories are linearizable.
+
+Workers drive one instance at once, the engine records what each call took
+and answered, and the family's model is asked whether any serial order
+explains the whole history. Five families, because five shapes carry a
+concurrency claim and each names a different model; the arms differ only
+in which model steps the history and which ops it steps.
+
+Operation names are the shipped models' own constants rather than the
+subject's method names. The models dispatch on them, and a name matching
+nothing would step nothing and report every history linearizable — which
+is why the alias is spelled here instead of left to a coincidence of
+naming.
+
+The session arm is the exception, and for the reason that makes it
+stepless: nothing dispatches on the name there, and the per-client laws
+that carry the verdict read the multi-client trace, whose classifier
+switches on the SUBJECT's method. So that arm spells the declaration's own
+names, which is the one place the two would disagree.
+*/ -}}
+{{- define "model.leg.concurrent" -}}
+// {{ .Assert }} drives concurrent workers against one instance and asks
+// whether the history they recorded has a serial explanation.
+//
+// A claim no sequential leg can state. The differential compares one
+// ordered run against a reference and the laws hold after each step of
+// one; this is about what a caller may observe when there is no single
+// order at all, and the model is what decides whether one exists.
+//
+// The engine owns the interleaving, the property loop and the artifact a
+// failing history is written to. This supplies the verbs and the model.
+func {{ .Assert }}(
+	tb {{ renderExpr (external "testing" "TB") }},
+	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
+{{- if .Draws }}
+	{{ .Fixture }} {{ .FixtureType }},
+{{- end }}
+) {
+	tb.Helper()
+{{- if .DrawsKeys }}
+	keys := {{ .KeysFunc }}({{ template "model.leg.args" . }})
+{{- end }}
+{{- if .DrawsValues }}
+	values := {{ .ValuesFunc }}({{ template "model.leg.args" . }})
+{{- end }}
+	{{ renderExpr (external .LegsPkg "Concurrent") }}(tb, sub,
+		{{ template "model.leg.ref" . }},
+		{{ renderExpr (external .ModelPkg "ConcurrentConfig") }}[{{ .Subject }}]{
+			Model: {{ template "model.leg.conc.model" . }},
+			Actions: []{{ renderExpr (external .ModelPkg "ConcurrentAction") }}[{{ .Subject }}]{
+{{- template "model.leg.conc.actions" . }}
+			},
+		}{{ range .SessionLaws }},
+		{{ render . }}{{ end }})
+}
+{{- end -}}
+
+{{- /*
+model.leg.conc.model picks the shipped model the history is checked
+against. The session arm is deliberately stepless: a store assigning its
+own version defeats the value equality every model compares by, so
+Porcupine is skipped and the per-client laws over the multi-client trace
+carry the verdict instead — which the runner reads off a nil Step.
+*/ -}}
+{{- define "model.leg.conc.model" -}}
+{{- if eq .Family "kv" -}}
+{{ renderExpr (external .LinearizePkg "KV") }}[{{ renderType .Key }}, {{ renderType .Value }}]({{ template "model.leg.conc.miss" . }})
+{{- else if eq .Family "lease" -}}
+{{ renderExpr (external .LinearizePkg "LeaseTable") }}({{ template "model.leg.conc.err" index .Errs 0 }}, {{ template "model.leg.conc.err" index .Errs 1 }})
+{{- else if eq .Family "cas" -}}
+{{ renderExpr (external .LinearizePkg "CASCell") }}[{{ renderType .Value }}, int64](
+				{{ template "model.leg.conc.miss" . }}, {{ template "model.leg.conc.err" index .Errs 0 }},
+				func(v {{ renderType .Value }}) int64 { return v.{{ .VersionField }} },
+				func(seen int64) int64 { return seen + 1 },
+			)
+{{- else if eq .Family "append" -}}
+{{ renderExpr (external .LinearizePkg "AppendLog") }}[{{ renderType .Entry }}]()
+{{- else -}}
+{{ renderExpr (external .PorcupinePkg "Model") }}{}
+{{- end -}}
+{{- end -}}
+
+{{- /*
+model.leg.conc.miss renders the read sentinel a model validates a read of
+what is not there with: the DECLARATION's own, because that is what the
+subject returns, and the reference's minted stand-in would reject a
+correct read of an empty store. Nil where none is stamped, which the
+models read as "any error means absent".
+*/ -}}
+{{- define "model.leg.conc.miss" -}}
+{{- if .Miss }}{{ renderExpr .Miss }}{{ else }}nil{{ end -}}
+{{- end -}}
+
+{{- /*
+model.leg.conc.err renders one contract sentinel: the declaration's own
+where it stamped one, the oracle's minted identifier otherwise, and nil
+for a slot the contract leaves lenient.
+*/ -}}
+{{- define "model.leg.conc.err" -}}
+{{- if .Sym }}{{ renderExpr .Sym }}{{ else if .Name }}{{ .Name }}{{ else }}nil{{ end -}}
+{{- end -}}
+
+{{- /*
+model.leg.conc.actions spells the ops the history records, each through
+the constructor the engine ships for its shape.
+*/ -}}
+{{- define "model.leg.conc.actions" -}}
+{{- if eq .Family "lease" }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentDeleter") }}({{ renderExpr (external .LinearizePkg "OpAcquire") }}, keys,
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, k {{ renderType .Key }}) error {
+						return s.{{ .Acquire.Method }}(ctx, k)
+					}),
+				{{ renderExpr (external .LinearizePkg "ConcurrentDeleter") }}({{ renderExpr (external .LinearizePkg "OpRelease") }}, keys,
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, k {{ renderType .Key }}) error {
+						return s.{{ .Release.Method }}(ctx, k)
+					}),
+{{- else if eq .Family "cas" }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentCellReader") }}({{ renderExpr (external .LinearizePkg "OpGet") }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}) ({{ renderType .Value }}, error) {
+						return s.{{ .Reader.Method }}(ctx)
+					}),
+				{{ renderExpr (external .LinearizePkg "ConcurrentCAS") }}({{ renderExpr (external .LinearizePkg "OpCAS") }}, {{ .WriterPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) error {
+						return s.{{ .Writer.Method }}(ctx, v)
+					}),
+{{- else if eq .Family "append" }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentAppend") }}({{ renderExpr (external .LinearizePkg "OpAppend") }}, {{ .WriterPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, e {{ renderType .Entry }}) (int64, error) {
+						return s.{{ .Writer.Method }}(ctx, e)
+					}),
+{{- else if eq .Family "session" }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentReader") }}({{ printf "%q" .Reader.Method }}, {{ .ReaderPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, k {{ renderType .Key }}) ({{ renderType .Value }}, error) {
+						return s.{{ .Reader.Method }}(ctx, k)
+					}),
+{{- if .WriterAnswers }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentAnsweringWrite") }}({{ printf "%q" .Writer.Method }}, {{ .WriterPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) ({{ renderType .Value }}, error) {
+						return s.{{ .Writer.Method }}(ctx, v)
+					}),
+{{- else }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentWrite") }}({{ printf "%q" .Writer.Method }}, {{ .WriterPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) error {
+						return s.{{ .Writer.Method }}(ctx, v)
+					}),
+{{- end }}
+{{- else }}
+				{{ renderExpr (external .LinearizePkg "ConcurrentReader") }}({{ renderExpr (external .LinearizePkg "OpGet") }}, {{ .ReaderPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, k {{ renderType .Key }}) ({{ renderType .Value }}, error) {
+						return s.{{ .Reader.Method }}(ctx, k)
+					}),
+				{{ renderExpr (external .LinearizePkg "ConcurrentWriter") }}({{ renderExpr (external .LinearizePkg "OpPut") }}, {{ .WriterPool }},
+					func(ctx {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) error {
+						return s.{{ .Writer.Method }}(ctx, v)
+					},
+					{{ .KeyOfName }}),
+{{- end }}
+{{- end -}}

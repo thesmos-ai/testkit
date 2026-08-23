@@ -42,7 +42,7 @@ func TestCalculatorContractSuppression(t *testing.T) {
 func TestCalculatorChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	nocontexttest.ProveCalculator(t, calculatorChecks)
+	nocontexttest.ProveCalculator(t, inMemory("in-memory"), calculatorChecks)
 }
 
 // --- Harnesses ---------------------------------------------------------------

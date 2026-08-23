@@ -73,9 +73,22 @@ const (
 	// helpers the derived concurrent leg wires.
 	LinearizePkg = ModelPkg + "/linearize"
 
+	// PorcupinePkg is the linearizability checker the shipped models are
+	// built on. Named because the session family renders a zero of its
+	// Model type: a store assigning its own version defeats the value
+	// equality every model compares by, and a nil Step is how the runner
+	// is told to skip the search and let the per-client laws carry the
+	// verdict instead.
+	PorcupinePkg = "github.com/anishathalye/porcupine"
+
 	// HistoryPkg is the per-iteration append log the no-drops law reads
 	// and the recording action fills.
 	HistoryPkg = ModelPkg + "/history"
+
+	// CrashPkg is the crash-recovery schedule the sim leg drives: the drawn
+	// interleaving of writes, reads and crash points, and the oracle of
+	// acknowledgements it judges every read against.
+	CrashPkg = ModelPkg + "/crash"
 
 	// RootPkg is the runtime module — the kill matrix's failure surrogate
 	// lives there.

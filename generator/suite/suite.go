@@ -240,6 +240,22 @@ type Contract struct {
 	// refused reads as a claim this file checks.
 	Refusals []Refusal
 
+	// Defects are the planted defects for this file's own rows, and
+	// Provable says they could be spelled at all.
+	//
+	// Here rather than in the companion beside it, which is where they
+	// were: a check may declare a capability, and only the consumer's
+	// harness answers it. A defect stands in for a real subject and
+	// borrows the same answer, so the map has to be somewhere the entry
+	// point that takes the harness can reach — and a test function in the
+	// external test package is not.
+	//
+	// The same value the companion holds — see [Proofs.Defects] — so the
+	// file stating a row Proven and the map planting its evidence cannot
+	// disagree about which rows carry one.
+	Defects  *PlantedDefects
+	Provable bool
+
 	// doors is the region another tier contributes harness fields into.
 	// See [Contract.Doors].
 	doors *sdk.Slot
@@ -253,6 +269,12 @@ type Contract struct {
 	// [Contract.Rows] and [Contract.Decls].
 	rows  *sdk.Slot
 	decls *sdk.Slot
+
+	// checkFields is the region another tier contributes row-body fields
+	// into, and checkBodies the region their dispatch lands in. See
+	// [Contract.CheckFields] and [Contract.CheckBodies].
+	checkFields *sdk.Slot
+	checkBodies *sdk.Slot
 }
 
 // Gaps words each refusal as the header states it: what was not
@@ -387,7 +409,11 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 		base := sdk.EmitBase(c, iface)
 		// Before the contract is built: this settles which rows carry
 		// evidence, and a row it downgrades must not be counted Proven.
-		defects, unproven := proofsOf(base, iface.Package, ctx.Reader, derived, checks)
+		ownDefects, unproven := proofsOf(base, iface.Package, ctx.Reader, derived, checks)
+		// One value, held by both emits: a tier contributing rows plants
+		// into it after this call, and each emit holding a copy is where the
+		// map and the stamps beside it would come apart.
+		defects := &PlantedDefects{Rows: ownDefects}
 		proven, argued := stampsUsed(checks)
 
 		contract := &Contract{
@@ -420,6 +446,8 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			AnyProven:    proven,
 			AnyArgued:    argued,
 			Refusals:     refusals,
+			Defects:      defects,
+			Provable:     provable,
 		}
 		if unseeded != "" {
 			// A harness that seeds nothing runs every read check against a

@@ -8,6 +8,7 @@ package multireturntest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -655,8 +656,15 @@ func (c WideCheck) bind(
 	}
 
 	var err error
-	bodies := 0
+
+	// bodies counts what this row set and the runtime refuses any answer
+	// but one; fields is the listing that refusal offers, which has to
+	// name what THIS interface can set; scoped says the body it set is
+	// one that reads the row's Method. A contributing tier's dispatch
+	// lands below and may move all three.
+	bodies, fields, scoped := 0, "Run, RunWith", false
 	if c.Run != nil {
+		scoped = true
 		bodies++
 		if out.ID, err = suite.RowID("Run", c.Method, c.Name, wideMethods); err != nil {
 			return out, err
@@ -674,10 +682,10 @@ func (c WideCheck) bind(
 			rw(tb, sub, fx)
 		}
 	}
-	if err := suite.OneBody(c.Name, bodies, "Run, RunWith"); err != nil {
+	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
 		return out, err
 	}
-	if c.Method != "" && c.Run == nil {
+	if c.Method != "" && !scoped {
 		return out, fmt.Errorf(
 			"check %q sets Method, but its body fixes its own scope; drop Method", c.Name)
 	}
@@ -729,11 +737,93 @@ func RunWide(
 		rc.Subjects...)
 }
 
-// ProveWide runs each of your checks against the deliberately
-// broken implementation it names, and fails if the check does not catch
-// it.
+// wideProofs is every defect this run derived and can spell.
 //
-//	func TestMyChecksCanFail(t *testing.T) { ProveWide(t, myChecks) }
+// Each is the smallest implementation that breaks exactly one claim: the
+// generated double with one method overridden, and nothing else changed.
+// The reason beside it is the substring the red must contain, so a defect
+// that died on an unrelated guard stops counting as evidence.
+//
+// Unexported and built fresh per call. A defect carries a constructor
+// that registers cleanup on the test it is handed, so a shared map would
+// hand one test's cleanup to the next.
+func wideProofs() prove.Defects[Wide] {
+	ix := WideSuite.Checks
+	return prove.Defects[Wide]{
+		ix.Quad.Smoke(): prove.One("a Wide whose Quad panics",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideQuad(
+					func(_ context.Context, _ string) (string, int, bool, error) {
+						panic("planted: Quad panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.Quad.Cancels(): prove.One("a Wide whose Quad ignores the context it is handed",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideQuad(
+					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedCancelled),
+		ix.Quad.NilContext(): prove.One("a Wide whose Quad forgives a nil context and answers",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideQuad(
+					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedNilContext),
+		ix.Quad.Deadline(): prove.One("a Wide whose Quad ignores the context it is handed",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideQuad(
+					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}).Reasoned(suite.RedDeadline),
+		ix.Quad.ZeroOnError(): prove.One("a Wide whose Quad answers a believable value beside its error",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideQuad(
+					func(_ context.Context, _ string) (r0 string, r1 int, r2 bool, err error) {
+						// A believable answer beside the refusal. A caller
+						// reading the error and one reading the value disagree
+						// about what happened, which is the claim's own
+						// violation rather than a subject that merely failed.
+						r0 = "other-"
+						err = errors.New("planted: Quad refused with a believable value")
+						return
+					}))
+			}),
+		ix.Triple.Smoke(): prove.One("a Wide whose Triple panics",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideTriple(
+					func(_ context.Context, _ string) (string, int, bool) {
+						panic("planted: Triple panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+		ix.NoError.Smoke(): prove.One("a Wide whose NoError panics",
+			func(tb testing.TB) Wide {
+				return NewWideStub(tb, WithWideNoError(
+					func(_ context.Context, _ string) (string, int) {
+						panic("planted: NoError panics")
+					}))
+			}).Reasoned(suite.RedPanicked),
+	}
+}
+
+// ProveWide runs every check — the generated ones and any you
+// wrote — against the deliberately broken implementation it names, and
+// fails if the check does not catch it.
+//
+//	func TestMyChecksCanFail(t *testing.T) {
+//		ProveWide(t, WideHarness[*InMemory]{Name: "in-memory", New: NewInMemory}, myChecks)
+//	}
 //
 // A check that always passes is indistinguishable from a working one
 // until something breaks in production. This is what tells them apart:
@@ -743,23 +833,40 @@ func RunWide(
 // Argued. The two are held level in both directions: claiming proof
 // without a broken implementation fails here, and supplying one for a
 // check that claims nothing fails too.
+//
+// It takes the same arguments RunWide does, and for one reason: a
+// check may need a capability, and the answer is a fact about this
+// interface rather than about any one implementation. The harness is
+// where you write it once. A planted defect stands in for a real
+// subject, so it borrows the same answer rather than being asked for one
+// of its own — which nothing here could supply.
 func ProveWide(
-	t *testing.T, checks WideChecks,
+	t *testing.T, opts ...WideRunOpt,
 ) {
 	t.Helper()
+	var rc wideRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
 	fx := wideNewFixture()
-	bound := make([]suite.Check[Wide], 0, len(checks))
-	defects := prove.Defects[Wide]{}
-	for _, row := range checks {
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "ProveWide")
+	s := wideSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// Read off the subjects, because a door is answered once for the
+	// interface and every subject of it reads the same answer.
+	doors := suite.Doors(rc.Subjects...)
+	defects := wideProofs()
+	for _, row := range rc.rows {
+		if row.ProvenBy == nil {
+			continue
+		}
 		bd, err := row.bind(fx)
 		if err != nil {
 			t.Fatalf("ProveWide: %v", err)
-		}
-		bound = append(bound, bd)
-		if row.ProvenBy == nil {
-			continue
 		}
 		sub, err := row.ProvenBy.Subject()
 		if err != nil {
@@ -769,8 +876,14 @@ func ProveWide(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	prove.All(t, bound, defects)
+	// A declined check takes its proof with it: proving a row the run was
+	// told to leave out reports on a claim this package no longer makes,
+	// and the parity gate fails naming a check the set does not hold.
+	for _, id := range rc.Drops {
+		delete(defects, id)
+	}
+	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
 // testkit: end of generated content.
-// testkit:provenance 427ac0da126684a0bf0e27681a2b8c838b60773bb26945db656d158d8ae1c5ba
+// testkit:provenance 79dd53b4d1f632621fab78a5ba60dec28d479d263198ea8e5778287c11245186
