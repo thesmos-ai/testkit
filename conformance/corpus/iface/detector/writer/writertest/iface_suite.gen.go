@@ -39,19 +39,11 @@ import (
 //		RunWriter(t, WriterHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	WriterHarness
-//	    one implementation under test.
-//	WriterChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveWriter
-//	    drives each of yours against the broken implementation it names.
-//	GreenWriter
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	WriterSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	WriterHarness — one implementation under test
+//	WriterChecks — checks of your own, run beside these
+//	ProveWriter — each of yours against the defect it names
+//	GreenWriter — all of them against correct-but-different
+//	WriterSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -68,18 +60,9 @@ import (
 var _ = suite.CompatV2
 
 // WriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type WriterFixture struct {
 	value      writer.Value
 	valueOther writer.Value
@@ -474,12 +457,8 @@ type WriterCheck struct {
 	Argued       string
 }
 
-// writerMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// writerMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var writerMethods = suite.NewNameSet("Writer", writerPut)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -631,8 +610,6 @@ func ProveWriter(
 	}
 	rc.Fail(t, "ProveWriter")
 	s := writerSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := writerProofs()
 	for _, row := range rc.rows {
@@ -651,9 +628,7 @@ func ProveWriter(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -715,10 +690,11 @@ func GreenWriter(
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //   writer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//   writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 0cd1b2e6d50b51e093e3d23e44f9987e1fd4130ed8d69525b8f82b0e2136b7d2
+// testkit:provenance ab295e033d6e28b90718c34cc8905a2515df4fd7c57c6fb78b5d97e350cb4f7f

@@ -8,6 +8,5 @@ Stats/deadline	signature/deadline	Stats reports an expired deadline as exceeded
 Stats/nilcontext	signature/nilcontext	Stats returns an error rather than panicking on a nil context	
 Stats/smoke	signature/smoke	Stats survives a call	
 Stats/zero-on-error	signature/zero-on-error	Stats returns zero alongside any error	
-model/closer/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/closer/AUTO-IDEMPOTENT-LIFECYCLE	model/laws	calling the lifecycle method twice leaves what calling it once left	AUTO-IDEMPOTENT-LIFECYCLE
 model/closer/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT

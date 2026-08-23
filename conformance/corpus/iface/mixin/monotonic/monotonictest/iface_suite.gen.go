@@ -45,19 +45,11 @@ import (
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MixedHarness
-//	    one implementation under test.
-//	MixedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMixed
-//	    drives each of yours against the broken implementation it names.
-//	GreenMixed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MixedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MixedHarness — one implementation under test
+//	MixedChecks — checks of your own, run beside these
+//	ProveMixed — each of yours against the defect it names
+//	GreenMixed — all of them against correct-but-different
+//	MixedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -69,7 +61,6 @@ import (
 //	Version/nilcontext
 //	Version/smoke
 //	Version/zero-on-error
-//	model/mixed/AUTO-COUNT-EQUALS-REFERENCE
 //	model/mixed/AUTO-LIFECYCLE-RESPECTS-CONTEXT
 //	model/mixed/AUTO-MONOTONIC-NON-DECREASING
 //
@@ -87,18 +78,9 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MixedFixture struct {
 }
 
@@ -272,7 +254,6 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Advance.Smoke():                "MixedSuite.Checks.Advance.Smoke()",
 	mixedCheckIndex.Advance.Cancels():              "MixedSuite.Checks.Advance.Cancels()",
 	mixedCheckIndex.Advance.NilContext():           "MixedSuite.Checks.Advance.NilContext()",
-	mixedCheckIndex.Model.Counts():                 "MixedSuite.Checks.Model.Counts()",
 	mixedCheckIndex.Model.MonotonicNonDecreasing(): "MixedSuite.Checks.Model.MonotonicNonDecreasing()",
 	mixedCheckIndex.Model.RespectsContext():        "MixedSuite.Checks.Model.RespectsContext()",
 }
@@ -370,10 +351,6 @@ func (mixedAdvanceChecks) All() []suite.ID {
 
 type mixedModelChecks struct{}
 
-func (mixedModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
-}
-
 func (mixedModelChecks) MonotonicNonDecreasing() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.MonotonicNonDecreasing)
 }
@@ -384,7 +361,6 @@ func (mixedModelChecks) RespectsContext() suite.ID {
 
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
-		mixedModelChecks{}.Counts(),
 		mixedModelChecks{}.MonotonicNonDecreasing(),
 		mixedModelChecks{}.RespectsContext(),
 	}
@@ -627,12 +603,8 @@ type MixedCheck struct {
 	Prop func(rt *PropT, s Mixed, fx MixedFixture)
 }
 
-// mixedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mixedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mixedMethods = suite.NewNameSet("Mixed", mixedVersion, mixedAdvance)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -842,8 +814,6 @@ func ProveMixed(
 	}
 	rc.Fail(t, "ProveMixed")
 	s := mixedSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mixedProofs()
 	for _, row := range rc.rows {
@@ -862,9 +832,7 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -935,26 +903,13 @@ var _ = legs.CompatV1
 func mixedModelRows() []suite.Check[Mixed] {
 	return []suite.Check[Mixed]{
 		{
-			ID:    mixedCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
-				mixedAssertCounts(tb, sub)
-			},
-		},
-		{
 			ID:    mixedCheckIndex.Model.MonotonicNonDecreasing(),
 			Class: suite.ClassLaws,
 			Claim: "the count never decreases across calls",
 			Binds: []string{
 				lawid.MonotonicNonDecreasing,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertMonotonicNonDecreasing(tb, sub)
@@ -988,6 +943,7 @@ func mixedModelRows() []suite.Check[Mixed] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Version (aggregator), Advance (lifecycle)
 //	Not bound:
+//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
 // mixedModelActions is the operation vocabulary both legs drive.
@@ -998,7 +954,7 @@ func mixedModelRows() []suite.Check[Mixed] {
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func mixedModelActions() []model.Action[Mixed] {
-	return []model.Action[Mixed]{
+	out := []model.Action[Mixed]{
 		action.Aggregator("Version",
 			func(ctx context.Context, s monotonic.Mixed) (int64, error) {
 				return s.Version(ctx)
@@ -1008,38 +964,13 @@ func mixedModelActions() []model.Action[Mixed] {
 				return s.Advance(ctx)
 			}),
 	}
-}
-
-// mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func mixedAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Mixed],
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Mixed { return sub.New(tb) }, buildRef,
-		mixedModelActions(),
-		[]law.Law[Mixed]{
-			law.CountEqualsReference[monotonic.Mixed, int64]{
-				Count: func(rt *model.T, s monotonic.Mixed) (int64, error) {
-					return s.Version(rt.Context())
-				},
-			},
-		})
+	return out
 }
 
 // mixedAssertMonotonicNonDecreasing binds AUTO-MONOTONIC-NON-DECREASING over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func mixedAssertMonotonicNonDecreasing(
 	tb testing.TB,
 	sub suite.Subject[Mixed],
@@ -1063,9 +994,8 @@ func mixedAssertMonotonicNonDecreasing(
 
 // mixedAssertRespectsContext binds AUTO-LIFECYCLE-RESPECTS-CONTEXT over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func mixedAssertRespectsContext(
 	tb testing.TB,
 	sub suite.Subject[Mixed],
@@ -1095,4 +1025,4 @@ func mixedAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance a5d7159c012f8f3d9c17dfda0086b4e1804f31a1104d1104ffb237a5e2f5b9a9
+// testkit:provenance f52805be48b1bd642917ada29498ea6f53e707bbdff061fb1b226e735a62126b

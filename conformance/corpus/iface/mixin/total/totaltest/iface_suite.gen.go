@@ -44,19 +44,11 @@ import (
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MixedHarness
-//	    one implementation under test.
-//	MixedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMixed
-//	    drives each of yours against the broken implementation it names.
-//	GreenMixed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MixedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MixedHarness — one implementation under test
+//	MixedChecks — checks of your own, run beside these
+//	ProveMixed — each of yours against the defect it names
+//	GreenMixed — all of them against correct-but-different
+//	MixedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -89,18 +81,9 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MixedFixture struct {
 	in      string
 	inOther string
@@ -566,12 +549,8 @@ type MixedCheck struct {
 	PropClassify func(rt *PropT, s Mixed, key string)
 }
 
-// mixedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mixedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mixedMethods = suite.NewNameSet("Mixed", mixedClassify, mixedNormalize)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -746,8 +725,6 @@ func ProveMixed(
 	}
 	rc.Fail(t, "ProveMixed")
 	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mixedProofs()
 	for _, row := range rc.rows {
@@ -766,9 +743,7 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -845,7 +820,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.TotalOver,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertTotalOver(tb, sub, fx)
@@ -881,7 +856,7 @@ func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// can pass one here.
 	return legs.Blend(true,
 		model.SampledFrom([]string{fx.In(), fx.InOther()}),
-		func(s string) string { return string(s) },
+		func(s string) string { return s },
 	)
 }
 
@@ -894,7 +869,7 @@ func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 // fails.
 func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 	keys := mixedModelKeys(fx)
-	return []model.Action[Mixed]{
+	out := []model.Action[Mixed]{
 		action.Reader("Classify", keys,
 			func(ctx context.Context, s total.Mixed, k string) (string, error) {
 				return s.Classify(ctx, k)
@@ -909,13 +884,13 @@ func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 				return s.Normalize(a[0].(string))
 			}),
 	}
+	return out
 }
 
 // mixedAssertTotalOver binds AUTO-TOTAL-OVER over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func mixedAssertTotalOver(
 	tb testing.TB,
 	sub suite.Subject[Mixed],
@@ -950,4 +925,4 @@ func mixedAssertTotalOver(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 22d5133c2b88292cc2f1651abdecfa15bea5a21f972a5b667a498bf268ac22d6
+// testkit:provenance 5f4cb9f28f09027ffcf67062ddb2f2a26ff6263a680551cd2ffafa2a85085e72

@@ -146,6 +146,14 @@ func resolveArg(
 	switch a {
 	case tiers.BindKey:
 		if b.Keys.Type == nil {
+			// The commonest decline in the corpus, and every instance of it
+			// measured is correct rather than a derivation nobody wrote. A
+			// law instantiating at a key observes ONE value; an interface
+			// drawing no keys offers a count, a drain, or nothing, and each
+			// answers for the whole subject instead. Where a drain could
+			// stand in, either a claim has already defeated the store model
+			// — a read that may lag, a reader that clamps — or the drain is
+			// compared after every call already, which states it better.
 			return nil, "instantiates at a key type no method here draws"
 		}
 		return b.Keys.Type, ""

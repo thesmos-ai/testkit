@@ -40,19 +40,11 @@ import (
 //		RunMultiReader(t, MultiReaderHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MultiReaderHarness
-//	    one implementation under test.
-//	MultiReaderChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMultiReader
-//	    drives each of yours against the broken implementation it names.
-//	GreenMultiReader
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MultiReaderSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MultiReaderHarness — one implementation under test
+//	MultiReaderChecks — checks of your own, run beside these
+//	ProveMultiReader — each of yours against the defect it names
+//	GreenMultiReader — all of them against correct-but-different
+//	MultiReaderSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -77,18 +69,9 @@ import (
 var _ = suite.CompatV2
 
 // MultiReaderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MultiReaderFixture struct {
 	key      string
 	keyOther string
@@ -523,12 +506,8 @@ type MultiReaderCheck struct {
 	Argued       string
 }
 
-// multiReaderMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// multiReaderMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var multiReaderMethods = suite.NewNameSet("MultiReader", multiReaderGetWithMeta)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -693,8 +672,6 @@ func ProveMultiReader(
 	}
 	rc.Fail(t, "ProveMultiReader")
 	s := multiReaderSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := multiReaderProofs()
 	for _, row := range rc.rows {
@@ -713,9 +690,7 @@ func ProveMultiReader(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -782,4 +757,4 @@ func GreenMultiReader(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 02819698b52ad7e46fe8a0342859b9832acfb0b5f355514fbce6260bd57740fd
+// testkit:provenance 3c23d7c4f866737af7c5fe66641d98073ef140ce91f1519f5074eb4791331819

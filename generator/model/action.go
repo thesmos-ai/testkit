@@ -421,3 +421,69 @@ func collectorElem(b *Bindings, m *subject.Method) (sdk.Ref, string) {
 
 // Skip is a method with no action, and the reason.
 type Skip struct{ Method, Reason string }
+
+// The publisher contract's own spellings, as the directive writes them.
+const (
+	contractPublisher = "publisher"
+	rolePublish       = "publish"
+	roleSubscribe     = "subscribe"
+	paramMode         = "mode"
+)
+
+// deliveryActionModes maps the directive's mode spellings to the action
+// package's own enum, which is a different vocabulary from the law's: one
+// says which bound a count is held to, the other which direction a
+// multiset comparison may run.
+//
+//nolint:gochecknoglobals // a vocabulary table, read-only after init.
+var deliveryActionModes = map[string]string{
+	"at-least-once": "AtLeastOnce",
+	"at-most-once":  "AtMostOnce",
+	"exactly-once":  "ExactlyOnce",
+}
+
+// deliveryOf derives the subscription pair a publisher's actions drive,
+// nil where the interface declares no publisher.
+//
+// It replaces the standalone publish action rather than standing beside
+// it. Both would drive the same method, and a message published twice per
+// step is a history no claim here is about — the duplicate would be the
+// run's, not the subject's.
+func deliveryOf(harness *subject.Projection) *DeliverySpec {
+	for i := range harness.Methods {
+		carrier := &harness.Methods[i]
+		if !slices.Contains(carrier.Contracts, contractPublisher) {
+			continue
+		}
+		roles := contractRoleMethods(harness, carrier, contractPublisher)
+		pub, sub := roles[rolePublish], roles[roleSubscribe]
+		if pub == nil || sub == nil || len(pub.CallArgs()) == 0 || len(sub.Returns) == 0 {
+			return nil
+		}
+		// The declaration's own mode, or the floor a bare publisher
+		// states: it claims delivery and nothing about duplicates, so the
+		// comparison catches a message the subject never delivered and
+		// lets a repeat pass.
+		mode := "AtLeastOnce"
+		modeKey := shape.ContractParamKey(contractPublisher, paramMode).Name()
+		if v, stamped := stampValue(harness, carrier, modeKey); stamped {
+			named, spelled := deliveryActionModes[v]
+			if !spelled {
+				return nil
+			}
+			mode = named
+		}
+		return &DeliverySpec{
+			Name:         pub.Name,
+			Subscribe:    sub.Name,
+			Publish:      pub.Name,
+			SubscribeCtx: sub.TakesContext(),
+			PublishCtx:   pub.TakesContext(),
+			Msg:          pub.CallArgs()[0].Type,
+			Sub:          sub.Returns[0].Type,
+			Mode:         sdk.NewExternal(actionPkg, mode),
+			Loss:         mode == "AtMostOnce",
+		}
+	}
+	return nil
+}

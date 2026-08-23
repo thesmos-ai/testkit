@@ -27,11 +27,6 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/indexed"
-	"go.thesmos.sh/testkit/core/lawid"
-	"go.thesmos.sh/testkit/engine/legs"
-	"go.thesmos.sh/testkit/engine/model"
-	"go.thesmos.sh/testkit/engine/model/action"
-	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -45,19 +40,11 @@ import (
 //		RunRanked(t, RankedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	RankedHarness
-//	    one implementation under test.
-//	RankedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveRanked
-//	    drives each of yours against the broken implementation it names.
-//	GreenRanked
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	RankedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	RankedHarness — one implementation under test
+//	RankedChecks — checks of your own, run beside these
+//	ProveRanked — each of yours against the defect it names
+//	GreenRanked — all of them against correct-but-different
+//	RankedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -77,7 +64,6 @@ import (
 //	Len/nilcontext
 //	Len/smoke
 //	Len/zero-on-error
-//	model/ranked/AUTO-COUNT-EQUALS-REFERENCE
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -87,18 +73,9 @@ import (
 var _ = suite.CompatV2
 
 // RankedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type RankedFixture struct {
 	value      indexed.Value
 	valueOther indexed.Value
@@ -305,7 +282,6 @@ var rankedIndexPath = map[suite.ID]string{
 	rankedCheckIndex.At.ZeroOnError():  "RankedSuite.Checks.At.ZeroOnError()",
 	rankedCheckIndex.At.Bound():        "RankedSuite.Checks.At.Bound()",
 	rankedCheckIndex.At.Miss():         "RankedSuite.Checks.At.Miss()",
-	rankedCheckIndex.Model.Counts():    "RankedSuite.Checks.Model.Counts()",
 }
 
 var rankedDropHint = suite.DropHinter(
@@ -318,25 +294,20 @@ const (
 	rankedAdd = "Add"
 	rankedLen = "Len"
 	rankedAt  = "At"
-
-	// The interface's word inside a family-scoped identity.
-	rankedQualifier = "ranked"
 )
 
 // rankedCheckIndex names every check in this file, grouped by method.
 // Reach it through RankedSuite.Checks.
 var rankedCheckIndex = rankedCheckIndexT{
-	Add:   rankedAddChecks{},
-	Len:   rankedLenChecks{},
-	At:    rankedAtChecks{},
-	Model: rankedModelChecks{},
+	Add: rankedAddChecks{},
+	Len: rankedLenChecks{},
+	At:  rankedAtChecks{},
 }
 
 type rankedCheckIndexT struct {
-	Add   rankedAddChecks
-	Len   rankedLenChecks
-	At    rankedAtChecks
-	Model rankedModelChecks
+	Add rankedAddChecks
+	Len rankedLenChecks
+	At  rankedAtChecks
 }
 
 // All returns every ID this package emits.
@@ -345,7 +316,6 @@ func (rankedCheckIndexT) All() []suite.ID {
 	out = append(out, rankedAddChecks{}.All()...)
 	out = append(out, rankedLenChecks{}.All()...)
 	out = append(out, rankedAtChecks{}.All()...)
-	out = append(out, rankedModelChecks{}.All()...)
 	return out
 }
 
@@ -450,18 +420,6 @@ func (rankedAtChecks) All() []suite.ID {
 	}
 }
 
-type rankedModelChecks struct{}
-
-func (rankedModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, rankedQualifier, lawid.CountEqualsReference)
-}
-
-func (rankedModelChecks) All() []suite.ID {
-	return []suite.ID{
-		rankedModelChecks{}.Counts(),
-	}
-}
-
 // rankedSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -471,8 +429,7 @@ func rankedSuite(fx RankedFixture) suite.Suite[Ranked] {
 	return suite.Suite[Ranked]{
 		Name:     "Ranked",
 		DropHint: rankedDropHint,
-		Checks: append(rankedSignatureChecks(fx),
-			rankedModelRows(fx)...),
+		Checks:   rankedSignatureChecks(fx),
 	}
 }
 
@@ -857,34 +814,10 @@ type RankedCheck struct {
 	ProvenBy     RankedDefect
 	ProvenReason string
 	Argued       string
-
-	// Prop is a body whose inputs are drawn rather than fixed, run many
-	// times with the draws shrunk on failure. Report through the PropT
-	// and not through a testing.TB: shrinking works by replaying draws, and
-	// a failure raised anywhere else is one the run cannot narrow.
-	//
-	// Requires Method, like Run.
-	Prop func(rt *PropT, s Ranked, fx RankedFixture)
-
-	// PropAdd is Prop with Add's own argument already drawn
-	// from the pool the generated checks draw it from — so an override you
-	// set on the run reaches your property too. Fixes the check's scope to
-	// Add, so leave Method empty.
-	PropAdd func(rt *PropT, s Ranked, value indexed.Value)
-
-	// PropAt is Prop with At's own argument already drawn
-	// from the pool the generated checks draw it from — so an override you
-	// set on the run reaches your property too. Fixes the check's scope to
-	// At, so leave Method empty.
-	PropAt func(rt *PropT, s Ranked, key int)
 }
 
-// rankedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// rankedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var rankedMethods = suite.NewNameSet("Ranked", rankedAdd, rankedLen, rankedAt)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -899,30 +832,6 @@ func (c RankedCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, rankedMethods)
-	b.Offers("Prop, PropAdd, PropAt")
-	if fn := c.Prop; fn != nil {
-		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Ranked]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), fx)
-			})
-		})
-	}
-	if fn := c.PropAdd; fn != nil {
-		b.Fixed(suite.MethodID(rankedAdd, c.Name),
-			func(tb testing.TB, sub suite.Subject[Ranked]) {
-				model.Check(tb, func(rt *PropT) {
-					fn(rt, sub.New(tb), rankedModelValues(fx).Draw(rt, "value"))
-				})
-			})
-	}
-	if fn := c.PropAt; fn != nil {
-		b.Fixed(suite.MethodID(rankedAt, c.Name),
-			func(tb testing.TB, sub suite.Subject[Ranked]) {
-				model.Check(tb, func(rt *PropT) {
-					fn(rt, sub.New(tb), rankedModelKeys(fx).Draw(rt, "key"))
-				})
-			})
-	}
 	return b.Seal(c.Method)
 }
 
@@ -1178,8 +1087,6 @@ func ProveRanked(
 	}
 	rc.Fail(t, "ProveRanked")
 	s := rankedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := rankedProofs()
 	for _, row := range rc.rows {
@@ -1198,9 +1105,7 @@ func ProveRanked(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1255,135 +1160,19 @@ func GreenRanked(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// A second version check, for the leg idioms the rows above ride. The
-// harness's own covers the check format; this one covers what a model row
-// does with it. Regenerate the file to clear a mismatch.
-var _ = legs.CompatV1
-
-// rankedModelRows is what this package's model tier claims.
+// --- Ranked's model tier: not emitted ----------------------------------
 //
-// Every row here needs sequences of calls judged against something
-// outside the subject, which is what separates them from the rows
-// above: those settle a claim with a fixed call sequence, and these
-// cannot be stated that way at all. That is also why each takes the
-// Subject rather than an instance — a sequence run builds its own, and
-// some of them build two.
-func rankedModelRows(fx RankedFixture) []suite.Check[Ranked] {
-	return []suite.Check[Ranked]{
-		{
-			ID:    rankedCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Ranked]) {
-				rankedAssertCounts(tb, sub, fx)
-			},
-		},
-	}
-}
-
-// --- Ranked's model tier -------------------------------------------
+// Ranked carries //testkit:model, and no rows above come from it:
+// no claim this tier knows how to state reached this interface,
+// so it contributes no checks. Each reason below is one it tried:
+//   AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
+//   ranked differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//   crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
 //
-// Random sequences of Ranked's methods, run against every subject and
-// something that judges them from outside. The rows on the run surface
-// above carry it, and RankedSuite.Without declines any of them by name.
-//
-//	Reference: the subject's own factory — the key projection is underivable — no field of it has the key's type,
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-//	Sequences: Add (writer), Len (aggregator), At (reader)
-//	Values:    the fixture pair blended with arbitrary draws
-//	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
-//	           ranked differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
-
-// rankedModelKeys is the key pool every key slot draws from.
-//
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
-func rankedModelKeys(fx RankedFixture) *model.Generator[int] {
-	return model.SampledFrom([]int{fx.I(), fx.IOther()})
-}
-
-// rankedModelValues is the value pool every value slot draws from.
-//
-// The fixture pair blended with arbitrary draws: the pair keeps identical
-// rewrites frequent, the wide arm reaches values no fixture spells, and
-// nothing in the claims licenses refusing either.
-func rankedModelValues(fx RankedFixture) *model.Generator[indexed.Value] {
-	bodies := model.OneOf(
-		model.SampledFrom([]indexed.Value{fx.Value(), fx.ValueOther()}),
-		model.Make[indexed.Value](),
-	)
-	return bodies
-}
-
-// rankedModelActions is the operation vocabulary both legs drive.
-//
-// One constructor per method shape, from the engine's action set rather
-// than hand-written closures: the constructors record inputs and outputs
-// into the trace a law reads, compare the two sides the same way for every
-// action, and shrink a failing sequence to the shortest one that still
-// fails.
-func rankedModelActions(fx RankedFixture) []model.Action[Ranked] {
-	keys := rankedModelKeys(fx)
-	values := rankedModelValues(fx)
-	return []model.Action[Ranked]{
-		action.Writer("Add", values,
-			func(ctx context.Context, s indexed.Ranked, v indexed.Value) error {
-				return s.Add(ctx, v)
-			}),
-		action.Aggregator("Len",
-			func(ctx context.Context, s indexed.Ranked) (int, error) {
-				return s.Len(ctx)
-			}),
-		action.Reader("At", keys,
-			func(ctx context.Context, s indexed.Ranked, k int) (indexed.Value, error) {
-				return s.At(ctx, k)
-			}),
-	}
-}
-
-// rankedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func rankedAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Ranked],
-	fx RankedFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Ranked { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Ranked { return sub.New(tb) }, buildRef,
-		rankedModelActions(fx),
-		[]law.Law[Ranked]{
-			law.CountEqualsReference[indexed.Ranked, int]{
-				Count: func(rt *model.T, s indexed.Ranked) (int, error) {
-					return s.Len(rt.Context())
-				},
-			},
-		})
-}
-
-// PropT is the property state a Prop body receives: the run's
-// draws, and the failure reporting that shrinks a counterexample.
-//
-// An alias, so it is the engine's own type — this is here only so a
-// property you write names PropT rather than obliging your test
-// file to import the engine directly.
-type PropT = model.T
+// Nothing to do about it here. The claims that needed sequences are the
+// ones this package does not check, and this says so rather than letting
+// the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance dc874b642061c7c1ef08159a66801510009353c266a341336bfe50fb39cc5fa9
+// testkit:provenance 5f300a12fe8cb05ffcd7224f20372d775a6f097abaa785234ad8792fd4d3e86c

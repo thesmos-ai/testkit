@@ -39,19 +39,11 @@ import (
 //		RunMutator(t, MutatorHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MutatorHarness
-//	    one implementation under test.
-//	MutatorChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMutator
-//	    drives each of yours against the broken implementation it names.
-//	GreenMutator
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MutatorSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MutatorHarness — one implementation under test
+//	MutatorChecks — checks of your own, run beside these
+//	ProveMutator — each of yours against the defect it names
+//	GreenMutator — all of them against correct-but-different
+//	MutatorSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -65,18 +57,9 @@ import (
 var _ = suite.CompatV2
 
 // MutatorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MutatorFixture struct {
 	key      string
 	keyOther string
@@ -402,12 +385,8 @@ type MutatorCheck struct {
 	Argued       string
 }
 
-// mutatorMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mutatorMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mutatorMethods = suite.NewNameSet("Mutator", mutatorTouch)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -529,8 +508,6 @@ func ProveMutator(
 	}
 	rc.Fail(t, "ProveMutator")
 	s := mutatorSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mutatorProofs()
 	for _, row := range rc.rows {
@@ -549,9 +526,7 @@ func ProveMutator(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -618,4 +593,4 @@ func GreenMutator(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance df82bd5951b1388741ad2c7e41acef6142466b38a1d364c7772a8ecc4f8a6d9b
+// testkit:provenance 7306b1f2e36903f7a76fda479f4958bea6314244f0043c66cda6a3460fe34967

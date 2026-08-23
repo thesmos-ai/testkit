@@ -40,19 +40,11 @@ import (
 //		RunSource(t, SourceHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	SourceHarness
-//	    one implementation under test.
-//	SourceChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveSource
-//	    drives each of yours against the broken implementation it names.
-//	GreenSource
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	SourceSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	SourceHarness — one implementation under test
+//	SourceChecks — checks of your own, run beside these
+//	ProveSource — each of yours against the defect it names
+//	GreenSource — all of them against correct-but-different
+//	SourceSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -70,18 +62,9 @@ import (
 var _ = suite.CompatV2
 
 // SourceFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type SourceFixture struct {
 }
 
@@ -498,12 +481,8 @@ type SourceCheck struct {
 	Argued       string
 }
 
-// sourceMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// sourceMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var sourceMethods = suite.NewNameSet("Source", sourceNext)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -668,8 +647,6 @@ func ProveSource(
 	}
 	rc.Fail(t, "ProveSource")
 	s := sourceSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := sourceProofs()
 	for _, row := range rc.rows {
@@ -688,9 +665,7 @@ func ProveSource(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -750,7 +725,7 @@ func GreenSource(
 // Source carries //testkit:model, and no rows above come from it:
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
-//   AUTO-COUNT-EQUALS-REFERENCE — observes through Next, which answers several results no single-valued closure returns
+//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //   source differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -766,19 +741,11 @@ func GreenSource(
 //		RunStreamConsumer(t, StreamConsumerHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	StreamConsumerHarness
-//	    one implementation under test.
-//	StreamConsumerChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveStreamConsumer
-//	    drives each of yours against the broken implementation it names.
-//	GreenStreamConsumer
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	StreamConsumerSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	StreamConsumerHarness — one implementation under test
+//	StreamConsumerChecks — checks of your own, run beside these
+//	ProveStreamConsumer — each of yours against the defect it names
+//	GreenStreamConsumer — all of them against correct-but-different
+//	StreamConsumerSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -800,18 +767,9 @@ func GreenSource(
 var _ = suite.CompatV2
 
 // StreamConsumerFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type StreamConsumerFixture struct {
 	source      streamconsumer.Source
 	sourceOther streamconsumer.Source
@@ -1149,12 +1107,8 @@ type StreamConsumerCheck struct {
 	Argued       string
 }
 
-// streamConsumerMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// streamConsumerMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var streamConsumerMethods = suite.NewNameSet("StreamConsumer", streamConsumerIngest)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1276,8 +1230,6 @@ func ProveStreamConsumer(
 	}
 	rc.Fail(t, "ProveStreamConsumer")
 	s := streamConsumerSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := streamConsumerProofs()
 	for _, row := range rc.rows {
@@ -1296,9 +1248,7 @@ func ProveStreamConsumer(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1354,4 +1304,4 @@ func GreenStreamConsumer(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3358d4d46bf5ddb300eef76de0719f2f5a81a8d8677191f08d91b43b4f90c749
+// testkit:provenance 8fef685116c894cd28818baf6a847e46229c529078001dc2f1100abe0e359381

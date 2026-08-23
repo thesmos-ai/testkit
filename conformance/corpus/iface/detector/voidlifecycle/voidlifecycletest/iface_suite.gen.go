@@ -39,19 +39,11 @@ import (
 //		RunVoidLifecycle(t, VoidLifecycleHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	VoidLifecycleHarness
-//	    one implementation under test.
-//	VoidLifecycleChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveVoidLifecycle
-//	    drives each of yours against the broken implementation it names.
-//	GreenVoidLifecycle
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	VoidLifecycleSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	VoidLifecycleHarness — one implementation under test
+//	VoidLifecycleChecks — checks of your own, run beside these
+//	ProveVoidLifecycle — each of yours against the defect it names
+//	GreenVoidLifecycle — all of them against correct-but-different
+//	VoidLifecycleSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -65,18 +57,9 @@ import (
 var _ = suite.CompatV2
 
 // VoidLifecycleFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type VoidLifecycleFixture struct {
 }
 
@@ -388,12 +371,8 @@ type VoidLifecycleCheck struct {
 	Argued       string
 }
 
-// voidLifecycleMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// voidLifecycleMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var voidLifecycleMethods = suite.NewNameSet("VoidLifecycle", voidLifecycleStop)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -515,8 +494,6 @@ func ProveVoidLifecycle(
 	}
 	rc.Fail(t, "ProveVoidLifecycle")
 	s := voidLifecycleSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := voidLifecycleProofs()
 	for _, row := range rc.rows {
@@ -535,9 +512,7 @@ func ProveVoidLifecycle(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -604,4 +579,4 @@ func GreenVoidLifecycle(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance de1b415b6dec4215e64300a8c142235f560fbf9825de498489427949ae117ba8
+// testkit:provenance f79f7f4b999738e27bafff9bde8dbc18340bf6684002893d5c53d3e856ecf6b5

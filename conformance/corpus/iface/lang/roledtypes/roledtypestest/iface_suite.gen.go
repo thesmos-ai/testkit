@@ -41,19 +41,11 @@ import (
 //		RunStore(t, StoreHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	StoreHarness
-//	    one implementation under test.
-//	StoreChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveStore
-//	    drives each of yours against the broken implementation it names.
-//	GreenStore
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	StoreSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	StoreHarness — one implementation under test
+//	StoreChecks — checks of your own, run beside these
+//	ProveStore — each of yours against the defect it names
+//	GreenStore — all of them against correct-but-different
+//	StoreSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -76,18 +68,9 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type StoreFixture struct {
 	key          roledtypes.Key
 	keyOther     roledtypes.Key
@@ -881,12 +864,8 @@ type StoreCheck struct {
 	Argued       string
 }
 
-// storeMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// storeMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var storeMethods = suite.NewNameSet("Store", storePut, storeGet)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1097,8 +1076,6 @@ func ProveStore(
 	}
 	rc.Fail(t, "ProveStore")
 	s := storeSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := storeProofs()
 	for _, row := range rc.rows {
@@ -1117,9 +1094,7 @@ func ProveStore(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1175,4 +1150,4 @@ func GreenStore(
 }
 
 // testkit: end of generated content.
-// testkit:provenance baa01789c6b91c40b44440aafaff4f469cdda680f8a46cbb72f4fd71b91575db
+// testkit:provenance 98b18a915efcb676fb9149ba17208e32a563cf48050875f97cb7cd07ef1f7ed2

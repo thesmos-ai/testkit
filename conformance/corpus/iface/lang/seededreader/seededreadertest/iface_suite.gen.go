@@ -41,19 +41,11 @@ import (
 //		RunCatalog(t, CatalogHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	CatalogHarness
-//	    one implementation under test.
-//	CatalogChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveCatalog
-//	    drives each of yours against the broken implementation it names.
-//	GreenCatalog
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	CatalogSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	CatalogHarness — one implementation under test
+//	CatalogChecks — checks of your own, run beside these
+//	ProveCatalog — each of yours against the defect it names
+//	GreenCatalog — all of them against correct-but-different
+//	CatalogSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -79,18 +71,9 @@ import (
 var _ = suite.CompatV2
 
 // CatalogFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type CatalogFixture struct {
 	key      seededreader.Key
 	keyOther seededreader.Key
@@ -1018,12 +1001,8 @@ type CatalogCheck struct {
 	Argued       string
 }
 
-// catalogMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// catalogMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var catalogMethods = suite.NewNameSet("Catalog", catalogLookup, catalogLen)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1267,8 +1246,6 @@ func ProveCatalog(
 	}
 	rc.Fail(t, "ProveCatalog")
 	s := catalogSuite(fx, catalogCorpus(rc.cfg)).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := catalogProofs()
 	for _, row := range rc.rows {
@@ -1287,9 +1264,7 @@ func ProveCatalog(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1345,4 +1320,4 @@ func GreenCatalog(
 }
 
 // testkit: end of generated content.
-// testkit:provenance c5f684623a2ccf65d2657f9929b80f5b5cb283e3ce642e49ff471be4098f01a1
+// testkit:provenance 82881c79e9e0c263c4d44d95cc8aff9878b838674febbb2f05f51a2ca79c782b

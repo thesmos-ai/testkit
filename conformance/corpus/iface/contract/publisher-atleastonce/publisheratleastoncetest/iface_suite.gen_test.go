@@ -40,6 +40,8 @@ import (
 //
 //	Subscribe.ZeroOnError — a Contract whose Subscribe answers a believable value beside its error
 //
+//	Model.Agrees — a Contract whose Publish reports success and keeps nothing
+//
 //	Model.Delivers — a Contract whose Publish reports success and keeps nothing
 //
 //	Model.AtLeastOnce — a Contract whose Publish reports success and keeps nothing
@@ -72,4 +74,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 7fab0bf1e5c332616e213f2f202ccddb438995c0cbe90cc5df2e6b2b3327e36e
+// testkit:provenance 62d5a72d46a29065340214f14bf9703fbe67aa5c7ad91ca7d6dc00bd2662dc50

@@ -43,6 +43,20 @@ type Action[T any] struct {
 	// structured I/O for trace recording.
 	Run func(rt *rapid.T, sut, ref T) ActionResult
 
+	// Reset clears whatever this action carries between iterations, and is
+	// called before each one. Nil for the actions that carry nothing,
+	// which is nearly all of them.
+	//
+	// The action slice is built once and every iteration reuses it, so an
+	// action holding state — a subscription opened at one step and read at
+	// a later one — would carry the previous iteration's into the next.
+	// That makes the run unreplayable: rapid shrinks by replaying draws and
+	// takes the verdict to be a function of those draws, and state from an
+	// iteration the replay does not perform breaks it.
+	//
+	// The laws beside these have had [law.Resettable] for the same reason.
+	Reset func()
+
 	// Kind classifies the failure type when this action's Run
 	// returns a non-nil Err. Set explicitly by every framework
 	// helper; defaults to FailureUnclassified for consumer actions.
@@ -274,6 +288,14 @@ func propertyFromConfig[T any](cfg Config[T]) func(*rapid.T) {
 		// Reset per-iteration history traces (chain laws).
 		for _, reset := range cfg.HistoryResetters {
 			reset()
+		}
+
+		// And whatever an action carries across steps of one iteration but
+		// must not carry between them — see [Action.Reset].
+		for _, a := range cfg.Actions {
+			if a.Reset != nil {
+				a.Reset()
+			}
 		}
 
 		// Per-iteration trace buffer.

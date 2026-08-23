@@ -29,7 +29,7 @@ func {{ .KeysFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .Mo
 {{- if and .Keys.Hostile .Keys.PoolField }}
 	return {{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Keys.PoolField }}Derived(),
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}()),
-		func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) },
+		{{ if .Keys.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) }{{ end }},
 	)
 {{- else if .Keys.Hostile }}
 	// Widened unconditionally: this run emits no config, so there is no
@@ -38,7 +38,7 @@ func {{ .KeysFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .Mo
 	// can pass one here.
 	return {{ renderExpr (external .LegsPkg "Blend") }}(true,
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{ {{ .Keys.Read }}, {{ .Keys.OtherRead }} }),
-		func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) },
+		{{ if .Keys.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) }{{ end }},
 	)
 {{- else if .Keys.PoolField }}
 	return {{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}())
@@ -268,11 +268,29 @@ func {{ .ActionsFuncName }}({{ template "model.declparams" . }}) []{{ renderExpr
 {{- if .UsesValues }}
 	values := {{ .ValuesFuncName }}(fx)
 {{- end }}
-	return []{{ renderExpr (external .ModelPkg "Action") }}[{{ .SubjectSpelling }}]{
+	out := []{{ renderExpr (external .ModelPkg "Action") }}[{{ .SubjectSpelling }}]{
 {{- range .Actions }}
 		{{ render . }},
 {{- end }}
 	}
+{{- if .Delivery }}
+	// The subscription pair, three actions sharing two open handles: one
+	// opens them, one publishes to both, one compares what each has
+	// delivered so far. Appended rather than listed above because they
+	// come as a set — see the action package's Delivery, which says why
+	// the comparison has to span steps rather than close its own cycle.
+	out = append(out, {{ renderExpr (external .ActionPkg "NewDelivery") }}[{{ .SubjectSpelling }}, {{ renderType .Delivery.Msg }}](
+		{{ printf "%q" .Delivery.Name }},
+		func({{ if .Delivery.SubscribeCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ .SubjectSpelling }}) ({{ renderType .Delivery.Sub }}, error) {
+			return s.{{ .Delivery.Subscribe }}({{ if .Delivery.SubscribeCtx }}ctx{{ end }})
+		},
+		func({{ if .Delivery.PublishCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ .SubjectSpelling }}, m {{ renderType .Delivery.Msg }}) error {
+			return s.{{ .Delivery.Publish }}({{ if .Delivery.PublishCtx }}ctx, {{ end }}m)
+		},
+		values, {{ renderExpr .Delivery.Mode }},
+	).Actions()...)
+{{- end }}
+	return out
 }
 {{ if .LegLaws }}
 // {{ .LawsFuncName }} is the laws the classifications earned and this build
@@ -350,11 +368,11 @@ model.bodies spells the value pool's unpinned generator.
 	)
 {{- else if and .Values.Hostile .Values.PoolField }}{{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Values.PoolField }}Derived(),
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}()),
-		func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) },
+		{{ if .Values.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) }{{ end }},
 	)
 {{- else if .Values.Hostile }}{{ renderExpr (external .LegsPkg "Blend") }}(true,
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
-		func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) },
+		{{ if .Values.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) }{{ end }},
 	)
 {{- else if .Values.PoolField }}{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}())
 {{- else }}{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} })

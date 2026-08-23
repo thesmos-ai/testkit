@@ -48,19 +48,11 @@ import (
 //		RunContract(t, ContractHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ContractHarness
-//	    one implementation under test.
-//	ContractChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveContract
-//	    drives each of yours against the broken implementation it names.
-//	GreenContract
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ContractSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ContractHarness — one implementation under test
+//	ContractChecks — checks of your own, run beside these
+//	ProveContract — each of yours against the defect it names
+//	GreenContract — all of them against correct-but-different
+//	ContractSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -88,18 +80,9 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ContractFixture struct {
 	value      upserter.Value
 	valueOther upserter.Value
@@ -775,12 +758,8 @@ type ContractCheck struct {
 	PropGet func(rt *PropT, s Contract, key string)
 }
 
-// contractMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// contractMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var contractMethods = suite.NewNameSet("Contract", contractPut, contractGet)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1042,8 +1021,6 @@ func ProveContract(
 	}
 	rc.Fail(t, "ProveContract")
 	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := contractProofs()
 	for _, row := range rc.rows {
@@ -1062,9 +1039,7 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1148,7 +1123,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			ID:          contractCheckIndex.Model.Linearizable(),
 			Class:       suite.ClassConcurrent,
 			Claim:       "concurrent operation histories are linearizable",
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertLinearizable(tb, sub, fx)
@@ -1220,7 +1195,7 @@ func contractModelKeys(fx ContractFixture) *model.Generator[string] {
 	// can pass one here.
 	return legs.Blend(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return string(s) },
+		func(s string) string { return s },
 	)
 }
 
@@ -1293,7 +1268,7 @@ func (r *contractModelReference) Get(ctx context.Context, key string) (upserter.
 func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	keys := contractModelKeys(fx)
 	values := contractModelValues(fx)
-	return []model.Action[Contract]{
+	out := []model.Action[Contract]{
 		action.Upserter("Put", values,
 			func(ctx context.Context, s upserter.Contract, v upserter.Value) error {
 				return s.Put(ctx, v)
@@ -1303,6 +1278,7 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 				return s.Get(ctx, k)
 			}),
 	}
+	return out
 }
 
 // contractAssertAgrees drives random operation sequences against the subject and
@@ -1392,9 +1368,8 @@ func contractAssertRecovery(
 
 // contractAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func contractAssertWriteObservable(
 	tb testing.TB,
 	sub suite.Subject[Contract],
@@ -1424,9 +1399,8 @@ func contractAssertWriteObservable(
 
 // contractAssertUpserterIdempotent binds AUTO-UPSERTER-IDEMPOTENT over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func contractAssertUpserterIdempotent(
 	tb testing.TB,
 	sub suite.Subject[Contract],
@@ -1463,4 +1437,4 @@ func contractAssertUpserterIdempotent(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 0dbefebfa2d5722c281de3b1f893284a31c1610236519d73689c9f42ffeaf2f1
+// testkit:provenance 7c8df5378c48739a545ca023c0341a828db7f6c2858fac100f20926ce1b74aaa

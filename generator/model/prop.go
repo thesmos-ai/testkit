@@ -158,6 +158,14 @@ func PropSugarsOf(b *Bindings) []PropSugar { return sugarsFor(b) }
 // action naming one is not the same fact as a file declaring it, and a
 // draw expression calling a function nobody emitted is a compile error
 // over generated code the consumer may not edit.
+// The two words a sugared property's parameter is named and labelled by,
+// spelled once: the label reaches a shrunk counterexample's draw list, so
+// it and the parameter name have to stay the same word.
+const (
+	sugarKey   = "key"
+	sugarValue = "value"
+)
+
 func sugarsFor(b *Bindings) []PropSugar {
 	token := projection.Token(b.IfaceName)
 	var out []PropSugar
@@ -170,9 +178,9 @@ func sugarsFor(b *Bindings) []PropSugar {
 		}
 		switch {
 		case a.Pool == poolKeys && b.NeedsKeysPool():
-			s.Param, s.ParamType, s.Pool, s.Label = "key", a.Key, b.KeysFuncName(), "key"
+			s.Param, s.ParamType, s.Pool, s.Label = sugarKey, a.Key, b.KeysFuncName(), sugarKey
 		case a.Pool == poolValues && b.NeedsValuesPool():
-			s.Param, s.ParamType, s.Pool, s.Label = "value", a.Value, b.ValuesFuncName(), "value"
+			s.Param, s.ParamType, s.Pool, s.Label = sugarValue, a.Value, b.ValuesFuncName(), sugarValue
 		default:
 			continue
 		}
@@ -180,6 +188,23 @@ func sugarsFor(b *Bindings) []PropSugar {
 			continue
 		}
 		out = append(out, s)
+	}
+	if d := b.Delivery; d != nil && b.NeedsValuesPool() && d.Msg != nil {
+		// The publish the delivery set drives. It replaced the standalone
+		// action, and the sugar has to come with it: a property over the
+		// messages a publisher takes is exactly what a consumer writes here,
+		// and losing it would be the run surface getting smaller for a
+		// change that added checking.
+		out = append(out, PropSugar{
+			Field:       "Prop" + d.Publish,
+			Method:      d.Publish,
+			MethodConst: projection.MethodConst(token, d.Publish),
+			TakesCtx:    d.PublishCtx,
+			Param:       sugarValue,
+			ParamType:   d.Msg,
+			Pool:        b.ValuesFuncName(),
+			Label:       sugarValue,
+		})
 	}
 	return out
 }

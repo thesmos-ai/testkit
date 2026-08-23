@@ -40,19 +40,11 @@ import (
 //		RunBase(t, BaseHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	BaseHarness
-//	    one implementation under test.
-//	BaseChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveBase
-//	    drives each of yours against the broken implementation it names.
-//	GreenBase
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	BaseSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	BaseHarness — one implementation under test
+//	BaseChecks — checks of your own, run beside these
+//	ProveBase — each of yours against the defect it names
+//	GreenBase — all of them against correct-but-different
+//	BaseSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -68,18 +60,9 @@ import (
 var _ = suite.CompatV2
 
 // BaseFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type BaseFixture struct {
 }
 
@@ -435,12 +418,8 @@ type BaseCheck struct {
 	Argued       string
 }
 
-// baseMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// baseMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var baseMethods = suite.NewNameSet("Base", basePing)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -582,8 +561,6 @@ func ProveBase(
 	}
 	rc.Fail(t, "ProveBase")
 	s := baseSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := baseProofs()
 	for _, row := range rc.rows {
@@ -602,9 +579,7 @@ func ProveBase(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -668,19 +643,11 @@ func GreenBase(
 //		RunCloser(t, CloserHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	CloserHarness
-//	    one implementation under test.
-//	CloserChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveCloser
-//	    drives each of yours against the broken implementation it names.
-//	GreenCloser
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	CloserSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	CloserHarness — one implementation under test
+//	CloserChecks — checks of your own, run beside these
+//	ProveCloser — each of yours against the defect it names
+//	GreenCloser — all of them against correct-but-different
+//	CloserSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -696,18 +663,9 @@ func GreenBase(
 var _ = suite.CompatV2
 
 // CloserFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type CloserFixture struct {
 }
 
@@ -1063,12 +1021,8 @@ type CloserCheck struct {
 	Argued       string
 }
 
-// closerMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// closerMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var closerMethods = suite.NewNameSet("Closer", closerClose)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1210,8 +1164,6 @@ func ProveCloser(
 	}
 	rc.Fail(t, "ProveCloser")
 	s := closerSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := closerProofs()
 	for _, row := range rc.rows {
@@ -1230,9 +1182,7 @@ func ProveCloser(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1296,19 +1246,11 @@ func GreenCloser(
 //		RunComposed(t, ComposedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ComposedHarness
-//	    one implementation under test.
-//	ComposedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveComposed
-//	    drives each of yours against the broken implementation it names.
-//	GreenComposed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ComposedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ComposedHarness — one implementation under test
+//	ComposedChecks — checks of your own, run beside these
+//	ProveComposed — each of yours against the defect it names
+//	GreenComposed — all of them against correct-but-different
+//	ComposedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -1339,18 +1281,9 @@ func GreenCloser(
 var _ = suite.CompatV2
 
 // ComposedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ComposedFixture struct {
 	key      string
 	keyOther string
@@ -1934,12 +1867,8 @@ type ComposedCheck struct {
 	Argued       string
 }
 
-// composedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// composedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var composedMethods = suite.NewNameSet("Composed", composedGet, composedPing, composedClose)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -2158,8 +2087,6 @@ func ProveComposed(
 	}
 	rc.Fail(t, "ProveComposed")
 	s := composedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := composedProofs()
 	for _, row := range rc.rows {
@@ -2178,9 +2105,7 @@ func ProveComposed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -2236,4 +2161,4 @@ func GreenComposed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance e514c157db12c9227314ca95c75afae3c73d0af679106a83bff0fde901760dd9
+// testkit:provenance b549991b618ee566928d13180cee670178e7df15b2337d21f1f810ddff211102

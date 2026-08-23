@@ -40,19 +40,11 @@ import (
 //		RunFinder(t, FinderHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	FinderHarness
-//	    one implementation under test.
-//	FinderChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveFinder
-//	    drives each of yours against the broken implementation it names.
-//	GreenFinder
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	FinderSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	FinderHarness — one implementation under test
+//	FinderChecks — checks of your own, run beside these
+//	ProveFinder — each of yours against the defect it names
+//	GreenFinder — all of them against correct-but-different
+//	FinderSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -82,18 +74,9 @@ import (
 var _ = suite.CompatV2
 
 // FinderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type FinderFixture struct {
 	keys       string
 	keysOther  string
@@ -673,12 +656,8 @@ type FinderCheck struct {
 	Argued       string
 }
 
-// finderMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// finderMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var finderMethods = suite.NewNameSet("Finder", finderFind, finderFindWithLimit)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -893,8 +872,6 @@ func ProveFinder(
 	}
 	rc.Fail(t, "ProveFinder")
 	s := finderSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := finderProofs()
 	for _, row := range rc.rows {
@@ -913,9 +890,7 @@ func ProveFinder(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -971,4 +946,4 @@ func GreenFinder(
 }
 
 // testkit: end of generated content.
-// testkit:provenance c7923cb0c0639e35c52b11f8ebdb4df35d2ef5a1335b60db734a5f54a5870c6b
+// testkit:provenance 48a93ef03b6e5739257a3c97a58cb0e30776d6e173fa707bda2985ed50a60591

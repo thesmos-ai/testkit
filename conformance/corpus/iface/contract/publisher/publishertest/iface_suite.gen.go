@@ -32,6 +32,7 @@ import (
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -45,19 +46,11 @@ import (
 //		RunContract(t, ContractHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ContractHarness
-//	    one implementation under test.
-//	ContractChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveContract
-//	    drives each of yours against the broken implementation it names.
-//	GreenContract
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ContractSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ContractHarness — one implementation under test
+//	ContractChecks — checks of your own, run beside these
+//	ProveContract — each of yours against the defect it names
+//	GreenContract — all of them against correct-but-different
+//	ContractSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -71,6 +64,7 @@ import (
 //	Subscribe/smoke
 //	Subscribe/zero-on-error
 //	model/contract/AUTO-PUBLISHER-DELIVERS
+//	model/contract/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -80,18 +74,9 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ContractFixture struct {
 	value      publisher.Value
 	valueOther publisher.Value
@@ -279,6 +264,7 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Subscribe.NilContext():  "ContractSuite.Checks.Subscribe.NilContext()",
 	contractCheckIndex.Subscribe.Deadline():    "ContractSuite.Checks.Subscribe.Deadline()",
 	contractCheckIndex.Subscribe.ZeroOnError(): "ContractSuite.Checks.Subscribe.ZeroOnError()",
+	contractCheckIndex.Model.Agrees():          "ContractSuite.Checks.Model.Agrees()",
 	contractCheckIndex.Model.Delivers():        "ContractSuite.Checks.Model.Delivers()",
 }
 
@@ -380,12 +366,17 @@ func (contractSubscribeChecks) All() []suite.ID {
 
 type contractModelChecks struct{}
 
+func (contractModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, suite.SegDifferential)
+}
+
 func (contractModelChecks) Delivers() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.PublisherDelivers)
 }
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
+		contractModelChecks{}.Agrees(),
 		contractModelChecks{}.Delivers(),
 	}
 }
@@ -651,12 +642,8 @@ type ContractCheck struct {
 	PropPublish func(rt *PropT, s Contract, value publisher.Value)
 }
 
-// contractMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// contractMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var contractMethods = suite.NewNameSet("Contract", contractPublish, contractSubscribe)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -832,6 +819,16 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}),
+		ix.Model.Agrees(): prove.One("a Contract whose Publish reports success and keeps nothing",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractPublish(
+					func(_ context.Context, _ publisher.Value) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
 		ix.Model.Delivers(): prove.One("a Contract whose Publish reports success and keeps nothing",
 			func(tb testing.TB) Contract {
 				return NewContractStub(tb, WithContractPublish(
@@ -884,8 +881,6 @@ func ProveContract(
 	}
 	rc.Fail(t, "ProveContract")
 	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := contractProofs()
 	for _, row := range rc.rows {
@@ -904,9 +899,7 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -977,6 +970,16 @@ var _ = legs.CompatV1
 func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 	return []suite.Check[Contract]{
 		{
+			ID:          contractCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertAgrees(tb, sub, fx)
+			},
+		},
+		{
 			ID:    contractCheckIndex.Model.Delivers(),
 			Class: suite.ClassLaws,
 			Claim: "a message published after subscribers registered reaches every one of them",
@@ -984,7 +987,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 				lawid.PublisherDelivers,
 			},
 			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthObserved,
+			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertDelivers(tb, sub, fx)
 			},
@@ -998,11 +1001,9 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 // something that judges them from outside. The rows on the run surface
 // above carry it, and ContractSuite.Without declines any of them by name.
 //
-//	Reference: the subject's own factory — no reader/writer pair derives a store,
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-//	Sequences: Publish (writer)
+//	Reference: derived — the FanOut oracle, which is the
+//	           publisher contract's own semantics; NewContractModelReference replaces it
+//	Sequences:
 //	Drain:     derived — a non-blocking sweep asserting fan-out synchronous
 //	           with Publish; an async subject reads as loss against this floor
 //	Values:    the fixture pair blended with arbitrary draws
@@ -1011,7 +1012,6 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           AUTO-COUNT-EQUALS-REFERENCE — Count observes Subscribe's result, a live handle only identity could compare
-//	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
 // contractModelValues is the value pool every value slot draws from.
 //
@@ -1024,6 +1024,28 @@ func contractModelValues(fx ContractFixture) *model.Generator[publisher.Value] {
 		model.Make[publisher.Value](),
 	)
 	return bodies
+}
+
+// contractModelReference adapts the shipped FanOut oracle — the
+// publisher contract's own semantics — to Contract.
+// Deliberately simple: its correctness is read, not tested.
+type contractModelReference struct {
+	store *ref.FanOut[publisher.Value]
+}
+
+// NewContractModelReference builds one. Exported because a consumer whose
+// semantics outrun their shape replaces it, and because the proof beside
+// this file drives it as a subject of its own.
+func NewContractModelReference() Contract {
+	return &contractModelReference{store: ref.NewFanOut[publisher.Value]()}
+}
+
+func (r *contractModelReference) Publish(ctx context.Context, v publisher.Value) error {
+	return r.store.Publish(ctx, v)
+}
+
+func (r *contractModelReference) Subscribe(ctx context.Context) (<-chan publisher.Value, error) {
+	return r.store.Subscribe(ctx)
 }
 
 // contractDrainSubscription sweeps what Publish already delivered, asserting
@@ -1051,19 +1073,46 @@ func contractDrainSubscription(_ *model.T, _ Contract, sub <-chan publisher.Valu
 // fails.
 func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	values := contractModelValues(fx)
-	return []model.Action[Contract]{
-		action.Writer("Publish", values,
-			func(ctx context.Context, s publisher.Contract, v publisher.Value) error {
-				return s.Publish(ctx, v)
-			}),
-	}
+	out := []model.Action[Contract]{}
+	// The subscription pair, three actions sharing two open handles: one
+	// opens them, one publishes to both, one compares what each has
+	// delivered so far. Appended rather than listed above because they
+	// come as a set — see the action package's Delivery, which says why
+	// the comparison has to span steps rather than close its own cycle.
+	out = append(out, action.NewDelivery[Contract, publisher.Value](
+		"Publish",
+		func(ctx context.Context, s Contract) (<-chan publisher.Value, error) {
+			return s.Subscribe(ctx)
+		},
+		func(ctx context.Context, s Contract, m publisher.Value) error {
+			return s.Publish(ctx, m)
+		},
+		values, action.AtLeastOnce,
+	).Actions()...)
+	return out
+}
+
+// contractAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func contractAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		NewContractModelReference,
+		contractModelActions(fx))
 }
 
 // contractAssertDelivers binds AUTO-PUBLISHER-DELIVERS over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func contractAssertDelivers(
 	tb testing.TB,
 	sub suite.Subject[Contract],
@@ -1073,7 +1122,7 @@ func contractAssertDelivers(
 	values := contractModelValues(fx)
 	drainSub := contractDrainSubscription
 
-	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
+	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
 	sub.NoteTier(tier)
 	legs.Law(tb, sub,
 		func() Contract { return sub.New(tb) }, buildRef,
@@ -1101,4 +1150,4 @@ func contractAssertDelivers(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 38d8ad290d4e16c1f01e58fdf67ad1ea82cfebb775bdf6a8098df4f73568448a
+// testkit:provenance e386d5de9674521479d3fc1e134382d9bc8e57c4f04aecabdab206de8afc7654

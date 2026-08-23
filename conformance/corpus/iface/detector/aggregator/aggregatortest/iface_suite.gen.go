@@ -27,11 +27,6 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/aggregator"
-	"go.thesmos.sh/testkit/core/lawid"
-	"go.thesmos.sh/testkit/engine/legs"
-	"go.thesmos.sh/testkit/engine/model"
-	"go.thesmos.sh/testkit/engine/model/action"
-	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -45,19 +40,11 @@ import (
 //		RunAggregator(t, AggregatorHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	AggregatorHarness
-//	    one implementation under test.
-//	AggregatorChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveAggregator
-//	    drives each of yours against the broken implementation it names.
-//	GreenAggregator
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	AggregatorSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	AggregatorHarness — one implementation under test
+//	AggregatorChecks — checks of your own, run beside these
+//	ProveAggregator — each of yours against the defect it names
+//	GreenAggregator — all of them against correct-but-different
+//	AggregatorSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -66,7 +53,6 @@ import (
 //	Count/nilcontext
 //	Count/smoke
 //	Count/zero-on-error
-//	model/aggregator/AUTO-COUNT-EQUALS-REFERENCE
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -76,18 +62,9 @@ import (
 var _ = suite.CompatV2
 
 // AggregatorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type AggregatorFixture struct {
 }
 
@@ -258,7 +235,6 @@ var aggregatorIndexPath = map[suite.ID]string{
 	aggregatorCheckIndex.Count.NilContext():  "AggregatorSuite.Checks.Count.NilContext()",
 	aggregatorCheckIndex.Count.Deadline():    "AggregatorSuite.Checks.Count.Deadline()",
 	aggregatorCheckIndex.Count.ZeroOnError(): "AggregatorSuite.Checks.Count.ZeroOnError()",
-	aggregatorCheckIndex.Model.Counts():      "AggregatorSuite.Checks.Model.Counts()",
 }
 
 var aggregatorDropHint = suite.DropHinter(
@@ -269,28 +245,22 @@ var aggregatorDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	aggregatorCount = "Count"
-
-	// The interface's word inside a family-scoped identity.
-	aggregatorQualifier = "aggregator"
 )
 
 // aggregatorCheckIndex names every check in this file, grouped by method.
 // Reach it through AggregatorSuite.Checks.
 var aggregatorCheckIndex = aggregatorCheckIndexT{
 	Count: aggregatorCountChecks{},
-	Model: aggregatorModelChecks{},
 }
 
 type aggregatorCheckIndexT struct {
 	Count aggregatorCountChecks
-	Model aggregatorModelChecks
 }
 
 // All returns every ID this package emits.
 func (aggregatorCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, aggregatorCountChecks{}.All()...)
-	out = append(out, aggregatorModelChecks{}.All()...)
 	return out
 }
 
@@ -326,18 +296,6 @@ func (aggregatorCountChecks) All() []suite.ID {
 	}
 }
 
-type aggregatorModelChecks struct{}
-
-func (aggregatorModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, aggregatorQualifier, lawid.CountEqualsReference)
-}
-
-func (aggregatorModelChecks) All() []suite.ID {
-	return []suite.ID{
-		aggregatorModelChecks{}.Counts(),
-	}
-}
-
 // aggregatorSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -347,8 +305,7 @@ func aggregatorSuite() suite.Suite[Aggregator] {
 	return suite.Suite[Aggregator]{
 		Name:     "Aggregator",
 		DropHint: aggregatorDropHint,
-		Checks: append(aggregatorSignatureChecks(),
-			aggregatorModelRows()...),
+		Checks:   aggregatorSignatureChecks(),
 	}
 }
 
@@ -517,22 +474,10 @@ type AggregatorCheck struct {
 	ProvenBy     AggregatorDefect
 	ProvenReason string
 	Argued       string
-
-	// Prop is a body whose inputs are drawn rather than fixed, run many
-	// times with the draws shrunk on failure. Report through the PropT
-	// and not through a testing.TB: shrinking works by replaying draws, and
-	// a failure raised anywhere else is one the run cannot narrow.
-	//
-	// Requires Method, like Run.
-	Prop func(rt *PropT, s Aggregator, fx AggregatorFixture)
 }
 
-// aggregatorMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// aggregatorMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var aggregatorMethods = suite.NewNameSet("Aggregator", aggregatorCount)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -547,14 +492,6 @@ func (c AggregatorCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, aggregatorMethods)
-	b.Offers("Prop")
-	if fn := c.Prop; fn != nil {
-		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Aggregator]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), fx)
-			})
-		})
-	}
 	return b.Seal(c.Method)
 }
 
@@ -705,8 +642,6 @@ func ProveAggregator(
 	}
 	rc.Fail(t, "ProveAggregator")
 	s := aggregatorSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := aggregatorProofs()
 	for _, row := range rc.rows {
@@ -725,9 +660,7 @@ func ProveAggregator(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -782,99 +715,17 @@ func GreenAggregator(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// A second version check, for the leg idioms the rows above ride. The
-// harness's own covers the check format; this one covers what a model row
-// does with it. Regenerate the file to clear a mismatch.
-var _ = legs.CompatV1
-
-// aggregatorModelRows is what this package's model tier claims.
+// --- Aggregator's model tier: not emitted ----------------------------------
 //
-// Every row here needs sequences of calls judged against something
-// outside the subject, which is what separates them from the rows
-// above: those settle a claim with a fixed call sequence, and these
-// cannot be stated that way at all. That is also why each takes the
-// Subject rather than an instance — a sequence run builds its own, and
-// some of them build two.
-func aggregatorModelRows() []suite.Check[Aggregator] {
-	return []suite.Check[Aggregator]{
-		{
-			ID:    aggregatorCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Aggregator]) {
-				aggregatorAssertCounts(tb, sub)
-			},
-		},
-	}
-}
-
-// --- Aggregator's model tier -------------------------------------------
+// Aggregator carries //testkit:model, and no rows above come from it:
+// no claim this tier knows how to state reached this interface,
+// so it contributes no checks. Each reason below is one it tried:
+//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
+//   aggregator differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
-// Random sequences of Aggregator's methods, run against every subject and
-// something that judges them from outside. The rows on the run surface
-// above carry it, and AggregatorSuite.Without declines any of them by name.
-//
-//	Reference: the subject's own factory — no reader/writer pair derives a store,
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-//	Sequences: Count (aggregator)
-//	Not bound:
-//	           aggregator differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//
-// aggregatorModelActions is the operation vocabulary both legs drive.
-//
-// One constructor per method shape, from the engine's action set rather
-// than hand-written closures: the constructors record inputs and outputs
-// into the trace a law reads, compare the two sides the same way for every
-// action, and shrink a failing sequence to the shortest one that still
-// fails.
-func aggregatorModelActions() []model.Action[Aggregator] {
-	return []model.Action[Aggregator]{
-		action.Aggregator("Count",
-			func(ctx context.Context, s aggregator.Aggregator) (int, error) {
-				return s.Count(ctx)
-			}),
-	}
-}
-
-// aggregatorAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func aggregatorAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Aggregator],
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Aggregator { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Aggregator { return sub.New(tb) }, buildRef,
-		aggregatorModelActions(),
-		[]law.Law[Aggregator]{
-			law.CountEqualsReference[aggregator.Aggregator, int]{
-				Count: func(rt *model.T, s aggregator.Aggregator) (int, error) {
-					return s.Count(rt.Context())
-				},
-			},
-		})
-}
-
-// PropT is the property state a Prop body receives: the run's
-// draws, and the failure reporting that shrinks a counterexample.
-//
-// An alias, so it is the engine's own type — this is here only so a
-// property you write names PropT rather than obliging your test
-// file to import the engine directly.
-type PropT = model.T
+// Nothing to do about it here. The claims that needed sequences are the
+// ones this package does not check, and this says so rather than letting
+// the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 29af30db327746d136bbfeb6bae96de00f5325b8a68173e94a4464ce204b1f0b
+// testkit:provenance e72ce68b8e4b7bb0a048c69ae11d09c8ac7bcad2c690ef1e645d3513327aa2b0

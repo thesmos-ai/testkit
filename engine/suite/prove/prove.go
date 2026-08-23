@@ -251,6 +251,11 @@ func scrubBucket(t *testing.T, id suite.ID) {
 //   - a defect for a check that does not claim Proven fails: the evidence
 //     exists, so the claim is owed — add Proven to the check
 //   - a defect naming no check at all fails inside its own subtest
+//
+// A declined check takes its proof with it, and a caller dropping one is
+// expected to drop the proof too: proving a row the run was told to leave
+// out reports on a claim the package no longer makes, and the parity above
+// fails naming a check the set does not hold.
 func All[S any](t *testing.T, checks []suite.Check[S], defects Defects[S]) {
 	t.Helper()
 	for _, msg := range parity(checks, defects) {

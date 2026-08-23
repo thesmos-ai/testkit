@@ -240,6 +240,9 @@ func NeedsRecover() Caps { return Needs(CapRecover, nil) }
 // First answer wins. Two subjects disagreeing about a declaration fact is
 // a wiring mistake, and the check bodies read one door — taking the later
 // answer would make which subject ran first decide what was checked.
+//
+// Read off the subjects, because a door is answered once for the interface
+// and every subject of it reads the same answer.
 func Doors[S any](subs ...Subject[S]) map[Capability]any {
 	var out map[Capability]any
 	for _, s := range subs {

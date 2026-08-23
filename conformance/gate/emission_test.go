@@ -185,7 +185,15 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 // that may say no derives an unbounded oracle and compares hits one way.
 // See [tiers.OracleDefeat], and boundedcache, which is the fixture that
 // does.
-const twinCeiling = 59
+//
+// The publisher row left this table when the family gained ref.FanOut, an
+// oracle written at the shapes a Go publisher declares rather than at a
+// queue a consumer drains. Five fixtures took it, and five more stopped
+// being counted at all: their only model row was a count compared against
+// their own factory, and a row that can fail on nothing but
+// nondeterminism is declined rather than shipped. Those five now report
+// an empty tier, which is what they were checking.
+const twinCeiling = 49
 
 // TestTwinFloorOnlySinks is the twin-count ratchet the audit's second item
 // commissioned: the twin is the honest floor, not the resting state, and a

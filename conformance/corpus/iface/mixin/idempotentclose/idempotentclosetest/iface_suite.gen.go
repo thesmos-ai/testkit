@@ -45,19 +45,11 @@ import (
 //		RunCloser(t, CloserHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	CloserHarness
-//	    one implementation under test.
-//	CloserChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveCloser
-//	    drives each of yours against the broken implementation it names.
-//	GreenCloser
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	CloserSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	CloserHarness — one implementation under test
+//	CloserChecks — checks of your own, run beside these
+//	ProveCloser — each of yours against the defect it names
+//	GreenCloser — all of them against correct-but-different
+//	CloserSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -70,7 +62,6 @@ import (
 //	Stats/nilcontext
 //	Stats/smoke
 //	Stats/zero-on-error
-//	model/closer/AUTO-COUNT-EQUALS-REFERENCE
 //	model/closer/AUTO-IDEMPOTENT-LIFECYCLE
 //	model/closer/AUTO-LIFECYCLE-RESPECTS-CONTEXT
 //
@@ -88,18 +79,9 @@ import (
 var _ = suite.CompatV2
 
 // CloserFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type CloserFixture struct {
 }
 
@@ -276,7 +258,6 @@ var closerIndexPath = map[suite.ID]string{
 	closerCheckIndex.Stats.ZeroOnError():         "CloserSuite.Checks.Stats.ZeroOnError()",
 	closerCheckIndex.Model.RespectsContext():     "CloserSuite.Checks.Model.RespectsContext()",
 	closerCheckIndex.Model.IdempotentLifecycle(): "CloserSuite.Checks.Model.IdempotentLifecycle()",
-	closerCheckIndex.Model.Counts():              "CloserSuite.Checks.Model.Counts()",
 }
 
 var closerDropHint = suite.DropHinter(
@@ -385,15 +366,10 @@ func (closerModelChecks) IdempotentLifecycle() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, closerQualifier, lawid.IdempotentLifecycle)
 }
 
-func (closerModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, closerQualifier, lawid.CountEqualsReference)
-}
-
 func (closerModelChecks) All() []suite.ID {
 	return []suite.ID{
 		closerModelChecks{}.RespectsContext(),
 		closerModelChecks{}.IdempotentLifecycle(),
-		closerModelChecks{}.Counts(),
 	}
 }
 
@@ -655,12 +631,8 @@ type CloserCheck struct {
 	Prop func(rt *PropT, s Closer, fx CloserFixture)
 }
 
-// closerMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// closerMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var closerMethods = suite.NewNameSet("Closer", closerClose, closerStats)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -896,8 +868,6 @@ func ProveCloser(
 	}
 	rc.Fail(t, "ProveCloser")
 	s := closerSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := closerProofs()
 	for _, row := range rc.rows {
@@ -916,9 +886,7 @@ func ProveCloser(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1014,19 +982,6 @@ func closerModelRows() []suite.Check[Closer] {
 				closerAssertIdempotentLifecycle(tb, sub)
 			},
 		},
-		{
-			ID:    closerCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Closer]) {
-				closerAssertCounts(tb, sub)
-			},
-		},
 	}
 }
 
@@ -1042,6 +997,7 @@ func closerModelRows() []suite.Check[Closer] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Close (lifecycle), Stats (aggregator)
 //	Not bound:
+//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           closer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
 // closerModelActions is the operation vocabulary both legs drive.
@@ -1052,7 +1008,7 @@ func closerModelRows() []suite.Check[Closer] {
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func closerModelActions() []model.Action[Closer] {
-	return []model.Action[Closer]{
+	out := []model.Action[Closer]{
 		action.Lifecycle("Close",
 			func(ctx context.Context, s idempotentclose.Closer) error {
 				return s.Close(ctx)
@@ -1062,13 +1018,13 @@ func closerModelActions() []model.Action[Closer] {
 				return s.Stats(ctx)
 			}),
 	}
+	return out
 }
 
 // closerAssertRespectsContext binds AUTO-LIFECYCLE-RESPECTS-CONTEXT over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func closerAssertRespectsContext(
 	tb testing.TB,
 	sub suite.Subject[Closer],
@@ -1091,9 +1047,8 @@ func closerAssertRespectsContext(
 
 // closerAssertIdempotentLifecycle binds AUTO-IDEMPOTENT-LIFECYCLE over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func closerAssertIdempotentLifecycle(
 	tb testing.TB,
 	sub suite.Subject[Closer],
@@ -1121,31 +1076,6 @@ func closerAssertIdempotentLifecycle(
 		})
 }
 
-// closerAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func closerAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Closer],
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Closer { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Closer { return sub.New(tb) }, buildRef,
-		closerModelActions(),
-		[]law.Law[Closer]{
-			law.CountEqualsReference[idempotentclose.Closer, int]{
-				Count: func(rt *model.T, s idempotentclose.Closer) (int, error) {
-					return s.Stats(rt.Context())
-				},
-			},
-		})
-}
-
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1155,4 +1085,4 @@ func closerAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance f1aae49ad3a343ceaaba45e1ece02d36bfad5ea638d6452c43276bb136327785
+// testkit:provenance 18358b3fabf2a019ca43a5682ec68b694e0ae4cc29b04ec119bcea513df411ae

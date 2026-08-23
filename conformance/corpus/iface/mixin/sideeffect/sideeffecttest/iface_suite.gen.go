@@ -40,19 +40,11 @@ import (
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MixedHarness
-//	    one implementation under test.
-//	MixedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMixed
-//	    drives each of yours against the broken implementation it names.
-//	GreenMixed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MixedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MixedHarness — one implementation under test
+//	MixedChecks — checks of your own, run beside these
+//	ProveMixed — each of yours against the defect it names
+//	GreenMixed — all of them against correct-but-different
+//	MixedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -76,18 +68,9 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MixedFixture struct {
 	key      string
 	keyOther string
@@ -688,12 +671,8 @@ type MixedCheck struct {
 	Argued       string
 }
 
-// mixedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mixedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mixedMethods = suite.NewNameSet("Mixed", mixedTouch, mixedObserved)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -914,8 +893,6 @@ func ProveMixed(
 	}
 	rc.Fail(t, "ProveMixed")
 	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mixedProofs()
 	for _, row := range rc.rows {
@@ -934,9 +911,7 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1005,4 +980,4 @@ func GreenMixed(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 248db8dd45bafc40c9f8151085512c2e9671b1c318e06f94430391677bebf9ae
+// testkit:provenance 4662690a26df0875b2bedb1c3ac24b7263fba8cdb9d47f51ba57fa10e6356188

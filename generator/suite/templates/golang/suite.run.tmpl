@@ -121,8 +121,6 @@ func {{ suite_proveName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 		{{- if and .DrawsFixture .SeedsCorpus }}, {{ end }}
 		{{- if .SeedsCorpus }}{{ suite_corpusName .Token }}({{ if .Pools }}rc.cfg{{ end }}){{ end -}}
 	).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := {{ renderExpr (external $.Vocab "Doors") }}(rc.Subjects...)
 	defects := {{ if .Provable }}{{ suite_proofsName .Token }}(){{ else }}{{ renderExpr (external $.Prove "Defects") }}[{{ suite_subjectType $c }}]{}{{ end }}
 	for _, row := range rc.rows {
@@ -141,9 +139,7 @@ func {{ suite_proveName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [{{ renderExpr (external $.Prove "All") }}].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}

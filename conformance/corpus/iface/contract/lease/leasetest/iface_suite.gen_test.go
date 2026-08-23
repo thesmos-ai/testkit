@@ -37,8 +37,6 @@ import (
 //	Release.NilContext — a Contract whose Release forgives a nil context and answers
 //
 //	Release.Deadline — a Contract whose Release ignores the context it is handed
-//
-//	Model.Agrees — a Contract whose Acquire reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -68,4 +66,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance d3899860c0d2504514929acf9a6d87986f430c3430a4049212813fc90a26fb79
+// testkit:provenance 6f9cafd0e8360c887f6024b48cc5492fe683b4fc4b0c741c68013f61c1da29f3

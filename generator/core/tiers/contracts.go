@@ -32,6 +32,16 @@ type ContractStoreSpec struct {
 	TypeArgRole   string
 	TypeArgResult bool
 
+	// TypeArgIsValue says the type argument is what the store HOLDS rather
+	// than what it is keyed by.
+	//
+	// A lease is keyed by what acquire takes and a cell by what its writer
+	// sends, so for those the roles draw from the key pool. A publisher's
+	// message is neither: it is the payload, and drawing it as a key
+	// leaves the run with no value pool at all — which every law wanting
+	// one then declines against, on a fixture whose oracle is right there.
+	TypeArgIsValue bool
+
 	// CtorFns are constructor arguments before the error slots, each the
 	// name of a ref-package function instantiated at the store's type
 	// argument and called with nothing — the chain's default hash, a
@@ -108,6 +118,24 @@ func ContractRoles(contract string) []string {
 	return out
 }
 
+// ContractRoleOptional reports a role the oracle models where a
+// declaration carries it and does without where it does not.
+//
+// [ContractRoles] reads the required set off the op table, which is right
+// for a role the contract cannot be itself without: a lease with no
+// release is not a lease. A redelivery is not like that — the mode laws
+// declare it optional and bind in their unrefined form when it is absent
+// — so listing its op would otherwise make three publishers that never
+// mention it incomplete, and drop them to the twin floor.
+func ContractRoleOptional(contract, role string) bool {
+	return contractOptionalRoles[contract+"."+role]
+}
+
+//nolint:gochecknoglobals // a lookup table, read-only after init.
+var contractOptionalRoles = map[string]bool{
+	contractPublisher + "." + roleRedeliver: true,
+}
+
 // ContractsWithStores returns every contract carrying a store row, sorted,
 // for the censuses.
 func ContractsWithStores() []string {
@@ -130,6 +158,10 @@ func trimPrefix(s, prefix string) (string, bool) {
 // The contract-role vocabulary, spelled once: the role names are the
 // directives' and the op names the oracles'.
 const (
+	rolePublish   = "publish"
+	roleSubscribe = "subscribe"
+	roleRedeliver = "redeliver"
+
 	roleAcquire = "acquire"
 	opAcquire   = "Acquire"
 	opRelease   = "Release"
@@ -142,8 +174,10 @@ const (
 	roleVerify  = "verify"
 	roleWriter  = "writer"
 
-	opGet    = "Get"
-	opVerify = "Verify"
+	opGet       = "Get"
+	opVerify    = "Verify"
+	opPublish   = "Publish"
+	opSubscribe = "Subscribe"
 )
 
 // The contract oracle tables.
@@ -173,6 +207,28 @@ var (
 			// serves its Verify, and the default is the semantics choice.
 			CtorFns: []string{"DefaultChainHash"},
 		},
+		// A publisher's oracle is the fan-out its declaration implies:
+		// everyone subscribed at the moment of a publish gets that message,
+		// once. Deliberately once — a subject claiming at-least-once may
+		// deliver more and one claiming at-most-once may deliver less, and a
+		// reference sitting at neither extreme is what lets the comparison
+		// say which way a subject deviated.
+		//
+		// The message type comes from publish's argument. Subscribe's result
+		// is a channel, which is a handle rather than a value, so a type
+		// argument read off it would instantiate the store at something no
+		// pool draws.
+		contractPublisher: {
+			Store:          "FanOut",
+			TypeArgRole:    rolePublish,
+			TypeArgIsValue: true,
+			// No error arguments, and that is not an oversight the lenient
+			// arm covers. A fan-out has no state to refuse from: a publish
+			// reaches whoever is subscribed, and a subscribe always
+			// succeeds. Where a publisher declares a lifecycle, the
+			// sentinel it reports past Close is the lifecycle mixin's and
+			// the laws that read it are its own.
+		},
 		contractCAS: {
 			Store:        "VersionedCell",
 			TypeArgRole:  roleWriter,
@@ -199,6 +255,18 @@ var (
 		contractChain + "." + roleVerify: opVerify,
 
 		contractCAS + "." + roleWriter: fieldPut,
+
+		// Both forward unchanged: the oracle is written at the shapes a Go
+		// publisher declares, so there is nothing for the adapter to
+		// translate. See ref.FanOut, which says why it is shaped that way.
+		contractPublisher + "." + rolePublish:   opPublish,
+		contractPublisher + "." + roleSubscribe: opSubscribe,
+		// A redelivery on a fan-out is another publish, and the oracle
+		// says so rather than growing a second method that would do the
+		// same thing. The duplicate is the point: at-least-once permits
+		// it, exactly-once must swallow it, and the reference offering
+		// the message twice is what either claim is measured against.
+		contractPublisher + "." + roleRedeliver: opPublish,
 	}
 	contractRoleDrains = map[string]bool{
 		// The AppendOnly oracle replays through an iterator; the corpus's

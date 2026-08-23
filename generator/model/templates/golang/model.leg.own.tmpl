@@ -10,9 +10,8 @@ than "one of the laws".
 {{- define "model.leg.own" -}}
 // {{ .Assert }} binds {{ (index .Laws 0).ID }} over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [{{ renderExpr (external .LegsPkg "Law") }}]
+// for why the differential is off on every law leg.
 func {{ .Assert }}(
 	tb {{ renderExpr (external "testing" "TB") }},
 	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],

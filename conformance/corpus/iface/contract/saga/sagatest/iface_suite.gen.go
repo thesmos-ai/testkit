@@ -47,19 +47,11 @@ import (
 //		RunContract(t, ContractHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ContractHarness
-//	    one implementation under test.
-//	ContractChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveContract
-//	    drives each of yours against the broken implementation it names.
-//	GreenContract
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ContractSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ContractHarness — one implementation under test
+//	ContractChecks — checks of your own, run beside these
+//	ProveContract — each of yours against the defect it names
+//	GreenContract — all of them against correct-but-different
+//	ContractSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -76,7 +68,6 @@ import (
 //	Step/deadline
 //	Step/nilcontext
 //	Step/smoke
-//	model/contract/AUTO-COUNT-EQUALS-REFERENCE
 //	model/contract/AUTO-SAGA-FULL-COMPENSATION
 //
 // A version check, performed by the compiler. If this file was generated
@@ -87,18 +78,9 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ContractFixture struct {
 	value      saga.Value
 	valueOther saga.Value
@@ -291,7 +273,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.State.Deadline():             "ContractSuite.Checks.State.Deadline()",
 	contractCheckIndex.State.ZeroOnError():          "ContractSuite.Checks.State.ZeroOnError()",
 	contractCheckIndex.Model.SagaFullCompensation(): "ContractSuite.Checks.Model.SagaFullCompensation()",
-	contractCheckIndex.Model.Counts():               "ContractSuite.Checks.Model.Counts()",
 }
 
 var contractDropHint = suite.DropHinter(
@@ -427,14 +408,9 @@ func (contractModelChecks) SagaFullCompensation() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.SagaFullCompensation)
 }
 
-func (contractModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CountEqualsReference)
-}
-
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
 		contractModelChecks{}.SagaFullCompensation(),
-		contractModelChecks{}.Counts(),
 	}
 }
 
@@ -775,12 +751,8 @@ type ContractCheck struct {
 	PropCompensate func(rt *PropT, s Contract, value saga.Value)
 }
 
-// contractMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// contractMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var contractMethods = suite.NewNameSet("Contract", contractStep, contractCompensate, contractState)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1043,8 +1015,6 @@ func ProveContract(
 	}
 	rc.Fail(t, "ProveContract")
 	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := contractProofs()
 	for _, row := range rc.rows {
@@ -1063,9 +1033,7 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1142,23 +1110,10 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			Binds: []string{
 				lawid.SagaFullCompensation,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertSagaFullCompensation(tb, sub, fx)
-			},
-		},
-		{
-			ID:    contractCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
-				contractAssertCounts(tb, sub, fx)
 			},
 		},
 	}
@@ -1178,6 +1133,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
+//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
 // contractModelValues is the value pool every value slot draws from.
@@ -1202,7 +1158,7 @@ func contractModelValues(fx ContractFixture) *model.Generator[saga.Value] {
 // fails.
 func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	values := contractModelValues(fx)
-	return []model.Action[Contract]{
+	out := []model.Action[Contract]{
 		action.Writer("Step", values,
 			func(ctx context.Context, s saga.Contract, v saga.Value) error {
 				return s.Step(ctx, v)
@@ -1216,13 +1172,13 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 				return s.State(ctx)
 			}),
 	}
+	return out
 }
 
 // contractAssertSagaFullCompensation binds AUTO-SAGA-FULL-COMPENSATION over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func contractAssertSagaFullCompensation(
 	tb testing.TB,
 	sub suite.Subject[Contract],
@@ -1265,32 +1221,6 @@ func contractAssertSagaFullCompensation(
 		})
 }
 
-// contractAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func contractAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Contract],
-	fx ContractFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Contract { return sub.New(tb) }, buildRef,
-		contractModelActions(fx),
-		[]law.Law[Contract]{
-			law.CountEqualsReference[saga.Contract, string]{
-				Count: func(rt *model.T, s saga.Contract) (string, error) {
-					return s.State(rt.Context())
-				},
-			},
-		})
-}
-
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1300,4 +1230,4 @@ func contractAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance c55bac088b4e0312ee8d5871ed7dd85f2bfc93b8b76eb4ac0f512c442cc1d8fe
+// testkit:provenance cffbd5994a89b544d4b3baebf3a0c0e8d0edbb4715a36c4c54e70873b44864ff

@@ -45,19 +45,11 @@ import (
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MixedHarness
-//	    one implementation under test.
-//	MixedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMixed
-//	    drives each of yours against the broken implementation it names.
-//	GreenMixed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MixedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MixedHarness — one implementation under test
+//	MixedChecks — checks of your own, run beside these
+//	ProveMixed — each of yours against the defect it names
+//	GreenMixed — all of them against correct-but-different
+//	MixedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -78,18 +70,9 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MixedFixture struct {
 }
 
@@ -574,12 +557,8 @@ type MixedCheck struct {
 	Prop func(rt *PropT, s Mixed, fx MixedFixture)
 }
 
-// mixedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mixedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mixedMethods = suite.NewNameSet("Mixed", mixedCommit, mixedPrepare)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -776,8 +755,6 @@ func ProveMixed(
 	}
 	rc.Fail(t, "ProveMixed")
 	s := mixedSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mixedProofs()
 	for _, row := range rc.rows {
@@ -796,9 +773,7 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -899,6 +874,7 @@ func mixedModelRows() []suite.Check[Mixed] {
 //	           Prepare — the orderafter.fn partner — an ordering constraint, not an operation to drive at random
 //	Not bound:
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // mixedModelActions is the operation vocabulary both legs drive.
 //
@@ -908,19 +884,19 @@ func mixedModelRows() []suite.Check[Mixed] {
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func mixedModelActions() []model.Action[Mixed] {
-	return []model.Action[Mixed]{
+	out := []model.Action[Mixed]{
 		action.Lifecycle("Commit",
 			func(ctx context.Context, s orderafter.Mixed) error {
 				return s.Commit(ctx)
 			}),
 	}
+	return out
 }
 
 // mixedAssertRespectsContext binds AUTO-LIFECYCLE-RESPECTS-CONTEXT over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func mixedAssertRespectsContext(
 	tb testing.TB,
 	sub suite.Subject[Mixed],
@@ -950,4 +926,4 @@ func mixedAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 429c686b0835355d4085dc4e1cf422fce4be5a548248693515f40fd0e9b2bd29
+// testkit:provenance c72b892a57f7e66ffdb8a374480cbc2f522c74a6dce8d5943ffdb615573f0e56

@@ -40,19 +40,11 @@ import (
 //		RunLeasedWriter(t, LeasedWriterHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	LeasedWriterHarness
-//	    one implementation under test.
-//	LeasedWriterChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveLeasedWriter
-//	    drives each of yours against the broken implementation it names.
-//	GreenLeasedWriter
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	LeasedWriterSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	LeasedWriterHarness — one implementation under test
+//	LeasedWriterChecks — checks of your own, run beside these
+//	ProveLeasedWriter — each of yours against the defect it names
+//	GreenLeasedWriter — all of them against correct-but-different
+//	LeasedWriterSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -80,18 +72,9 @@ import (
 var _ = suite.CompatV2
 
 // LeasedWriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type LeasedWriterFixture struct {
 	key      string
 	keyOther string
@@ -617,12 +600,8 @@ type LeasedWriterCheck struct {
 	Argued       string
 }
 
-// leasedWriterMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// leasedWriterMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var leasedWriterMethods = suite.NewNameSet("LeasedWriter", leasedWriterAcquire, leasedWriterRelease)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -824,8 +803,6 @@ func ProveLeasedWriter(
 	}
 	rc.Fail(t, "ProveLeasedWriter")
 	s := leasedWriterSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := leasedWriterProofs()
 	for _, row := range rc.rows {
@@ -844,9 +821,7 @@ func ProveLeasedWriter(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -906,15 +881,16 @@ func GreenLeasedWriter(
 // LeasedWriter carries //testkit:model, and no rows above come from it:
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
-//   AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
+//   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //   AUTO-IDEMPOTENT-WRITE — observes state through no method here — no drain, no aggregate, no keyed read
-//   AUTO-LEASE-DOUBLE-ACQUIRE-BLOCKS — Held reads the shape.contract.lease.param.held stamp, which this declaration does not carry
-//   AUTO-LEASE-RELEASED-ON-CANCEL — Timeout reads the shape.contract.lease.param.timeout stamp, which this declaration does not carry
+//   AUTO-LEASE-DOUBLE-ACQUIRE-BLOCKS — instantiates at a key type no method here draws
+//   AUTO-LEASE-RELEASED-ON-CANCEL — instantiates at a key type no method here draws
 //   leased-writer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//   leased-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance a70bdcef8c2a4a425886a7413e96ced839867563ea8f5be7de185003f7d67173
+// testkit:provenance e7e0711521d7534de54f2c846799b09fc55cc76ac3e26dda7bf1a213e09c5fb2

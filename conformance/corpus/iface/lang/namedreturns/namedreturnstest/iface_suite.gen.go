@@ -40,19 +40,11 @@ import (
 //		RunService(t, ServiceHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ServiceHarness
-//	    one implementation under test.
-//	ServiceChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveService
-//	    drives each of yours against the broken implementation it names.
-//	GreenService
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ServiceSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ServiceHarness — one implementation under test
+//	ServiceChecks — checks of your own, run beside these
+//	ProveService — each of yours against the defect it names
+//	GreenService — all of them against correct-but-different
+//	ServiceSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -89,18 +81,9 @@ import (
 var _ = suite.CompatV2
 
 // ServiceFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ServiceFixture struct {
 	id      string
 	idOther string
@@ -806,12 +789,8 @@ type ServiceCheck struct {
 	Argued       string
 }
 
-// serviceMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// serviceMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var serviceMethods = suite.NewNameSet("Service", serviceNamed, serviceUnnamed, servicePartiallyNamed)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1076,8 +1055,6 @@ func ProveService(
 	}
 	rc.Fail(t, "ProveService")
 	s := serviceSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := serviceProofs()
 	for _, row := range rc.rows {
@@ -1096,9 +1073,7 @@ func ProveService(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1154,4 +1129,4 @@ func GreenService(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 0c1191665b10001827c5f01f4f8b66d8e9e52f21250426d1fbf9a495e0a40d84
+// testkit:provenance 9cd50384e1d5847e1dbe16dc53559aadef36d881d5b9d37ba05200deb4d699cb

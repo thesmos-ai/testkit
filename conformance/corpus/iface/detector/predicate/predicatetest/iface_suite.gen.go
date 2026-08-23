@@ -44,19 +44,11 @@ import (
 //		RunPredicate(t, PredicateHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	PredicateHarness
-//	    one implementation under test.
-//	PredicateChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProvePredicate
-//	    drives each of yours against the broken implementation it names.
-//	GreenPredicate
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	PredicateSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	PredicateHarness — one implementation under test
+//	PredicateChecks — checks of your own, run beside these
+//	ProvePredicate — each of yours against the defect it names
+//	GreenPredicate — all of them against correct-but-different
+//	PredicateSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -71,18 +63,9 @@ import (
 var _ = suite.CompatV2
 
 // PredicateFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type PredicateFixture struct {
 }
 
@@ -422,12 +405,8 @@ type PredicateCheck struct {
 	Prop func(rt *PropT, s Predicate, fx PredicateFixture)
 }
 
-// predicateMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// predicateMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var predicateMethods = suite.NewNameSet("Predicate", predicateIsEmpty)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -557,8 +536,6 @@ func ProvePredicate(
 	}
 	rc.Fail(t, "ProvePredicate")
 	s := predicateSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := predicateProofs()
 	for _, row := range rc.rows {
@@ -577,9 +554,7 @@ func ProvePredicate(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -656,7 +631,7 @@ func predicateModelRows() []suite.Check[Predicate] {
 			Binds: []string{
 				lawid.PredicateConsistent,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Predicate]) {
 				predicateAssertPredicateConsistent(tb, sub)
@@ -687,19 +662,19 @@ func predicateModelRows() []suite.Check[Predicate] {
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func predicateModelActions() []model.Action[Predicate] {
-	return []model.Action[Predicate]{
+	out := []model.Action[Predicate]{
 		action.Predicate("IsEmpty",
 			func(s predicate.Predicate) bool {
 				return s.IsEmpty()
 			}),
 	}
+	return out
 }
 
 // predicateAssertPredicateConsistent binds AUTO-PREDICATE-CONSISTENT over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func predicateAssertPredicateConsistent(
 	tb testing.TB,
 	sub suite.Subject[Predicate],
@@ -729,4 +704,4 @@ func predicateAssertPredicateConsistent(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance fed1c2dcbe10d55ecfbc4bbd3317a2df340157d26ed75b46e69c893d4c96be3c
+// testkit:provenance 46ff16bf0a1be39b4504172bbd2f9d4206c1e15ea7340248247fd715d2c43927

@@ -47,19 +47,11 @@ import (
 //		RunLog(t, LogHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	LogHarness
-//	    one implementation under test.
-//	LogChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveLog
-//	    drives each of yours against the broken implementation it names.
-//	GreenLog
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	LogSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	LogHarness — one implementation under test
+//	LogChecks — checks of your own, run beside these
+//	ProveLog — each of yours against the defect it names
+//	GreenLog — all of them against correct-but-different
+//	LogSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -74,7 +66,6 @@ import (
 //	Replay/zero-on-error
 //	model/log/AUTO-APPEND-ONLY-GROWS
 //	model/log/AUTO-APPEND-ONLY-NO-DROPS
-//	model/log/AUTO-COUNT-EQUALS-REFERENCE
 //	model/log/AUTO-REPLAY-CAUSAL-ORDERING
 //	model/log/AUTO-REPLAY-DETERMINISTIC
 //
@@ -92,18 +83,9 @@ import (
 var _ = suite.CompatV2
 
 // LogFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type LogFixture struct {
 	entry      causalchain.Entry
 	entryOther causalchain.Entry
@@ -295,7 +277,6 @@ var logIndexPath = map[suite.ID]string{
 	logCheckIndex.Model.NoDrops():              "LogSuite.Checks.Model.NoDrops()",
 	logCheckIndex.Model.ReplayDeterministic():  "LogSuite.Checks.Model.ReplayDeterministic()",
 	logCheckIndex.Model.ReplayCausalOrdering(): "LogSuite.Checks.Model.ReplayCausalOrdering()",
-	logCheckIndex.Model.Counts():               "LogSuite.Checks.Model.Counts()",
 }
 
 var logDropHint = suite.DropHinter(
@@ -412,17 +393,12 @@ func (logModelChecks) ReplayCausalOrdering() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, logQualifier, lawid.ReplayCausalOrdering)
 }
 
-func (logModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, logQualifier, lawid.CountEqualsReference)
-}
-
 func (logModelChecks) All() []suite.ID {
 	return []suite.ID{
 		logModelChecks{}.Grows(),
 		logModelChecks{}.NoDrops(),
 		logModelChecks{}.ReplayDeterministic(),
 		logModelChecks{}.ReplayCausalOrdering(),
-		logModelChecks{}.Counts(),
 	}
 }
 
@@ -687,12 +663,8 @@ type LogCheck struct {
 	PropAppend func(rt *PropT, s Log, value causalchain.Entry)
 }
 
-// logMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// logMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var logMethods = suite.NewNameSet("Log", logAppend, logReplay)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -910,8 +882,6 @@ func ProveLog(
 	}
 	rc.Fail(t, "ProveLog")
 	s := logSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := logProofs()
 	for _, row := range rc.rows {
@@ -930,9 +900,7 @@ func ProveLog(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1009,7 +977,7 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 			Binds: []string{
 				lawid.AppendOnlyGrows,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
 				logAssertGrows(tb, sub, fx)
@@ -1022,7 +990,7 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 			Binds: []string{
 				lawid.AppendOnlyNoDrops,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
 				logAssertNoDrops(tb, sub, fx)
@@ -1035,7 +1003,7 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 			Binds: []string{
 				lawid.ReplayDeterministic,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
 				logAssertReplayDeterministic(tb, sub, fx)
@@ -1052,23 +1020,10 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 				"entryID":   nil,
 				"dependsOn": nil,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
 				logAssertReplayCausalOrdering(tb, sub, fx)
-			},
-		},
-		{
-			ID:    logCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Log]) {
-				logAssertCounts(tb, sub, fx)
 			},
 		},
 	}
@@ -1090,6 +1045,7 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           AUTO-CAUSAL-ORDERING — instantiates at a key type no method here draws
 //	           AUTO-HASH-CHAIN-INTEGRITY-VERIFY — Verify names chain.verify, which the selecting method does not stamp
+//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           log differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
 // logModelValues is the value pool every value slot draws from.
@@ -1109,7 +1065,7 @@ func logModelValues(fx LogFixture) *model.Generator[causalchain.Entry] {
 // fails.
 func logModelActions(fx LogFixture, appendHist *history.History[string, causalchain.Entry]) []model.Action[Log] {
 	values := logModelValues(fx)
-	return []model.Action[Log]{
+	out := []model.Action[Log]{
 		action.ChainAppendRecording("Append", values, appendHist, func(causalchain.Entry) string { return "" },
 			func(ctx context.Context, s causalchain.Log, v causalchain.Entry) error {
 				return s.Append(ctx, v)
@@ -1119,13 +1075,13 @@ func logModelActions(fx LogFixture, appendHist *history.History[string, causalch
 				return s.Replay(ctx)
 			}),
 	}
+	return out
 }
 
 // logAssertGrows binds AUTO-APPEND-ONLY-GROWS over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func logAssertGrows(
 	tb testing.TB,
 	sub suite.Subject[Log],
@@ -1167,9 +1123,8 @@ func logAssertGrows(
 
 // logAssertNoDrops binds AUTO-APPEND-ONLY-NO-DROPS over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func logAssertNoDrops(
 	tb testing.TB,
 	sub suite.Subject[Log],
@@ -1211,9 +1166,8 @@ func logAssertNoDrops(
 
 // logAssertReplayDeterministic binds AUTO-REPLAY-DETERMINISTIC over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func logAssertReplayDeterministic(
 	tb testing.TB,
 	sub suite.Subject[Log],
@@ -1255,9 +1209,8 @@ func logAssertReplayDeterministic(
 
 // logAssertReplayCausalOrdering binds AUTO-REPLAY-CAUSAL-ORDERING over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func logAssertReplayCausalOrdering(
 	tb testing.TB,
 	sub suite.Subject[Log],
@@ -1299,38 +1252,6 @@ func logAssertReplayCausalOrdering(
 		model.WithHistoryReset[Log](appendHist.Reset))
 }
 
-// logAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func logAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Log],
-	fx LogFixture,
-) {
-	tb.Helper()
-	// The log the recording actions fill and the runner clears each
-	// iteration: a law reading a history the sequences never wrote into is
-	// a law over an empty record.
-	appendHist := history.New[string, causalchain.Entry]()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Log { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Log { return sub.New(tb) }, buildRef,
-		logModelActions(fx, appendHist),
-		[]law.Law[Log]{
-			law.CountEqualsReference[causalchain.Log, int]{
-				Count: func(rt *model.T, s causalchain.Log) (int, error) {
-					items, err := s.Replay(rt.Context())
-					return len(items), err
-				},
-			},
-		},
-		model.WithHistoryReset[Log](appendHist.Reset))
-}
-
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1340,4 +1261,4 @@ func logAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance ec40f01403a891c188f22e91bc18673f275c428740183da4657d69ad56f5286f
+// testkit:provenance 354700cf91ea1f43fd141863615cf7517df34ceaf38979ba168e97d7d58a780f

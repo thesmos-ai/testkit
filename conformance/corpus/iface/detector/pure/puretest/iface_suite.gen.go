@@ -44,19 +44,11 @@ import (
 //		RunPure(t, PureHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	PureHarness
-//	    one implementation under test.
-//	PureChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProvePure
-//	    drives each of yours against the broken implementation it names.
-//	GreenPure
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	PureSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	PureHarness — one implementation under test
+//	PureChecks — checks of your own, run beside these
+//	ProvePure — each of yours against the defect it names
+//	GreenPure — all of them against correct-but-different
+//	PureSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -71,18 +63,9 @@ import (
 var _ = suite.CompatV2
 
 // PureFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type PureFixture struct {
 }
 
@@ -422,12 +405,8 @@ type PureCheck struct {
 	Prop func(rt *PropT, s Pure, fx PureFixture)
 }
 
-// pureMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// pureMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var pureMethods = suite.NewNameSet("Pure", pureDescribe)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -557,8 +536,6 @@ func ProvePure(
 	}
 	rc.Fail(t, "ProvePure")
 	s := pureSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := pureProofs()
 	for _, row := range rc.rows {
@@ -577,9 +554,7 @@ func ProvePure(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -656,7 +631,7 @@ func pureModelRows() []suite.Check[Pure] {
 			Binds: []string{
 				lawid.PureDeterministic,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Pure]) {
 				pureAssertPureDeterministic(tb, sub)
@@ -687,19 +662,19 @@ func pureModelRows() []suite.Check[Pure] {
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func pureModelActions() []model.Action[Pure] {
-	return []model.Action[Pure]{
+	out := []model.Action[Pure]{
 		action.Pure("Describe",
 			func(s pure.Pure) string {
 				return s.Describe()
 			}),
 	}
+	return out
 }
 
 // pureAssertPureDeterministic binds AUTO-PURE-DETERMINISTIC over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func pureAssertPureDeterministic(
 	tb testing.TB,
 	sub suite.Subject[Pure],
@@ -729,4 +704,4 @@ func pureAssertPureDeterministic(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance d6ef737665a4370aad8ef4137afa4db488e09fcfb061717c38df6ed926784aee
+// testkit:provenance 741d18aeedf2f815b24ae729c816ab0467a8c5635a242ec76b26f20bb87a1f8b

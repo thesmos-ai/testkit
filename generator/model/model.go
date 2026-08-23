@@ -93,6 +93,41 @@ type PublisherSpec struct {
 	Sub, Msg sdk.Ref
 }
 
+// DeliverySpec is the publisher subscription a run compares across a whole
+// sequence: open on both sides, published to on both, and drained against
+// each other one-sided per mode.
+//
+// The mode is the declaration's own where it stamps one. A publisher that
+// stamps none claims delivery and nothing about duplicates, which is
+// at-least-once read as a floor: the comparison then catches a message the
+// subject never delivered and lets a duplicate pass, because nothing said
+// duplicates were forbidden.
+type DeliverySpec struct {
+	// Name prefixes the three actions, so a report says which subscription
+	// a disagreement was on.
+	Name string
+
+	// Subscribe and Publish are the role methods, with TakesCtx saying
+	// whether each forwards the run's context.
+	Subscribe, Publish       string
+	SubscribeCtx, PublishCtx bool
+
+	// Msg is the message type and Sub the channel Subscribe answers.
+	Msg, Sub sdk.Ref
+
+	// Mode is the action package's own enum for the stamped guarantee.
+	Mode *sdk.Expr
+
+	// Loss records that the mode permits the subject to deliver less than
+	// the reference, which decides what a defect against the comparison
+	// can be.
+	Loss bool
+}
+
+// PermitsLoss reports the one mode that lets a subject deliver less than
+// the reference — at-most-once, where dropping is the guarantee's price.
+func (d *DeliverySpec) PermitsLoss() bool { return d != nil && d.Loss }
+
 // SuppliedOption is one consumer-supplied door: the law field it fills, the
 // config field the guarded registration reads, and the closure type spelled
 // at the fixture's own instantiation.
@@ -283,6 +318,14 @@ type Bindings struct {
 	// Reference is the known-good implementation every action compares
 	// against.
 	Reference Reference
+
+	// Delivery is the subscription pair a publisher's actions drive, nil
+	// where the interface declares none.
+	//
+	// Three actions from one role pair, which is why it is a value here
+	// rather than three entries in Actions: they share the two open
+	// handles, and a list of independent actions has nowhere to keep them.
+	Delivery *DeliverySpec
 
 	// EvictingRead names the read whose miss the declared bound makes
 	// legal, empty on every interface that declares no bound or offers no
@@ -599,8 +642,18 @@ func (b *Bindings) NeedsFixture() bool {
 	return false
 }
 
+// ActionPkg surfaces the engine constructors' import path to the bindings
+// template, which reaches for one directly where a set of actions comes
+// from a single value rather than from a per-method node.
+func (*Bindings) ActionPkg() string { return actionPkg }
+
 // UsesValues reports whether any action draws from the values pool.
 func (b *Bindings) UsesValues() bool {
+	if b.Delivery != nil {
+		// The delivery set draws its messages from the values pool, and it
+		// replaced the publish action that would otherwise say so.
+		return true
+	}
 	for _, a := range b.Actions {
 		if a.Pool == poolValues {
 			return true

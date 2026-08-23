@@ -189,6 +189,15 @@ type Pool struct {
 	Pin string
 }
 
+// Identity reports that the hostile transform is a conversion from string
+// to string, and so no conversion at all.
+//
+// The blend lifts a drawn hostile string into the pool's element type, and
+// where that type IS string the lift is `string(s)` — legal, a no-op, and
+// a line every reader of the generated file stops on to check they have
+// not missed something. Thirty-six of them across the corpus said nothing.
+func (p Pool) Identity() bool { return p.Q == builtinString }
+
 // Read and OtherRead spell the two draws as calls on the harness's
 // fixture: `fx.Key()`, or `fx.Value().Key` where the key rides inside a
 // fixture value rather than beside it.

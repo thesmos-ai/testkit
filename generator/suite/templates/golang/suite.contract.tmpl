@@ -9,19 +9,11 @@
 //		{{ suite_runName .IfaceName }}(t, {{ suite_harnessName .IfaceName }}[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	{{ suite_harnessName .IfaceName }}
-//	    one implementation under test.
-//	{{ suite_rowsName .IfaceName }}
-//	    checks you write yourself, run beside the generated ones.
-//	{{ suite_proveName .IfaceName }}
-//	    drives each of yours against the broken implementation it names.
-//	{{ suite_greenName .IfaceName }}
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	{{ suite_veneerVar .IfaceName }}.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	{{ suite_harnessName .IfaceName }} — one implementation under test
+//	{{ suite_rowsName .IfaceName }} — checks of your own, run beside these
+//	{{ suite_proveName .IfaceName }} — each of yours against the defect it names
+//	{{ suite_greenName .IfaceName }} — all of them against correct-but-different
+//	{{ suite_veneerVar .IfaceName }}.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -71,18 +63,9 @@
 var _ = {{ renderExpr (external $.Vocab "CompatV2") }}
 
 // {{ $.Fixture.TypeName }} holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [{{ renderExpr (external $.Vocab "Row") }}]'s Run for how they are
+// derived and what a field it could not derive means.
 type {{ $.Fixture.TypeName }}{{ renderTypeParams $.TypeParams }} struct {
 {{- range $f := $.Fixture.Fields }}
 	{{ camel $f.Name }} {{ renderType $f.Type }}

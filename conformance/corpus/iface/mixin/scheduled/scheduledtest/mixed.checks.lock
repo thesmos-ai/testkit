@@ -8,5 +8,4 @@ Fired/deadline	signature/deadline	Fired reports an expired deadline as exceeded
 Fired/nilcontext	signature/nilcontext	Fired returns an error rather than panicking on a nil context	
 Fired/smoke	signature/smoke	Fired survives a call	
 Fired/zero-on-error	signature/zero-on-error	Fired returns zero alongside any error	
-model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/mixed/AUTO-SCHEDULED-FIRES-AFTER-ADVANCE	model/clocked	work scheduled for a time already passed has fired	AUTO-SCHEDULED-FIRES-AFTER-ADVANCE

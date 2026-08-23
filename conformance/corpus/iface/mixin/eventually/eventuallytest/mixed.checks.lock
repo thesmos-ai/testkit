@@ -12,5 +12,4 @@ Settle/cancel	signature/cancel	Settle reports a cancelled context as cancelled
 Settle/nilcontext	signature/nilcontext	Settle returns an error rather than panicking on a nil context	
 Settle/smoke	signature/smoke	Settle survives a call	
 Sync/smoke	signature/smoke	Sync survives a call with a derived mixed	
-model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/mixed/AUTO-EVENTUAL-CONVERGENCE	model/laws	replicas given disjoint writes converge once they exchange state	AUTO-EVENTUAL-CONVERGENCE

@@ -32,6 +32,7 @@ import (
 	"go.thesmos.sh/testkit/engine/model"
 	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/model/law"
+	"go.thesmos.sh/testkit/engine/model/ref"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -45,19 +46,11 @@ import (
 //		RunContract(t, ContractHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ContractHarness
-//	    one implementation under test.
-//	ContractChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveContract
-//	    drives each of yours against the broken implementation it names.
-//	GreenContract
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ContractSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ContractHarness — one implementation under test
+//	ContractChecks — checks of your own, run beside these
+//	ProveContract — each of yours against the defect it names
+//	GreenContract — all of them against correct-but-different
+//	ContractSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -85,18 +78,9 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ContractFixture struct {
 	value      publisherredeliver.Value
 	valueOther publisherredeliver.Value
@@ -758,25 +742,21 @@ type ContractCheck struct {
 	// Requires Method, like Run.
 	Prop func(rt *PropT, s Contract, fx ContractFixture)
 
-	// PropPublish is Prop with Publish's own argument already drawn
-	// from the pool the generated checks draw it from — so an override you
-	// set on the run reaches your property too. Fixes the check's scope to
-	// Publish, so leave Method empty.
-	PropPublish func(rt *PropT, s Contract, value publisherredeliver.Value)
-
 	// PropRepublish is Prop with Republish's own argument already drawn
 	// from the pool the generated checks draw it from — so an override you
 	// set on the run reaches your property too. Fixes the check's scope to
 	// Republish, so leave Method empty.
 	PropRepublish func(rt *PropT, s Contract, value publisherredeliver.Value)
+
+	// PropPublish is Prop with Publish's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Publish, so leave Method empty.
+	PropPublish func(rt *PropT, s Contract, value publisherredeliver.Value)
 }
 
-// contractMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// contractMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var contractMethods = suite.NewNameSet("Contract", contractPublish, contractRepublish, contractSubscribe)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -791,7 +771,7 @@ func (c ContractCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, contractMethods)
-	b.Offers("Prop, PropPublish, PropRepublish")
+	b.Offers("Prop, PropRepublish, PropPublish")
 	if fn := c.Prop; fn != nil {
 		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Contract]) {
 			model.Check(tb, func(rt *PropT) {
@@ -799,16 +779,16 @@ func (c ContractCheck) bind(
 			})
 		})
 	}
-	if fn := c.PropPublish; fn != nil {
-		b.Fixed(suite.MethodID(contractPublish, c.Name),
+	if fn := c.PropRepublish; fn != nil {
+		b.Fixed(suite.MethodID(contractRepublish, c.Name),
 			func(tb testing.TB, sub suite.Subject[Contract]) {
 				model.Check(tb, func(rt *PropT) {
 					fn(rt, sub.New(tb), contractModelValues(fx).Draw(rt, "value"))
 				})
 			})
 	}
-	if fn := c.PropRepublish; fn != nil {
-		b.Fixed(suite.MethodID(contractRepublish, c.Name),
+	if fn := c.PropPublish; fn != nil {
+		b.Fixed(suite.MethodID(contractPublish, c.Name),
 			func(tb testing.TB, sub suite.Subject[Contract]) {
 				model.Check(tb, func(rt *PropT) {
 					fn(rt, sub.New(tb), contractModelValues(fx).Draw(rt, "value"))
@@ -1059,8 +1039,6 @@ func ProveContract(
 	}
 	rc.Fail(t, "ProveContract")
 	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := contractProofs()
 	for _, row := range rc.rows {
@@ -1079,9 +1057,7 @@ func ProveContract(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1159,7 +1135,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 				lawid.PublisherDelivers,
 			},
 			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthObserved,
+			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertDelivers(tb, sub, fx)
 			},
@@ -1172,7 +1148,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 				lawid.PublisherAtLeastOnce,
 			},
 			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthObserved,
+			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertAtLeastOnce(tb, sub, fx)
 			},
@@ -1186,11 +1162,9 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 // something that judges them from outside. The rows on the run surface
 // above carry it, and ContractSuite.Without declines any of them by name.
 //
-//	Reference: the subject's own factory — no reader/writer pair derives a store,
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-//	Sequences: Publish (writer), Republish (writer)
+//	Reference: derived — the FanOut oracle, which is the
+//	           publisher contract's own semantics; NewContractModelReference replaces it
+//	Sequences: Republish (writer)
 //	Drain:     derived — a non-blocking sweep asserting fan-out synchronous
 //	           with Publish; an async subject reads as loss against this floor
 //	Values:    the fixture pair blended with arbitrary draws
@@ -1199,7 +1173,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           AUTO-COUNT-EQUALS-REFERENCE — Count observes Subscribe's result, a live handle only identity could compare
-//	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 
 // contractModelValues is the value pool every value slot draws from.
 //
@@ -1212,6 +1186,32 @@ func contractModelValues(fx ContractFixture) *model.Generator[publisherredeliver
 		model.Make[publisherredeliver.Value](),
 	)
 	return bodies
+}
+
+// contractModelReference adapts the shipped FanOut oracle — the
+// publisher contract's own semantics — to Contract.
+// Deliberately simple: its correctness is read, not tested.
+type contractModelReference struct {
+	store *ref.FanOut[publisherredeliver.Value]
+}
+
+// NewContractModelReference builds one. Exported because a consumer whose
+// semantics outrun their shape replaces it, and because the proof beside
+// this file drives it as a subject of its own.
+func NewContractModelReference() Contract {
+	return &contractModelReference{store: ref.NewFanOut[publisherredeliver.Value]()}
+}
+
+func (r *contractModelReference) Publish(ctx context.Context, v publisherredeliver.Value) error {
+	return r.store.Publish(ctx, v)
+}
+
+func (r *contractModelReference) Republish(ctx context.Context, v publisherredeliver.Value) error {
+	return r.store.Publish(ctx, v)
+}
+
+func (r *contractModelReference) Subscribe(ctx context.Context) (<-chan publisherredeliver.Value, error) {
+	return r.store.Subscribe(ctx)
 }
 
 // contractDrainSubscription sweeps what Publish already delivered, asserting
@@ -1239,23 +1239,34 @@ func contractDrainSubscription(_ *model.T, _ Contract, sub <-chan publisherredel
 // fails.
 func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	values := contractModelValues(fx)
-	return []model.Action[Contract]{
-		action.Writer("Publish", values,
-			func(ctx context.Context, s publisherredeliver.Contract, v publisherredeliver.Value) error {
-				return s.Publish(ctx, v)
-			}),
+	out := []model.Action[Contract]{
 		action.Writer("Republish", values,
 			func(ctx context.Context, s publisherredeliver.Contract, v publisherredeliver.Value) error {
 				return s.Republish(ctx, v)
 			}),
 	}
+	// The subscription pair, three actions sharing two open handles: one
+	// opens them, one publishes to both, one compares what each has
+	// delivered so far. Appended rather than listed above because they
+	// come as a set — see the action package's Delivery, which says why
+	// the comparison has to span steps rather than close its own cycle.
+	out = append(out, action.NewDelivery[Contract, publisherredeliver.Value](
+		"Publish",
+		func(ctx context.Context, s Contract) (<-chan publisherredeliver.Value, error) {
+			return s.Subscribe(ctx)
+		},
+		func(ctx context.Context, s Contract, m publisherredeliver.Value) error {
+			return s.Publish(ctx, m)
+		},
+		values, action.AtLeastOnce,
+	).Actions()...)
+	return out
 }
 
 // contractAssertDelivers binds AUTO-PUBLISHER-DELIVERS over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func contractAssertDelivers(
 	tb testing.TB,
 	sub suite.Subject[Contract],
@@ -1265,7 +1276,7 @@ func contractAssertDelivers(
 	values := contractModelValues(fx)
 	drainSub := contractDrainSubscription
 
-	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
+	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
 	sub.NoteTier(tier)
 	legs.Law(tb, sub,
 		func() Contract { return sub.New(tb) }, buildRef,
@@ -1286,9 +1297,8 @@ func contractAssertDelivers(
 
 // contractAssertAtLeastOnce binds AUTO-PUBLISHER-AT-LEAST-ONCE over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func contractAssertAtLeastOnce(
 	tb testing.TB,
 	sub suite.Subject[Contract],
@@ -1298,7 +1308,7 @@ func contractAssertAtLeastOnce(
 	values := contractModelValues(fx)
 	drainSub := contractDrainSubscription
 
-	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
+	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
 	sub.NoteTier(tier)
 	legs.Law(tb, sub,
 		func() Contract { return sub.New(tb) }, buildRef,
@@ -1330,4 +1340,4 @@ func contractAssertAtLeastOnce(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 4b598b6e044c321396f790454aeb52fef8d697359e13f1e53aab63ed2cb78258
+// testkit:provenance c227b36fa71248f78ccdc68c6a3541b5e56b88b0c3f6f7e0063079e99ee36bda

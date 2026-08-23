@@ -45,19 +45,11 @@ import (
 //		RunReplica(t, ReplicaHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	ReplicaHarness
-//	    one implementation under test.
-//	ReplicaChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveReplica
-//	    drives each of yours against the broken implementation it names.
-//	GreenReplica
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	ReplicaSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	ReplicaHarness — one implementation under test
+//	ReplicaChecks — checks of your own, run beside these
+//	ProveReplica — each of yours against the defect it names
+//	GreenReplica — all of them against correct-but-different
+//	ReplicaSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -66,7 +58,6 @@ import (
 //	Items/nilcontext
 //	Items/smoke
 //	Items/zero-on-error
-//	model/replica/AUTO-COUNT-EQUALS-REFERENCE
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -76,18 +67,9 @@ import (
 var _ = suite.CompatV2
 
 // ReplicaFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type ReplicaFixture struct {
 }
 
@@ -258,7 +240,6 @@ var replicaIndexPath = map[suite.ID]string{
 	replicaCheckIndex.Items.NilContext():  "ReplicaSuite.Checks.Items.NilContext()",
 	replicaCheckIndex.Items.Deadline():    "ReplicaSuite.Checks.Items.Deadline()",
 	replicaCheckIndex.Items.ZeroOnError(): "ReplicaSuite.Checks.Items.ZeroOnError()",
-	replicaCheckIndex.Model.Counts():      "ReplicaSuite.Checks.Model.Counts()",
 }
 
 var replicaDropHint = suite.DropHinter(
@@ -269,28 +250,22 @@ var replicaDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	replicaItems = "Items"
-
-	// The interface's word inside a family-scoped identity.
-	replicaQualifier = "replica"
 )
 
 // replicaCheckIndex names every check in this file, grouped by method.
 // Reach it through ReplicaSuite.Checks.
 var replicaCheckIndex = replicaCheckIndexT{
 	Items: replicaItemsChecks{},
-	Model: replicaModelChecks{},
 }
 
 type replicaCheckIndexT struct {
 	Items replicaItemsChecks
-	Model replicaModelChecks
 }
 
 // All returns every ID this package emits.
 func (replicaCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, replicaItemsChecks{}.All()...)
-	out = append(out, replicaModelChecks{}.All()...)
 	return out
 }
 
@@ -326,18 +301,6 @@ func (replicaItemsChecks) All() []suite.ID {
 	}
 }
 
-type replicaModelChecks struct{}
-
-func (replicaModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, replicaQualifier, lawid.CountEqualsReference)
-}
-
-func (replicaModelChecks) All() []suite.ID {
-	return []suite.ID{
-		replicaModelChecks{}.Counts(),
-	}
-}
-
 // replicaSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -347,8 +310,7 @@ func replicaSuite() suite.Suite[Replica] {
 	return suite.Suite[Replica]{
 		Name:     "Replica",
 		DropHint: replicaDropHint,
-		Checks: append(replicaSignatureChecks(),
-			replicaModelRows()...),
+		Checks:   replicaSignatureChecks(),
 	}
 }
 
@@ -515,22 +477,10 @@ type ReplicaCheck struct {
 	ProvenBy     ReplicaDefect
 	ProvenReason string
 	Argued       string
-
-	// Prop is a body whose inputs are drawn rather than fixed, run many
-	// times with the draws shrunk on failure. Report through the PropT
-	// and not through a testing.TB: shrinking works by replaying draws, and
-	// a failure raised anywhere else is one the run cannot narrow.
-	//
-	// Requires Method, like Run.
-	Prop func(rt *PropT, s Replica, fx ReplicaFixture)
 }
 
-// replicaMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// replicaMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var replicaMethods = suite.NewNameSet("Replica", replicaItems)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -545,14 +495,6 @@ func (c ReplicaCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, replicaMethods)
-	b.Offers("Prop")
-	if fn := c.Prop; fn != nil {
-		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Replica]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), fx)
-			})
-		})
-	}
 	return b.Seal(c.Method)
 }
 
@@ -703,8 +645,6 @@ func ProveReplica(
 	}
 	rc.Fail(t, "ProveReplica")
 	s := replicaSuite().With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := replicaProofs()
 	for _, row := range rc.rows {
@@ -723,9 +663,7 @@ func ProveReplica(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -780,100 +718,17 @@ func GreenReplica(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// A second version check, for the leg idioms the rows above ride. The
-// harness's own covers the check format; this one covers what a model row
-// does with it. Regenerate the file to clear a mismatch.
-var _ = legs.CompatV1
-
-// replicaModelRows is what this package's model tier claims.
+// --- Replica's model tier: not emitted ----------------------------------
 //
-// Every row here needs sequences of calls judged against something
-// outside the subject, which is what separates them from the rows
-// above: those settle a claim with a fixed call sequence, and these
-// cannot be stated that way at all. That is also why each takes the
-// Subject rather than an instance — a sequence run builds its own, and
-// some of them build two.
-func replicaModelRows() []suite.Check[Replica] {
-	return []suite.Check[Replica]{
-		{
-			ID:    replicaCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Replica]) {
-				replicaAssertCounts(tb, sub)
-			},
-		},
-	}
-}
-
-// --- Replica's model tier -------------------------------------------
+// Replica carries //testkit:model, and no rows above come from it:
+// no claim this tier knows how to state reached this interface,
+// so it contributes no checks. Each reason below is one it tried:
+//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
+//   replica differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
-// Random sequences of Replica's methods, run against every subject and
-// something that judges them from outside. The rows on the run surface
-// above carry it, and ReplicaSuite.Without declines any of them by name.
-//
-//	Reference: the subject's own factory — no reader/writer pair derives a store,
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-//	Sequences: Items (collector)
-//	Not bound:
-//	           replica differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//
-// replicaModelActions is the operation vocabulary both legs drive.
-//
-// One constructor per method shape, from the engine's action set rather
-// than hand-written closures: the constructors record inputs and outputs
-// into the trace a law reads, compare the two sides the same way for every
-// action, and shrink a failing sequence to the shortest one that still
-// fails.
-func replicaModelActions() []model.Action[Replica] {
-	return []model.Action[Replica]{
-		action.Stream("Items",
-			func(ctx context.Context, s crdtmerge.Replica) ([]string, error) {
-				return s.Items(ctx)
-			}),
-	}
-}
-
-// replicaAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func replicaAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Replica],
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Replica { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Replica { return sub.New(tb) }, buildRef,
-		replicaModelActions(),
-		[]law.Law[Replica]{
-			law.CountEqualsReference[crdtmerge.Replica, int]{
-				Count: func(rt *model.T, s crdtmerge.Replica) (int, error) {
-					items, err := s.Items(rt.Context())
-					return len(items), err
-				},
-			},
-		})
-}
-
-// PropT is the property state a Prop body receives: the run's
-// draws, and the failure reporting that shrinks a counterexample.
-//
-// An alias, so it is the engine's own type — this is here only so a
-// property you write names PropT rather than obliging your test
-// file to import the engine directly.
-type PropT = model.T
+// Nothing to do about it here. The claims that needed sequences are the
+// ones this package does not check, and this says so rather than letting
+// the run surface read as complete.
 
 // Conformance checks for Mixed, worked out from its declaration.
 //
@@ -884,19 +739,11 @@ type PropT = model.T
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MixedHarness
-//	    one implementation under test.
-//	MixedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMixed
-//	    drives each of yours against the broken implementation it names.
-//	GreenMixed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MixedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MixedHarness — one implementation under test
+//	MixedChecks — checks of your own, run beside these
+//	ProveMixed — each of yours against the defect it names
+//	GreenMixed — all of them against correct-but-different
+//	MixedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -910,7 +757,6 @@ type PropT = model.T
 //	Items/smoke
 //	Items/zero-on-error
 //	Merge/smoke
-//	model/mixed/AUTO-COUNT-EQUALS-REFERENCE
 //	model/mixed/AUTO-CRDT-MERGE
 //
 // Declared on this interface and checked by testkit's model tier rather
@@ -935,18 +781,9 @@ type PropT = model.T
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MixedFixture struct {
 	replica      crdtmerge.Replica
 	replicaOther crdtmerge.Replica
@@ -1161,7 +998,6 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Items.Deadline():    "MixedSuite.Checks.Items.Deadline()",
 	mixedCheckIndex.Items.ZeroOnError(): "MixedSuite.Checks.Items.ZeroOnError()",
 	mixedCheckIndex.Model.CRDTMerge():   "MixedSuite.Checks.Model.CRDTMerge()",
-	mixedCheckIndex.Model.Counts():      "MixedSuite.Checks.Model.Counts()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -1282,14 +1118,9 @@ func (mixedModelChecks) CRDTMerge() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CRDTMerge)
 }
 
-func (mixedModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
-}
-
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedModelChecks{}.CRDTMerge(),
-		mixedModelChecks{}.Counts(),
 	}
 }
 
@@ -1571,12 +1402,8 @@ type MixedCheck struct {
 	PropAdd func(rt *PropT, s Mixed, value string)
 }
 
-// mixedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mixedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mixedMethods = suite.NewNameSet("Mixed", mixedMerge, mixedAdd, mixedItems)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1801,8 +1628,6 @@ func ProveMixed(
 	}
 	rc.Fail(t, "ProveMixed")
 	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mixedProofs()
 	for _, row := range rc.rows {
@@ -1821,9 +1646,7 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1900,23 +1723,10 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.CRDTMerge,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertCRDTMerge(tb, sub, fx)
-			},
-		},
-		{
-			ID:    mixedCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
-				mixedAssertCounts(tb, sub, fx)
 			},
 		},
 	}
@@ -1938,6 +1748,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           Merge — takes go.thesmos.sh/testkit/conformance/corpus/iface/mixin/crdtmerge.Replica where the values pool draws string
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
+//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
 // mixedModelValues is the value pool every value slot draws from.
@@ -1962,7 +1773,7 @@ func mixedModelValues(fx MixedFixture) *model.Generator[string] {
 // fails.
 func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 	values := mixedModelValues(fx)
-	return []model.Action[Mixed]{
+	out := []model.Action[Mixed]{
 		action.Writer("Add", values,
 			func(ctx context.Context, s crdtmerge.Mixed, v string) error {
 				return s.Add(ctx, v)
@@ -1972,13 +1783,13 @@ func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 				return s.Items(ctx)
 			}),
 	}
+	return out
 }
 
 // mixedAssertCRDTMerge binds AUTO-CRDT-MERGE over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func mixedAssertCRDTMerge(
 	tb testing.TB,
 	sub suite.Subject[Mixed],
@@ -2014,32 +1825,13 @@ func mixedAssertCRDTMerge(
 		})
 }
 
-// mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func mixedAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Mixed],
-	fx MixedFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Mixed { return sub.New(tb) }, buildRef,
-		mixedModelActions(fx),
-		[]law.Law[Mixed]{
-			law.CountEqualsReference[crdtmerge.Mixed, int]{
-				Count: func(rt *model.T, s crdtmerge.Mixed) (int, error) {
-					items, err := s.Items(rt.Context())
-					return len(items), err
-				},
-			},
-		})
-}
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 481ebf695e261016323155a68466e42ff782e0a4d96820f6e429c8b604ec84c6
+// testkit:provenance 0af47601ad26c179ac1f5cfdab0fbe3e5fdd07f3646071d5eff22cb07f77a7a3

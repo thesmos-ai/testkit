@@ -39,19 +39,11 @@ import (
 //		RunRanked(t, RankedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	RankedHarness
-//	    one implementation under test.
-//	RankedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveRanked
-//	    drives each of yours against the broken implementation it names.
-//	GreenRanked
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	RankedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	RankedHarness — one implementation under test
+//	RankedChecks — checks of your own, run beside these
+//	ProveRanked — each of yours against the defect it names
+//	GreenRanked — all of them against correct-but-different
+//	RankedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -76,18 +68,9 @@ import (
 var _ = suite.CompatV2
 
 // RankedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type RankedFixture[K genericbound.Ordered, V any] struct {
 	k      K
 	kOther K
@@ -506,12 +489,8 @@ type RankedCheck[K genericbound.Ordered, V any] struct {
 	Argued       string
 }
 
-// rankedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// rankedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var rankedMethods = suite.NewNameSet("Ranked", rankedRank, rankedReset)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -610,8 +589,6 @@ func ProveRanked[K genericbound.Ordered, V any](
 	}
 	rc.Fail(t, "ProveRanked")
 	s := rankedSuite[K, V](fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := prove.Defects[Ranked[K, V]]{}
 	for _, row := range rc.rows {
@@ -630,9 +607,7 @@ func ProveRanked[K genericbound.Ordered, V any](
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -688,4 +663,4 @@ func GreenRanked[K genericbound.Ordered, V any](
 }
 
 // testkit: end of generated content.
-// testkit:provenance def750b2b2c37df2dc012b4d61a808def4dc66ff245703ce8edd11279d3ad2b6
+// testkit:provenance e14c91a6be04952721e99a47675eeff25c678162794460396ecf58a8bcedeba1

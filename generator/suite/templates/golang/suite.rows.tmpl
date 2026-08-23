@@ -85,12 +85,8 @@ type {{ suite_rowName .IfaceName }}{{ renderTypeParams .TypeParams }} struct {
 {{- end }}
 }
 
-// {{ suite_methodsVar .Token }} is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// {{ suite_methodsVar .Token }} is the interface's method names — see
+// [{{ renderExpr (external $.Vocab "NewNameSet") }}] for what they catch.
 var {{ suite_methodsVar .Token }} = {{ renderExpr (external $.Vocab "NewNameSet") }}("{{ .IfaceName }}"
 	{{- range .Methods }}, {{ suite_methodConst $c.Token .Name }}{{ end }})
 

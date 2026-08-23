@@ -30,7 +30,12 @@ type NameSet struct {
 	has   map[string]bool
 }
 
-// NewNameSet builds the set for one owner — "Store" — and its methods.
+// NewNameSet records an interface's method names, so a check filed under
+// one can be held to them before the run starts.
+//
+// Without it a misspelled name would be accepted — it looks like any other
+// method name — and the check would be filed under a method that does not
+// exist, where nobody could find or drop it.
 func NewNameSet(owner string, names ...string) NameSet {
 	has := make(map[string]bool, len(names))
 	for _, n := range names {

@@ -171,6 +171,21 @@ func lawOf(
 		})
 		return nil, false
 	}
+	if r.Law == lawid.CountEqualsReference && b.Reference.Twin() {
+		// The same argument the differential is declined on, in a narrower
+		// frame. This law's whole content is that the subject counts what
+		// the reference counts, and on the twin floor the reference is a
+		// second instance of the subject — so it can only fail on
+		// nondeterminism, which is not what a row claiming a reference
+		// comparison says it checked.
+		b.Unbound = append(b.Unbound, Skip{
+			Method: r.Law,
+			Reason: "the reference is the subject's own factory, so this compares a " +
+				"count against itself; the law legs' actions already do that, and " +
+				"alone it catches nondeterminism and nothing else",
+		})
+		return nil, false
+	}
 	if r.Law == lawid.CountEqualsReference && b.EvictingRead != "" {
 		// The same refusal the count ACTION gets, for the same reason and
 		// in both places it could be made: the reference is deliberately

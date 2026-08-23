@@ -539,6 +539,19 @@ func bindingsOf(
 		}
 	}
 	contractActionsOf(b, harness)
+	if b.Delivery = deliveryOf(harness); b.Delivery != nil {
+		// The delivery set drives publish itself, so the standalone action
+		// goes: two of them would publish the same message twice per step,
+		// and the duplicate would be the run's rather than the subject's.
+		kept := b.Actions[:0]
+		for _, a := range b.Actions {
+			if a.Method == b.Delivery.Publish {
+				continue
+			}
+			kept = append(kept, a)
+		}
+		b.Actions = kept
+	}
 	// The oracle derivation sees only the canonical reader and writer; the
 	// pools serve every drawing action, so their sources widen to the
 	// fallbacks where the canonical shapes are absent. The value side was

@@ -9,5 +9,4 @@ Items/nilcontext	signature/nilcontext	Items returns an error rather than panicki
 Items/smoke	signature/smoke	Items survives a call	
 Items/zero-on-error	signature/zero-on-error	Items returns nothing alongside any error	
 Merge/smoke	signature/smoke	Merge survives a call with a derived replica	
-model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/mixed/AUTO-CRDT-MERGE	model/laws	two replicas that merge each other's state end up observably the same	AUTO-CRDT-MERGE

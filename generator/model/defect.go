@@ -68,10 +68,18 @@ func defectFor(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, 
 // declaration could not supply it. A reader sent to the rule table for a
 // gap that is in their own stamp loses the time twice.
 const (
-	// NoRule is the honest residue: nothing in the table reaches this
-	// claim from shape and stamps alone.
-	NoRule = "no mechanical rule plants a defect for this claim; the ones that " +
-		"would are domain composites, which no rule reaches from shape and stamps alone"
+	// NoRule is the honest residue: nothing in the table reaches this claim.
+	//
+	// Two things wear this reason and it does not pretend to tell them
+	// apart. Some claims are domain composites no rule could reach from
+	// shape and stamps alone — the cursor's hand-built handles, the lease's
+	// lying accounting. Others are reachable and simply have no rule yet.
+	// Fifty-nine distinct laws carry it, and sorting them would be a
+	// classification this generator has not earned; saying which is which
+	// wrongly is worse than saying neither.
+	NoRule = "no rule in this generator plants a defect for this claim — either " +
+		"nothing reaches it from shape and stamps alone, or nobody has written " +
+		"the rule; the defect is yours to write and this row claims no proof"
 
 	// RuleDeclined is the other half: a rule exists and this declaration
 	// did not give it what it needs — a method it names, a stamp it
@@ -200,6 +208,21 @@ func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *su
 // breaks a method the run actually calls. False where nothing writes:
 // there is no dropped write to plant.
 func differentialDefect(b *Bindings) (projection.Defect, *subject.Method, string) {
+	if b.Delivery != nil && b.Delivery.PermitsLoss() {
+		// This rule's whole statement is a write acknowledged and dropped,
+		// and at-most-once is the one guarantee that PERMITS it: the
+		// comparison lets a subject deliver less than the reference on
+		// purpose, so the double slips through and the row would claim a
+		// proof that cannot fail. The corpus caught it the run after the
+		// delivery actions landed.
+		//
+		// What would redden this mode is a publisher that delivers a
+		// message twice, and no stub option states that: a double answers
+		// its own return and cannot call the subject a second time.
+		return nil, nil, "the defect this rule plants is a write acknowledged " +
+			"and dropped, which at-most-once permits; the duplicate that would " +
+			"break it is not a statement a generated double can make"
+	}
 	if m := methodNamed(b, b.EvictingRead); b.EvictingRead != "" && m != nil {
 		// Where the read is compared one way, a dropped write is invisible
 		// and this rule would ship a proof that proves nothing: a subject
@@ -416,6 +439,14 @@ func writerCarrier(b *Bindings) *subject.Method {
 		case shapeWriter, shapeAnsweringWriter, shapeCompositeWriter:
 			return methodNamed(b, a.Method)
 		}
+	}
+	if b.Delivery != nil {
+		// A publisher's write is driven by the delivery set rather than by
+		// an action of its own, and it is still the write this rule plants
+		// through: the reference delivers what it was published, so a
+		// publish that reports success and keeps nothing shows up at the
+		// first comparison of what each side handed its subscriber.
+		return methodNamed(b, b.Delivery.Publish)
 	}
 	return nil
 }

@@ -153,7 +153,7 @@ const (
 	paramTxClosed            = "shape.contract.tx.param.closed"
 	paramWindowedWindow      = "shape.mixin.windowed.window"
 	paramCodecFidelity       = "shape.contract.codec.param.fidelity"
-	paramPublisherMode       = "shape.contract.publisher.param.mode"
+	ParamPublisherMode       = "shape.contract.publisher.param.mode"
 	paramWorkflowTransitions = "shape.contract.workflow.param.transitions"
 )
 
@@ -1089,19 +1089,19 @@ var rules = []Rule{
 	{
 		Law:    lawid.PublisherAtLeastOnce,
 		Needs:  []string{contractPublisher},
-		When:   []Condition{{Param: paramPublisherMode, Equals: "at-least-once"}},
+		When:   []Condition{{Param: ParamPublisherMode, Equals: "at-least-once"}},
 		Fields: publisherBound(),
 	},
 	{
 		Law:    lawid.PublisherAtMostOnce,
 		Needs:  []string{contractPublisher},
-		When:   []Condition{{Param: paramPublisherMode, Equals: "at-most-once"}},
+		When:   []Condition{{Param: ParamPublisherMode, Equals: "at-most-once"}},
 		Fields: publisherBound(),
 	},
 	{
 		Law:    lawid.PublisherExactlyOnce,
 		Needs:  []string{contractPublisher},
-		When:   []Condition{{Param: paramPublisherMode, Equals: "exactly-once"}},
+		When:   []Condition{{Param: ParamPublisherMode, Equals: "exactly-once"}},
 		Fields: publisherBound(),
 	},
 
@@ -1255,7 +1255,7 @@ func publisherBound() []Field {
 		{Name: "Redeliver", Kind: KindRole, From: "publisher.redeliver", Optional: true},
 		{Name: fieldDrain, Kind: KindSupplied, From: optDrain},
 		{Name: "Messages", Kind: KindGenerator, From: genMessages},
-		{Name: "Mode", Kind: KindConstant, From: paramPublisherMode},
+		{Name: "Mode", Kind: KindConstant, From: ParamPublisherMode},
 		{Name: "Subscribers", Kind: KindDefault},
 	}
 }

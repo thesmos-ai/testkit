@@ -7,6 +7,5 @@ Version/deadline	signature/deadline	Version reports an expired deadline as excee
 Version/nilcontext	signature/nilcontext	Version returns an error rather than panicking on a nil context	
 Version/smoke	signature/smoke	Version survives a call	
 Version/zero-on-error	signature/zero-on-error	Version returns zero alongside any error	
-model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/mixed/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT
 model/mixed/AUTO-MONOTONIC-NON-DECREASING	model/laws	the count never decreases across calls	AUTO-MONOTONIC-NON-DECREASING

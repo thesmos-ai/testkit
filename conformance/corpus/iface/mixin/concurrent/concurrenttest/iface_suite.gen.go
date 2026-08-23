@@ -27,11 +27,6 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/concurrent"
-	"go.thesmos.sh/testkit/core/lawid"
-	"go.thesmos.sh/testkit/engine/legs"
-	"go.thesmos.sh/testkit/engine/model"
-	"go.thesmos.sh/testkit/engine/model/action"
-	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -45,19 +40,11 @@ import (
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	MixedHarness
-//	    one implementation under test.
-//	MixedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveMixed
-//	    drives each of yours against the broken implementation it names.
-//	GreenMixed
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	MixedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	MixedHarness — one implementation under test
+//	MixedChecks — checks of your own, run beside these
+//	ProveMixed — each of yours against the defect it names
+//	GreenMixed — all of them against correct-but-different
+//	MixedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -70,7 +57,6 @@ import (
 //	Count/nilcontext
 //	Count/smoke
 //	Count/zero-on-error
-//	model/mixed/AUTO-COUNT-EQUALS-REFERENCE
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -80,18 +66,9 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type MixedFixture struct {
 	key      string
 	keyOther string
@@ -279,7 +256,6 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Count.NilContext():  "MixedSuite.Checks.Count.NilContext()",
 	mixedCheckIndex.Count.Deadline():    "MixedSuite.Checks.Count.Deadline()",
 	mixedCheckIndex.Count.ZeroOnError(): "MixedSuite.Checks.Count.ZeroOnError()",
-	mixedCheckIndex.Model.Counts():      "MixedSuite.Checks.Model.Counts()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -291,9 +267,6 @@ var mixedDropHint = suite.DropHinter(
 const (
 	mixedBump  = "Bump"
 	mixedCount = "Count"
-
-	// The interface's word inside a family-scoped identity.
-	mixedQualifier = "mixed"
 )
 
 // mixedCheckIndex names every check in this file, grouped by method.
@@ -301,13 +274,11 @@ const (
 var mixedCheckIndex = mixedCheckIndexT{
 	Bump:  mixedBumpChecks{},
 	Count: mixedCountChecks{},
-	Model: mixedModelChecks{},
 }
 
 type mixedCheckIndexT struct {
 	Bump  mixedBumpChecks
 	Count mixedCountChecks
-	Model mixedModelChecks
 }
 
 // All returns every ID this package emits.
@@ -315,7 +286,6 @@ func (mixedCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, mixedBumpChecks{}.All()...)
 	out = append(out, mixedCountChecks{}.All()...)
-	out = append(out, mixedModelChecks{}.All()...)
 	return out
 }
 
@@ -378,18 +348,6 @@ func (mixedCountChecks) All() []suite.ID {
 	}
 }
 
-type mixedModelChecks struct{}
-
-func (mixedModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
-}
-
-func (mixedModelChecks) All() []suite.ID {
-	return []suite.ID{
-		mixedModelChecks{}.Counts(),
-	}
-}
-
 // mixedSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -399,8 +357,7 @@ func mixedSuite(fx MixedFixture) suite.Suite[Mixed] {
 	return suite.Suite[Mixed]{
 		Name:     "Mixed",
 		DropHint: mixedDropHint,
-		Checks: append(mixedSignatureChecks(fx),
-			mixedModelRows(fx)...),
+		Checks:   mixedSignatureChecks(fx),
 	}
 }
 
@@ -637,28 +594,10 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
-
-	// Prop is a body whose inputs are drawn rather than fixed, run many
-	// times with the draws shrunk on failure. Report through the PropT
-	// and not through a testing.TB: shrinking works by replaying draws, and
-	// a failure raised anywhere else is one the run cannot narrow.
-	//
-	// Requires Method, like Run.
-	Prop func(rt *PropT, s Mixed, fx MixedFixture)
-
-	// PropBump is Prop with Bump's own argument already drawn
-	// from the pool the generated checks draw it from — so an override you
-	// set on the run reaches your property too. Fixes the check's scope to
-	// Bump, so leave Method empty.
-	PropBump func(rt *PropT, s Mixed, value string)
 }
 
-// mixedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// mixedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var mixedMethods = suite.NewNameSet("Mixed", mixedBump, mixedCount)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -673,22 +612,6 @@ func (c MixedCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, mixedMethods)
-	b.Offers("Prop, PropBump")
-	if fn := c.Prop; fn != nil {
-		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Mixed]) {
-			model.Check(tb, func(rt *PropT) {
-				fn(rt, sub.New(tb), fx)
-			})
-		})
-	}
-	if fn := c.PropBump; fn != nil {
-		b.Fixed(suite.MethodID(mixedBump, c.Name),
-			func(tb testing.TB, sub suite.Subject[Mixed]) {
-				model.Check(tb, func(rt *PropT) {
-					fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
-				})
-			})
-	}
 	return b.Seal(c.Method)
 }
 
@@ -876,8 +799,6 @@ func ProveMixed(
 	}
 	rc.Fail(t, "ProveMixed")
 	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := mixedProofs()
 	for _, row := range rc.rows {
@@ -896,9 +817,7 @@ func ProveMixed(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -953,120 +872,18 @@ func GreenMixed(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// A second version check, for the leg idioms the rows above ride. The
-// harness's own covers the check format; this one covers what a model row
-// does with it. Regenerate the file to clear a mismatch.
-var _ = legs.CompatV1
-
-// mixedModelRows is what this package's model tier claims.
+// --- Mixed's model tier: not emitted ----------------------------------
 //
-// Every row here needs sequences of calls judged against something
-// outside the subject, which is what separates them from the rows
-// above: those settle a claim with a fixed call sequence, and these
-// cannot be stated that way at all. That is also why each takes the
-// Subject rather than an instance — a sequence run builds its own, and
-// some of them build two.
-func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
-	return []suite.Check[Mixed]{
-		{
-			ID:    mixedCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
-				mixedAssertCounts(tb, sub, fx)
-			},
-		},
-	}
-}
-
-// --- Mixed's model tier -------------------------------------------
+// Mixed carries //testkit:model, and no rows above come from it:
+// no claim this tier knows how to state reached this interface,
+// so it contributes no checks. Each reason below is one it tried:
+//   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
+//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
+//   mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
-// Random sequences of Mixed's methods, run against every subject and
-// something that judges them from outside. The rows on the run surface
-// above carry it, and MixedSuite.Without declines any of them by name.
-//
-//	Reference: the subject's own factory — no reader/writer pair derives a store,
-//	           so a second instance driven identically stands in: twins must
-//	           agree, which catches nondeterminism and hidden shared state but
-//	           not a subject wrong the same way twice; ref= raises the floor
-//	Sequences: Bump (writer), Count (aggregator)
-//	Values:    the fixture pair blended with arbitrary draws
-//	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-
-// mixedModelValues is the value pool every value slot draws from.
-//
-// The fixture pair blended with arbitrary draws: the pair keeps identical
-// rewrites frequent, the wide arm reaches values no fixture spells, and
-// nothing in the claims licenses refusing either.
-func mixedModelValues(fx MixedFixture) *model.Generator[string] {
-	bodies := model.OneOf(
-		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		model.Make[string](),
-	)
-	return bodies
-}
-
-// mixedModelActions is the operation vocabulary both legs drive.
-//
-// One constructor per method shape, from the engine's action set rather
-// than hand-written closures: the constructors record inputs and outputs
-// into the trace a law reads, compare the two sides the same way for every
-// action, and shrink a failing sequence to the shortest one that still
-// fails.
-func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
-	values := mixedModelValues(fx)
-	return []model.Action[Mixed]{
-		action.Writer("Bump", values,
-			func(ctx context.Context, s concurrent.Mixed, v string) error {
-				return s.Bump(ctx, v)
-			}),
-		action.Aggregator("Count",
-			func(ctx context.Context, s concurrent.Mixed) (int, error) {
-				return s.Count(ctx)
-			}),
-	}
-}
-
-// mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func mixedAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Mixed],
-	fx MixedFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Mixed { return sub.New(tb) }, buildRef,
-		mixedModelActions(fx),
-		[]law.Law[Mixed]{
-			law.CountEqualsReference[concurrent.Mixed, int]{
-				Count: func(rt *model.T, s concurrent.Mixed) (int, error) {
-					return s.Count(rt.Context())
-				},
-			},
-		})
-}
-
-// PropT is the property state a Prop body receives: the run's
-// draws, and the failure reporting that shrinks a counterexample.
-//
-// An alias, so it is the engine's own type — this is here only so a
-// property you write names PropT rather than obliging your test
-// file to import the engine directly.
-type PropT = model.T
+// Nothing to do about it here. The claims that needed sequences are the
+// ones this package does not check, and this says so rather than letting
+// the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 3b8f626ebf279a6366702af80adea568cb378c14b16b9cfaa8e29bb59be3dbea
+// testkit:provenance 2c51129746189507859b3d4ffa395a609cca40d8af2864be4bd529704a169870

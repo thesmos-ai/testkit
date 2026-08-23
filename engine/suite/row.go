@@ -45,6 +45,15 @@ type Row[S, F any] struct {
 	// Both are handed the run's sample inputs as well, so a check written
 	// by hand draws from the values the generated ones draw from — and
 	// sees an override to those values the same way they do.
+	//
+	// Every input in them comes as a pair: a value, and a second that
+	// differs from it. Both are needed for a check to mean anything —
+	// looking up a key that was just stored proves nothing on its own
+	// unless there is also a key that was never stored. A parameter whose
+	// type has no value that can be written down is left at its zero, the
+	// checks that needed it were not emitted rather than run against
+	// something meaningless, and the accessor for it says so where you
+	// read it.
 	Run     func(tb testing.TB, s S, fx F)
 	RunWith func(tb testing.TB, sub Subject[S], fx F)
 

@@ -81,7 +81,9 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 				"nondeterminism and nothing a second instance shares",
 		})
 	}
-	if b.Reference.Derived() || b.Reference.Supplied() {
+	if why := blindDifferential(b); why != "" {
+		b.Unbound = append(b.Unbound, Skip{Method: b.qualifier() + " differential", Reason: why})
+	} else if b.Reference.Derived() || b.Reference.Supplied() {
 		dropped, writer, why := differentialDefect(b)
 		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
@@ -187,6 +189,36 @@ func freshMedium(b *Bindings) (projection.Defect, bool) {
 		Clause: projection.Clause{Text: "rebuild finds an empty medium"},
 		Ref:    projection.Expr(b.Reference.CtorName),
 	}, true
+}
+
+// blindDifferential reports why a reference comparison could not fail,
+// empty where it could.
+//
+// The comparison reads what each side ANSWERED. Where every driven action
+// answers an error and nothing else, both sides return nil for every call
+// a correct subject makes, and the row is a claim about a reference that
+// nothing consults. The corpus proved it the moment the publisher family
+// gained an oracle: the differential appeared and the double that reports
+// success and keeps nothing passed it, because keeping nothing and keeping
+// everything both return nil from Publish.
+//
+// A publisher's deliveries ARE observable, just not through an action
+// return — they arrive on a channel the differential cannot compare by
+// identity. Declining the row is the honest state until an action drives
+// that channel; see action.Delivery, which is the comparison that would.
+func blindDifferential(b *Bindings) string {
+	if len(b.Actions) == 0 {
+		return ""
+	}
+	for _, a := range b.Actions {
+		m := methodNamed(b, a.Method)
+		if m == nil || !errOnly(m) {
+			return ""
+		}
+	}
+	return "every driven method here answers an error and nothing else, so both " +
+		"sides return nil for every call a correct subject makes and the " +
+		"comparison has nothing to disagree about"
 }
 
 func proveOrArgue(

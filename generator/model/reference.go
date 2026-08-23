@@ -402,6 +402,13 @@ func contractOf(
 			roles := contractRoleMethods(harness, carrier, contract)
 			complete := true
 			for _, role := range tiers.ContractRoles(contract) {
+				if tiers.ContractRoleOptional(contract, role) {
+					// Modelled where declared and done without otherwise —
+					// see [tiers.ContractRoleOptional]. Requiring it would
+					// put a declaration that simply does not make the
+					// refinement on the twin floor.
+					continue
+				}
 				complete = complete && roles[role] != nil
 			}
 			src := roles[spec.TypeArgRole]
@@ -440,16 +447,6 @@ func contractOf(
 			names.ContractStore = spec.Store
 			names.ContractName = contract
 			names.ContractArg = arg
-			if !spec.TypeArgResult {
-				// The store's type argument is a role argument, so the roles
-				// draw keys: record the source for the pool derivation and
-				// the methods whose actions draw from it.
-				b.contractKeySrc = src
-				b.contractKeyedRoles = map[string]bool{}
-				for _, rm := range roles {
-					b.contractKeyedRoles[rm.Name] = true
-				}
-			}
 
 			lower := strings.ToLower(b.IfaceName[:1]) + b.IfaceName[1:]
 			minted := false
@@ -479,6 +476,23 @@ func contractOf(
 			}
 			b.Reference = names
 			b.Adapter = contractAdapterOf(harness, partners, contract, roles)
+			if !spec.TypeArgResult && !spec.TypeArgIsValue {
+				// The store's type argument is a role argument, so the roles
+				// draw keys: record the source for the pool derivation and
+				// the methods whose actions draw from it.
+				//
+				// After the refusals above, not before them. Recorded early,
+				// it survived a contract that then fell to the twin — the
+				// pools kept drawing the role's argument as a key while no
+				// oracle read it that way, and every law wanting a value
+				// pool declined against a fixture whose reference was its
+				// own factory.
+				b.contractKeySrc = src
+				b.contractKeyedRoles = map[string]bool{}
+				for _, rm := range roles {
+					b.contractKeyedRoles[rm.Name] = true
+				}
+			}
 			// The concurrent leg's roles, recorded only for an oracle that
 			// held: a lenified family fell to the twins above, and a leg
 			// wired against a sentinel nothing minted renders nothing valid.

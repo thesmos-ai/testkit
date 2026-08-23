@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/lang/embedded/iface.go
 // Plugins:   golang 1.0.0, fault 1.0.0, stub 1.4.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/lang/embedded/...
+// Command:   testkit run ./corpus/...
 
 // Conformance checks worked out from the interfaces this package doubles.
 //

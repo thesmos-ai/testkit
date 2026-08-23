@@ -9,4 +9,3 @@ Total/nilcontext	signature/nilcontext	Total returns an error rather than panicki
 Total/smoke	signature/smoke	Total survives a call	
 Total/zero-on-error	signature/zero-on-error	Total returns zero alongside any error	
 model/mixed/AUTO-CONSERVATIVE	model/laws	a mutation leaves the sum of the conserved field unchanged	AUTO-CONSERVATIVE
-model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE

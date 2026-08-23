@@ -45,19 +45,11 @@ import (
 //		RunBatched(t, BatchedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-//	BatchedHarness
-//	    one implementation under test.
-//	BatchedChecks
-//	    checks you write yourself, run beside the generated ones.
-//	ProveBatched
-//	    drives each of yours against the broken implementation it names.
-//	GreenBatched
-//	    drives them all against one that is correct but different, and
-//	    fails if a check rejects it.
-//	BatchedSuite.Checks.<Method>.<Check>()
-//	    names one check, so you can drop it. Written this way it stops
-//	    compiling if a later regeneration no longer emits that check,
-//	    rather than silently dropping nothing.
+//	BatchedHarness — one implementation under test
+//	BatchedChecks — checks of your own, run beside these
+//	ProveBatched — each of yours against the defect it names
+//	GreenBatched — all of them against correct-but-different
+//	BatchedSuite.Checks.<Method>.<Check>() — one check by identity, so you can drop it
 //
 // The checks this file runs:
 //
@@ -78,7 +70,6 @@ import (
 //	Read/smoke
 //	Read/zero-on-error
 //	model/batched/AUTO-AGGREGATOR-BOUNDED
-//	model/batched/AUTO-COUNT-EQUALS-REFERENCE
 //	model/batched/AUTO-IDEMPOTENT-WRITE
 //	model/batched/AUTO-READ-AFTER-WRITE
 //
@@ -107,18 +98,9 @@ import (
 var _ = suite.CompatV2
 
 // BatchedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types.
-//
-// Every input comes as a pair: a value, and a second one guaranteed to
-// differ from it. Both are needed for a check to mean anything — looking
-// up a key that was just stored proves nothing on its own unless there
-// is also a key that was never stored.
-//
-// A parameter whose type has no value that can be written down — a func,
-// a channel, a type your declaration does not import — is left at its
-// zero value, and the checks that needed it were not emitted at all
-// rather than run against something meaningless. Those are listed above.
-// A check you write yourself is handed this either way.
+// implementation with, worked out from each method's parameter types —
+// see [suite.Row]'s Run for how they are
+// derived and what a field it could not derive means.
 type BatchedFixture struct {
 	key        string
 	keyOther   string
@@ -354,7 +336,6 @@ var batchedIndexPath = map[suite.ID]string{
 	batchedCheckIndex.List.ZeroOnError():      "BatchedSuite.Checks.List.ZeroOnError()",
 	batchedCheckIndex.Model.IdempotentWrite(): "BatchedSuite.Checks.Model.IdempotentWrite()",
 	batchedCheckIndex.Model.ReadsAgree():      "BatchedSuite.Checks.Model.ReadsAgree()",
-	batchedCheckIndex.Model.Counts():          "BatchedSuite.Checks.Model.Counts()",
 	batchedCheckIndex.Model.Bounded():         "BatchedSuite.Checks.Model.Bounded()",
 }
 
@@ -510,10 +491,6 @@ func (batchedModelChecks) ReadsAgree() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, batchedQualifier, lawid.ReadAfterWrite)
 }
 
-func (batchedModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, batchedQualifier, lawid.CountEqualsReference)
-}
-
 func (batchedModelChecks) Bounded() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, batchedQualifier, lawid.AggregatorBounded)
 }
@@ -522,7 +499,6 @@ func (batchedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		batchedModelChecks{}.IdempotentWrite(),
 		batchedModelChecks{}.ReadsAgree(),
-		batchedModelChecks{}.Counts(),
 		batchedModelChecks{}.Bounded(),
 	}
 }
@@ -936,12 +912,8 @@ type BatchedCheck struct {
 	PropRead func(rt *PropT, s Batched, key string)
 }
 
-// batchedMethods is the interface's method names, used to catch a typo in
-// a check's Method field before the run starts.
-//
-// Without it a misspelled name would be accepted — it looks like any
-// other method name — and the check would be filed under a method that
-// does not exist, where nobody could find or drop it.
+// batchedMethods is the interface's method names — see
+// [suite.NewNameSet] for what they catch.
 var batchedMethods = suite.NewNameSet("Batched", batchedPut, batchedRead, batchedList)
 
 // bind converts one of your checks into the form the runner uses, tying
@@ -1252,8 +1224,6 @@ func ProveBatched(
 	}
 	rc.Fail(t, "ProveBatched")
 	s := batchedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
-	// Read off the subjects, because a door is answered once for the
-	// interface and every subject of it reads the same answer.
 	doors := suite.Doors(rc.Subjects...)
 	defects := batchedProofs()
 	for _, row := range rc.rows {
@@ -1272,9 +1242,7 @@ func ProveBatched(
 			Subject: sub, Reason: row.ProvenReason,
 		}
 	}
-	// A declined check takes its proof with it: proving a row the run was
-	// told to leave out reports on a claim this package no longer makes,
-	// and the parity gate fails naming a check the set does not hold.
+	// A declined check takes its proof with it — see [prove.All].
 	for _, id := range rc.Drops {
 		delete(defects, id)
 	}
@@ -1364,23 +1332,10 @@ func batchedModelRows(fx BatchedFixture) []suite.Check[Batched] {
 			Binds: []string{
 				lawid.ReadAfterWrite,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Batched]) {
 				batchedAssertReadsAgree(tb, sub, fx)
-			},
-		},
-		{
-			ID:    batchedCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Batched]) {
-				batchedAssertCounts(tb, sub, fx)
 			},
 		},
 		{
@@ -1390,7 +1345,7 @@ func batchedModelRows(fx BatchedFixture) []suite.Check[Batched] {
 			Binds: []string{
 				lawid.AggregatorBounded,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Batched]) {
 				batchedAssertBounded(tb, sub, fx)
@@ -1413,6 +1368,7 @@ func batchedModelRows(fx BatchedFixture) []suite.Check[Batched] {
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           AUTO-PURE-DETERMINISTIC — Call closes over List, which is not a bare pure call
 //	           AUTO-CACHEABLE — Read closes over List, whose shape is collector rather than a keyed reader
 //	           batched differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
@@ -1429,7 +1385,7 @@ func batchedModelKeys(fx BatchedFixture) *model.Generator[string] {
 	// can pass one here.
 	return legs.Blend(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return string(s) },
+		func(s string) string { return s },
 	)
 }
 
@@ -1456,7 +1412,7 @@ func batchedModelValues(fx BatchedFixture) *model.Generator[string] {
 func batchedModelActions(fx BatchedFixture) []model.Action[Batched] {
 	keys := batchedModelKeys(fx)
 	values := batchedModelValues(fx)
-	return []model.Action[Batched]{
+	out := []model.Action[Batched]{
 		action.CompositeWriter("Put", keys, values,
 			func(ctx context.Context, s batchedmixins.Batched, k string, v string) error {
 				return s.Put(ctx, k, v)
@@ -1470,13 +1426,13 @@ func batchedModelActions(fx BatchedFixture) []model.Action[Batched] {
 				return s.List(ctx)
 			}),
 	}
+	return out
 }
 
 // batchedAssertIdempotentWrite binds AUTO-IDEMPOTENT-WRITE over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func batchedAssertIdempotentWrite(
 	tb testing.TB,
 	sub suite.Subject[Batched],
@@ -1509,9 +1465,8 @@ func batchedAssertIdempotentWrite(
 
 // batchedAssertReadsAgree binds AUTO-READ-AFTER-WRITE over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func batchedAssertReadsAgree(
 	tb testing.TB,
 	sub suite.Subject[Batched],
@@ -1535,38 +1490,10 @@ func batchedAssertReadsAgree(
 		})
 }
 
-// batchedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
-func batchedAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Batched],
-	fx BatchedFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Batched { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Batched { return sub.New(tb) }, buildRef,
-		batchedModelActions(fx),
-		[]law.Law[Batched]{
-			law.CountEqualsReference[batchedmixins.Batched, int]{
-				Count: func(rt *model.T, s batchedmixins.Batched) (int, error) {
-					items, err := s.List(rt.Context())
-					return len(items), err
-				},
-			},
-		})
-}
-
 // batchedAssertBounded binds AUTO-AGGREGATOR-BOUNDED over the shared sequences.
 //
-// One law, and the run's only oracle. The differential is off here, as
-// on every law leg: with it armed a subject broken anywhere disagrees at
-// step 0, and whether THIS law can catch a defect stays unanswerable.
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
 func batchedAssertBounded(
 	tb testing.TB,
 	sub suite.Subject[Batched],
@@ -1599,4 +1526,4 @@ func batchedAssertBounded(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 19981195fa4265bebf53c7e679a34a96fabde408463cb278ad176e7995923c1c
+// testkit:provenance 91fb741a20a21984a7c5b86f7e4d83c4b9de55c2d9afd20d14dadaf6621e221f
