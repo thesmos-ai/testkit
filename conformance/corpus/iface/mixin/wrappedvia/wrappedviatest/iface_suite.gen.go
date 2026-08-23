@@ -803,7 +803,6 @@ func GreenMixed(
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//   mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //   mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -811,4 +810,4 @@ func GreenMixed(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 54c307d88ee8e0c0e82fe3e6329dbd35f003fb99b49b444e5d4a95bb0e928667
+// testkit:provenance dbfe5aa857a2a2a36a855bac7cf1422657a558a1b4768846e0b8b7497801660d

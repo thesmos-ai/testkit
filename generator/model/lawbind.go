@@ -171,13 +171,17 @@ func lawOf(
 		})
 		return nil, false
 	}
-	if r.Law == lawid.CountEqualsReference && b.Reference.Twin() {
+	if r.Law == lawid.CountEqualsReference && b.Reference.Twin() && len(b.Laws) > 0 {
 		// The same argument the differential is declined on, in a narrower
-		// frame. This law's whole content is that the subject counts what
-		// the reference counts, and on the twin floor the reference is a
-		// second instance of the subject — so it can only fail on
-		// nondeterminism, which is not what a row claiming a reference
-		// comparison says it checked.
+		// frame, and with the same limit on it. This law's whole content is
+		// that the subject counts what the reference counts, and on the
+		// twin floor the reference is a second instance of the subject — so
+		// it can only fail on nondeterminism, which is not what a row
+		// claiming a reference comparison says it checked.
+		//
+		// Only where another law bound, though. It is the last row of a
+		// tier that would otherwise be empty in a fixture whose only claim
+		// is this one, and an empty tier drives no actions at all.
 		b.Unbound = append(b.Unbound, Skip{
 			Method: r.Law,
 			Reason: "the reference is the subject's own factory, so this compares a " +

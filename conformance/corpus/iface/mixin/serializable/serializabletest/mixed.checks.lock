@@ -14,4 +14,5 @@ Record/cancel	signature/cancel	Record reports a cancelled context as cancelled
 Record/deadline	signature/deadline	Record reports an expired deadline as exceeded	
 Record/nilcontext	signature/nilcontext	Record returns an error rather than panicking on a nil context	
 Record/smoke	signature/smoke	Record survives a call with a derived entry	
+model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/mixed/AUTO-SNAPSHOT-ISOLATION-G2	model/laws	the recorded transaction history has no write skew	AUTO-SNAPSHOT-ISOLATION-G2

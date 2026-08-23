@@ -885,7 +885,6 @@ func GreenLeasedWriter(
 //   AUTO-IDEMPOTENT-WRITE — observes state through no method here — no drain, no aggregate, no keyed read
 //   AUTO-LEASE-DOUBLE-ACQUIRE-BLOCKS — instantiates at a key type no method here draws
 //   AUTO-LEASE-RELEASED-ON-CANCEL — instantiates at a key type no method here draws
-//   leased-writer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //   leased-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -893,4 +892,4 @@ func GreenLeasedWriter(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance e7e0711521d7534de54f2c846799b09fc55cc76ac3e26dda7bf1a213e09c5fb2
+// testkit:provenance f2910ebf8a4e3b4b23f694a0a5f783125fae8989fec96fd7351f82f38b136d4d

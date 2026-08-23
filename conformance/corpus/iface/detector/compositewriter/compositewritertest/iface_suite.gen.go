@@ -701,7 +701,6 @@ func GreenCompositeWriter(
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
-//   composite-writer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //   composite-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -709,4 +708,4 @@ func GreenCompositeWriter(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 8aad54234ed95eaa8b901a37e419178e116f307c9b2fe0df32b2873655f743a2
+// testkit:provenance 5f96eeac14d1731365b880d2eccee777b330cd5999a20a0278496d4e2af6904b

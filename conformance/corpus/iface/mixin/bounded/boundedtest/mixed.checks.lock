@@ -9,3 +9,4 @@ List/nilcontext	signature/nilcontext	List returns an error rather than panicking
 List/smoke	signature/smoke	List survives a call	
 List/zero-on-error	signature/zero-on-error	List returns nothing alongside any error	
 model/mixed/AUTO-AGGREGATOR-BOUNDED	model/laws	the count stays inside the declared bound	AUTO-AGGREGATOR-BOUNDED
+model/mixed/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE

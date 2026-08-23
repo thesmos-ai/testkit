@@ -909,7 +909,6 @@ func mixedModelRows() []suite.Check[Mixed] {
 //	           Close — the lifecycleafterclose.close partner — a close, which would end one side of the pair mid-sequence
 //	Not bound:
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // mixedModelActions is the operation vocabulary both legs drive.
 //
@@ -1016,4 +1015,4 @@ func mixedAssertPoisonConsistent(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance bb4a2bc6b7d82f1b2ea798834c8407120cd2bb10b71b5e8aa8cb8e1e3aafcaa6
+// testkit:provenance b303cf5afed4c3dc4d9e961811db3f043bfbb40d14f4e0ea1168f60a749be107

@@ -1008,7 +1008,6 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 
 // mixedModelValues is the value pool every value slot draws from.
 //
@@ -1083,4 +1082,4 @@ func mixedAssertTamperEvident(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 052f2be8664ca63cba0960415bb0f75eb3c7ea3583999fac55ff4b6ce292d1c6
+// testkit:provenance 537631da4c483588a62a3127eb408517acd00cc3bafccf1bae3a3400f4f7bf55

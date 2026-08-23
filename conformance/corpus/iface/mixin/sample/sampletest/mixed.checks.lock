@@ -5,3 +5,4 @@ NewInput/nilcontext	signature/nilcontext	NewInput returns an error rather than p
 NewInput/smoke	signature/smoke	NewInput survives a call	
 NewInput/zero-on-error	signature/zero-on-error	NewInput returns zero alongside any error	
 Process/smoke	signature/smoke	Process survives a call with an input NewInput made	
+model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

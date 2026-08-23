@@ -22,6 +22,7 @@ Rollback/cancel	signature/cancel	Rollback reports a cancelled context as cancell
 Rollback/deadline	signature/deadline	Rollback reports an expired deadline as exceeded	
 Rollback/nilcontext	signature/nilcontext	Rollback returns an error rather than panicking on a nil context	
 Rollback/smoke	signature/smoke	Rollback survives a call with a derived tx	
+model/contract/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE
 model/contract/AUTO-TRANSACTION-NO-MID-TX-VISIBILITY	model/laws	a write inside an open transaction is invisible until it commits	AUTO-TRANSACTION-NO-MID-TX-VISIBILITY
 model/contract/AUTO-TWO-PHASE-MUTEX	model/laws	once a transaction commits or rolls back, the other reports it closed	AUTO-TWO-PHASE-MUTEX
 model/contract/AUTO-TWO-PHASE-ROLLBACK-AFTER-COMMIT	model/laws	rolling back a committed transaction reports it closed	AUTO-TWO-PHASE-ROLLBACK-AFTER-COMMIT

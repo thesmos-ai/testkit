@@ -208,6 +208,21 @@ func carrierRefusesItsRepeat(b *Bindings, l *LawBinding) (projection.Defect, *su
 // breaks a method the run actually calls. False where nothing writes:
 // there is no dropped write to plant.
 func differentialDefect(b *Bindings) (projection.Defect, *subject.Method, string) {
+	if b.Reference.Twin() {
+		// No planted defect can redden a twin comparison, and the reason is
+		// structural rather than a gap in this table: the reference is the
+		// subject's own factory, so a proof run builds BOTH sides from the
+		// defect. Whatever it does, it does on both, and they agree.
+		//
+		// The row is still worth emitting — it is what drives the actions on
+		// a fixture that binds no law, and two instances that disagree have
+		// found nondeterminism or shared state. It just cannot claim a
+		// proof, and says so.
+		return nil, nil, "the reference is the subject's own factory, so a proof " +
+			"run builds both sides from the defect and they agree however broken " +
+			"it is; what this row can catch is nondeterminism, which no planted " +
+			"defect exhibits"
+	}
 	if b.Delivery != nil && b.Delivery.PermitsLoss() {
 		// This rule's whole statement is a write acknowledged and dropped,
 		// and at-most-once is the one guarantee that PERMITS it: the

@@ -4,3 +4,4 @@ Items/deadline	signature/deadline	Items reports an expired deadline as exceeded
 Items/nilcontext	signature/nilcontext	Items returns an error rather than panicking on a nil context	
 Items/smoke	signature/smoke	Items survives a call	
 Items/zero-on-error	signature/zero-on-error	Items returns nothing alongside any error	
+model/replica/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE

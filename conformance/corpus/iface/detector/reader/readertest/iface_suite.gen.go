@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/reader"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -54,6 +57,7 @@ import (
 //	Get/nilcontext
 //	Get/smoke
 //	Get/zero-on-error
+//	model/reader/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -250,6 +254,7 @@ var readerIndexPath = map[suite.ID]string{
 	readerCheckIndex.Get.Deadline():    "ReaderSuite.Checks.Get.Deadline()",
 	readerCheckIndex.Get.ZeroOnError(): "ReaderSuite.Checks.Get.ZeroOnError()",
 	readerCheckIndex.Get.Miss():        "ReaderSuite.Checks.Get.Miss()",
+	readerCheckIndex.Model.Agrees():    "ReaderSuite.Checks.Model.Agrees()",
 }
 
 var readerDropHint = suite.DropHinter(
@@ -260,22 +265,28 @@ var readerDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	readerGet = "Get"
+
+	// The interface's word inside a family-scoped identity.
+	readerQualifier = "reader"
 )
 
 // readerCheckIndex names every check in this file, grouped by method.
 // Reach it through ReaderSuite.Checks.
 var readerCheckIndex = readerCheckIndexT{
-	Get: readerGetChecks{},
+	Get:   readerGetChecks{},
+	Model: readerModelChecks{},
 }
 
 type readerCheckIndexT struct {
-	Get readerGetChecks
+	Get   readerGetChecks
+	Model readerModelChecks
 }
 
 // All returns every ID this package emits.
 func (readerCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, readerGetChecks{}.All()...)
+	out = append(out, readerModelChecks{}.All()...)
 	return out
 }
 
@@ -316,6 +327,18 @@ func (readerGetChecks) All() []suite.ID {
 	}
 }
 
+type readerModelChecks struct{}
+
+func (readerModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, readerQualifier, suite.SegDifferential)
+}
+
+func (readerModelChecks) All() []suite.ID {
+	return []suite.ID{
+		readerModelChecks{}.Agrees(),
+	}
+}
+
 // readerSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -325,7 +348,8 @@ func readerSuite(fx ReaderFixture) suite.Suite[Reader] {
 	return suite.Suite[Reader]{
 		Name:     "Reader",
 		DropHint: readerDropHint,
-		Checks:   readerSignatureChecks(fx),
+		Checks: append(readerSignatureChecks(fx),
+			readerModelRows(fx)...),
 	}
 }
 
@@ -517,6 +541,20 @@ type ReaderCheck struct {
 	ProvenBy     ReaderDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Reader, fx ReaderFixture)
+
+	// PropGet is Prop with Get's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Get, so leave Method empty.
+	PropGet func(rt *PropT, s Reader, key string)
 }
 
 // readerMethods is the interface's method names — see
@@ -535,6 +573,22 @@ func (c ReaderCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, readerMethods)
+	b.Offers("Prop, PropGet")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Reader]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropGet; fn != nil {
+		b.Fixed(suite.MethodID(readerGet, c.Name),
+			func(tb testing.TB, sub suite.Subject[Reader]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), readerModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -768,16 +822,104 @@ func GreenReader(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- Reader's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// readerModelRows is what this package's model tier claims.
 //
-// Reader carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   reader differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func readerModelRows(fx ReaderFixture) []suite.Check[Reader] {
+	return []suite.Check[Reader]{
+		{
+			ID:          readerCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Reader]) {
+				readerAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- Reader's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of Reader's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and ReaderSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Get (reader)
+
+// readerModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func readerModelKeys(fx ReaderFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return s },
+	)
+}
+
+// readerModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func readerModelActions(fx ReaderFixture) []model.Action[Reader] {
+	keys := readerModelKeys(fx)
+	out := []model.Action[Reader]{
+		action.Reader("Get", keys,
+			func(ctx context.Context, s reader.Reader, k string) (reader.Value, error) {
+				return s.Get(ctx, k)
+			}),
+	}
+	return out
+}
+
+// readerAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func readerAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Reader],
+	fx ReaderFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() Reader { return sub.New(tb) },
+		readerModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance b824ef3753daefd9918c7004aae30cc37f0d330a896cb2e3c178423d66de9e66
+// testkit:provenance 6ba2774851217ba4c07d3302be1396c9614ad1398ce711af23453abd9e3f757d

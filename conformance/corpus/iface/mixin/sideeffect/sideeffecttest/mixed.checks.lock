@@ -10,3 +10,4 @@ Touch/deadline	signature/deadline	Touch reports an expired deadline as exceeded
 Touch/nilcontext	signature/nilcontext	Touch returns an error rather than panicking on a nil context	
 Touch/sideeffect	mixin/sideeffect	Touch changes what Observed observes	
 Touch/smoke	signature/smoke	Touch survives a call with a derived key	
+model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

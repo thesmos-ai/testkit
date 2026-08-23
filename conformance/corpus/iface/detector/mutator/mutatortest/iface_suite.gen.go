@@ -26,6 +26,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/mutator"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -48,6 +51,7 @@ import (
 // The checks this file runs:
 //
 //	Touch/smoke
+//	model/mutator/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -238,7 +242,8 @@ func (mutatorVeneer) Suite(fx MutatorFixture) suite.Suite[Mutator] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mutatorIndexPath = map[suite.ID]string{
-	mutatorCheckIndex.Touch.Smoke(): "MutatorSuite.Checks.Touch.Smoke()",
+	mutatorCheckIndex.Touch.Smoke():  "MutatorSuite.Checks.Touch.Smoke()",
+	mutatorCheckIndex.Model.Agrees(): "MutatorSuite.Checks.Model.Agrees()",
 }
 
 var mutatorDropHint = suite.DropHinter(
@@ -249,22 +254,28 @@ var mutatorDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	mutatorTouch = "Touch"
+
+	// The interface's word inside a family-scoped identity.
+	mutatorQualifier = "mutator"
 )
 
 // mutatorCheckIndex names every check in this file, grouped by method.
 // Reach it through MutatorSuite.Checks.
 var mutatorCheckIndex = mutatorCheckIndexT{
 	Touch: mutatorTouchChecks{},
+	Model: mutatorModelChecks{},
 }
 
 type mutatorCheckIndexT struct {
 	Touch mutatorTouchChecks
+	Model mutatorModelChecks
 }
 
 // All returns every ID this package emits.
 func (mutatorCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, mutatorTouchChecks{}.All()...)
+	out = append(out, mutatorModelChecks{}.All()...)
 	return out
 }
 
@@ -280,6 +291,18 @@ func (mutatorTouchChecks) All() []suite.ID {
 	}
 }
 
+type mutatorModelChecks struct{}
+
+func (mutatorModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mutatorQualifier, suite.SegDifferential)
+}
+
+func (mutatorModelChecks) All() []suite.ID {
+	return []suite.ID{
+		mutatorModelChecks{}.Agrees(),
+	}
+}
+
 // mutatorSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -289,7 +312,8 @@ func mutatorSuite(fx MutatorFixture) suite.Suite[Mutator] {
 	return suite.Suite[Mutator]{
 		Name:     "Mutator",
 		DropHint: mutatorDropHint,
-		Checks:   mutatorSignatureChecks(fx),
+		Checks: append(mutatorSignatureChecks(fx),
+			mutatorModelRows(fx)...),
 	}
 }
 
@@ -383,6 +407,20 @@ type MutatorCheck struct {
 	ProvenBy     MutatorDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mutator, fx MutatorFixture)
+
+	// PropTouch is Prop with Touch's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Touch, so leave Method empty.
+	PropTouch func(rt *PropT, s Mutator, value string)
 }
 
 // mutatorMethods is the interface's method names — see
@@ -401,6 +439,22 @@ func (c MutatorCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, mutatorMethods)
+	b.Offers("Prop, PropTouch")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Mutator]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropTouch; fn != nil {
+		b.Fixed(suite.MethodID(mutatorTouch, c.Name),
+			func(tb testing.TB, sub suite.Subject[Mutator]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), mutatorModelValues(fx).Draw(rt, "value"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -581,16 +635,102 @@ func GreenMutator(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- Mutator's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// mutatorModelRows is what this package's model tier claims.
 //
-// Mutator carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   mutator differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func mutatorModelRows(fx MutatorFixture) []suite.Check[Mutator] {
+	return []suite.Check[Mutator]{
+		{
+			ID:          mutatorCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mutator]) {
+				mutatorAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- Mutator's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of Mutator's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and MutatorSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Touch (mutator)
+//	Values:    the fixture pair blended with arbitrary draws
+
+// mutatorModelValues is the value pool every value slot draws from.
+//
+// The fixture pair blended with arbitrary draws: the pair keeps identical
+// rewrites frequent, the wide arm reaches values no fixture spells, and
+// nothing in the claims licenses refusing either.
+func mutatorModelValues(fx MutatorFixture) *model.Generator[string] {
+	bodies := model.OneOf(
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		model.Make[string](),
+	)
+	return bodies
+}
+
+// mutatorModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func mutatorModelActions(fx MutatorFixture) []model.Action[Mutator] {
+	values := mutatorModelValues(fx)
+	out := []model.Action[Mutator]{
+		action.Mutator("Touch", values,
+			func(ctx context.Context, s mutator.Mutator, v string) {
+				s.Touch(ctx, v)
+			}),
+	}
+	return out
+}
+
+// mutatorAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func mutatorAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Mutator],
+	fx MutatorFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() Mutator { return sub.New(tb) },
+		mutatorModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 7306b1f2e36903f7a76fda479f4958bea6314244f0043c66cda6a3460fe34967
+// testkit:provenance 0d6b21c1a8f4ed8beb6dfeced84c2f565d919092de2d7a85f6eacf78fcde8928

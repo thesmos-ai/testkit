@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/multireader"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -53,6 +56,7 @@ import (
 //	GetWithMeta/nilcontext
 //	GetWithMeta/smoke
 //	GetWithMeta/zero-on-error
+//	model/multi-reader/differential
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -255,6 +259,7 @@ var multiReaderIndexPath = map[suite.ID]string{
 	multiReaderCheckIndex.GetWithMeta.NilContext():  "MultiReaderSuite.Checks.GetWithMeta.NilContext()",
 	multiReaderCheckIndex.GetWithMeta.Deadline():    "MultiReaderSuite.Checks.GetWithMeta.Deadline()",
 	multiReaderCheckIndex.GetWithMeta.ZeroOnError(): "MultiReaderSuite.Checks.GetWithMeta.ZeroOnError()",
+	multiReaderCheckIndex.Model.Agrees():            "MultiReaderSuite.Checks.Model.Agrees()",
 }
 
 var multiReaderDropHint = suite.DropHinter(
@@ -265,22 +270,28 @@ var multiReaderDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	multiReaderGetWithMeta = "GetWithMeta"
+
+	// The interface's word inside a family-scoped identity.
+	multiReaderQualifier = "multi-reader"
 )
 
 // multiReaderCheckIndex names every check in this file, grouped by method.
 // Reach it through MultiReaderSuite.Checks.
 var multiReaderCheckIndex = multiReaderCheckIndexT{
 	GetWithMeta: multiReaderGetWithMetaChecks{},
+	Model:       multiReaderModelChecks{},
 }
 
 type multiReaderCheckIndexT struct {
 	GetWithMeta multiReaderGetWithMetaChecks
+	Model       multiReaderModelChecks
 }
 
 // All returns every ID this package emits.
 func (multiReaderCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, multiReaderGetWithMetaChecks{}.All()...)
+	out = append(out, multiReaderModelChecks{}.All()...)
 	return out
 }
 
@@ -316,6 +327,18 @@ func (multiReaderGetWithMetaChecks) All() []suite.ID {
 	}
 }
 
+type multiReaderModelChecks struct{}
+
+func (multiReaderModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, multiReaderQualifier, suite.SegDifferential)
+}
+
+func (multiReaderModelChecks) All() []suite.ID {
+	return []suite.ID{
+		multiReaderModelChecks{}.Agrees(),
+	}
+}
+
 // multiReaderSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -325,7 +348,8 @@ func multiReaderSuite(fx MultiReaderFixture) suite.Suite[MultiReader] {
 	return suite.Suite[MultiReader]{
 		Name:     "MultiReader",
 		DropHint: multiReaderDropHint,
-		Checks:   multiReaderSignatureChecks(fx),
+		Checks: append(multiReaderSignatureChecks(fx),
+			multiReaderModelRows(fx)...),
 	}
 }
 
@@ -504,6 +528,20 @@ type MultiReaderCheck struct {
 	ProvenBy     MultiReaderDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s MultiReader, fx MultiReaderFixture)
+
+	// PropGetWithMeta is Prop with GetWithMeta's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// GetWithMeta, so leave Method empty.
+	PropGetWithMeta func(rt *PropT, s MultiReader, key string)
 }
 
 // multiReaderMethods is the interface's method names — see
@@ -522,6 +560,22 @@ func (c MultiReaderCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, multiReaderMethods)
+	b.Offers("Prop, PropGetWithMeta")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[MultiReader]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropGetWithMeta; fn != nil {
+		b.Fixed(suite.MethodID(multiReaderGetWithMeta, c.Name),
+			func(tb testing.TB, sub suite.Subject[MultiReader]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), multiReaderModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -745,16 +799,104 @@ func GreenMultiReader(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- MultiReader's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// multiReaderModelRows is what this package's model tier claims.
 //
-// MultiReader carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   multi-reader differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func multiReaderModelRows(fx MultiReaderFixture) []suite.Check[MultiReader] {
+	return []suite.Check[MultiReader]{
+		{
+			ID:          multiReaderCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[MultiReader]) {
+				multiReaderAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- MultiReader's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of MultiReader's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and MultiReaderSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: GetWithMeta (multireader)
+
+// multiReaderModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func multiReaderModelKeys(fx MultiReaderFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return s },
+	)
+}
+
+// multiReaderModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func multiReaderModelActions(fx MultiReaderFixture) []model.Action[MultiReader] {
+	keys := multiReaderModelKeys(fx)
+	out := []model.Action[MultiReader]{
+		action.MultiReader("GetWithMeta", keys,
+			func(ctx context.Context, s multireader.MultiReader, k string) (multireader.Value, multireader.Meta, error) {
+				return s.GetWithMeta(ctx, k)
+			}),
+	}
+	return out
+}
+
+// multiReaderAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func multiReaderAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[MultiReader],
+	fx MultiReaderFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() MultiReader { return sub.New(tb) },
+		multiReaderModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 3c23d7c4f866737af7c5fe66641d98073ef140ce91f1519f5074eb4791331819
+// testkit:provenance 7741d4d6a43a713fdd653ba25b6f8bb1e28fd6d637dcc85472989035e6957eb3

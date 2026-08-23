@@ -76,6 +76,7 @@ import (
 //	Rollback/deadline
 //	Rollback/nilcontext
 //	Rollback/smoke
+//	model/contract/AUTO-COUNT-EQUALS-REFERENCE
 //	model/contract/AUTO-TRANSACTION-NO-MID-TX-VISIBILITY
 //	model/contract/AUTO-TWO-PHASE-MUTEX
 //	model/contract/AUTO-TWO-PHASE-ROLLBACK-AFTER-COMMIT
@@ -316,6 +317,7 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Get.Deadline():                       "ContractSuite.Checks.Get.Deadline()",
 	contractCheckIndex.Get.ZeroOnError():                    "ContractSuite.Checks.Get.ZeroOnError()",
 	contractCheckIndex.Get.Miss():                           "ContractSuite.Checks.Get.Miss()",
+	contractCheckIndex.Model.Counts():                       "ContractSuite.Checks.Model.Counts()",
 	contractCheckIndex.Model.TransactionNoMidTxVisibility(): "ContractSuite.Checks.Model.TransactionNoMidTxVisibility()",
 	contractCheckIndex.Model.TwoPhaseMutex():                "ContractSuite.Checks.Model.TwoPhaseMutex()",
 	contractCheckIndex.Model.TwoPhaseRollbackAfterCommit():  "ContractSuite.Checks.Model.TwoPhaseRollbackAfterCommit()",
@@ -522,6 +524,10 @@ func (contractGetChecks) All() []suite.ID {
 
 type contractModelChecks struct{}
 
+func (contractModelChecks) Counts() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CountEqualsReference)
+}
+
 func (contractModelChecks) TransactionNoMidTxVisibility() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.TransactionNoMidTxVisibility)
 }
@@ -536,6 +542,7 @@ func (contractModelChecks) TwoPhaseRollbackAfterCommit() suite.ID {
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
+		contractModelChecks{}.Counts(),
 		contractModelChecks{}.TransactionNoMidTxVisibility(),
 		contractModelChecks{}.TwoPhaseMutex(),
 		contractModelChecks{}.TwoPhaseRollbackAfterCommit(),
@@ -1502,6 +1509,19 @@ var _ = legs.CompatV1
 func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 	return []suite.Check[Contract]{
 		{
+			ID:    contractCheckIndex.Model.Counts(),
+			Class: suite.ClassLaws,
+			Claim: "the subject counts what the reference counts",
+			Binds: []string{
+				lawid.CountEqualsReference,
+			},
+			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertCounts(tb, sub, fx)
+			},
+		},
+		{
 			ID:    contractCheckIndex.Model.TransactionNoMidTxVisibility(),
 			Class: suite.ClassLaws,
 			Claim: "a write inside an open transaction is invisible until it commits",
@@ -1558,7 +1578,6 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	           Commit — driven through the Begin composite — a standalone terminal would operate on handles no begin minted
 //	           Rollback — driven through the Begin composite — a standalone terminal would operate on handles no begin minted
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           AUTO-WRITE-OBSERVABLE — Read closes over Get, which reads (string → go.thesmos.sh/testkit/conformance/corpus/iface/contract/tx.Value) beside pools of (string, go.thesmos.sh/testkit/conformance/corpus/iface/contract/tx.Tx)
 //	           AUTO-WRITE-OBSERVABLE — Write closes over Put, which takes several inputs no single-value closure composes
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
@@ -1616,6 +1635,31 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 			}),
 	}
 	return out
+}
+
+// contractAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
+//
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
+func contractAssertCounts(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Contract { return sub.New(tb) }, buildRef,
+		contractModelActions(fx),
+		[]law.Law[Contract]{
+			law.CountEqualsReference[tx.Contract, tx.Tx]{
+				Count: func(rt *model.T, s tx.Contract) (tx.Tx, error) {
+					return s.Begin(rt.Context())
+				},
+			},
+		})
 }
 
 // contractAssertTransactionNoMidTxVisibility binds AUTO-TRANSACTION-NO-MID-TX-VISIBILITY over the shared sequences.
@@ -1731,4 +1775,4 @@ func contractAssertTwoPhaseRollbackAfterCommit(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 32540aec08ef1080935914671e27f21d92c152e4c8cadf4077097a4c27495e86
+// testkit:provenance d47e047443b13aa41ba92c84cf13108b1b54545c00aeb1c0ba9444b11573b329

@@ -5,3 +5,4 @@ Get/miss	mixin/reader	Get reports ErrNotFound for a key nothing wrote
 Get/nilcontext	signature/nilcontext	Get returns an error rather than panicking on a nil context	
 Get/smoke	signature/smoke	Get survives a call with a seeded key	
 Get/zero-on-error	signature/zero-on-error	Get returns the zero Value alongside any error	
+model/reader/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

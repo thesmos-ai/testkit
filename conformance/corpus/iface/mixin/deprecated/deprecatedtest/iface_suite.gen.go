@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/deprecated"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -58,6 +61,7 @@ import (
 //	Old/nilcontext
 //	Old/smoke
 //	Old/zero-on-error
+//	model/mixed/differential
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -267,6 +271,7 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.New.NilContext():  "MixedSuite.Checks.New.NilContext()",
 	mixedCheckIndex.New.Deadline():    "MixedSuite.Checks.New.Deadline()",
 	mixedCheckIndex.New.ZeroOnError(): "MixedSuite.Checks.New.ZeroOnError()",
+	mixedCheckIndex.Model.Agrees():    "MixedSuite.Checks.Model.Agrees()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -278,18 +283,23 @@ var mixedDropHint = suite.DropHinter(
 const (
 	mixedOld = "Old"
 	mixedNew = "New"
+
+	// The interface's word inside a family-scoped identity.
+	mixedQualifier = "mixed"
 )
 
 // mixedCheckIndex names every check in this file, grouped by method.
 // Reach it through MixedSuite.Checks.
 var mixedCheckIndex = mixedCheckIndexT{
-	Old: mixedOldChecks{},
-	New: mixedNewChecks{},
+	Old:   mixedOldChecks{},
+	New:   mixedNewChecks{},
+	Model: mixedModelChecks{},
 }
 
 type mixedCheckIndexT struct {
-	Old mixedOldChecks
-	New mixedNewChecks
+	Old   mixedOldChecks
+	New   mixedNewChecks
+	Model mixedModelChecks
 }
 
 // All returns every ID this package emits.
@@ -297,6 +307,7 @@ func (mixedCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, mixedOldChecks{}.All()...)
 	out = append(out, mixedNewChecks{}.All()...)
+	out = append(out, mixedModelChecks{}.All()...)
 	return out
 }
 
@@ -364,6 +375,18 @@ func (mixedNewChecks) All() []suite.ID {
 	}
 }
 
+type mixedModelChecks struct{}
+
+func (mixedModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, suite.SegDifferential)
+}
+
+func (mixedModelChecks) All() []suite.ID {
+	return []suite.ID{
+		mixedModelChecks{}.Agrees(),
+	}
+}
+
 // mixedSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -373,7 +396,8 @@ func mixedSuite(fx MixedFixture) suite.Suite[Mixed] {
 	return suite.Suite[Mixed]{
 		Name:     "Mixed",
 		DropHint: mixedDropHint,
-		Checks:   mixedSignatureChecks(fx),
+		Checks: append(mixedSignatureChecks(fx),
+			mixedModelRows(fx)...),
 	}
 }
 
@@ -644,6 +668,26 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropOld is Prop with Old's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Old, so leave Method empty.
+	PropOld func(rt *PropT, s Mixed, key string)
+
+	// PropNew is Prop with New's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// New, so leave Method empty.
+	PropNew func(rt *PropT, s Mixed, key string)
 }
 
 // mixedMethods is the interface's method names — see
@@ -662,6 +706,30 @@ func (c MixedCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, mixedMethods)
+	b.Offers("Prop, PropOld, PropNew")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropOld; fn != nil {
+		b.Fixed(suite.MethodID(mixedOld, c.Name),
+			func(tb testing.TB, sub suite.Subject[Mixed]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
+	if fn := c.PropNew; fn != nil {
+		b.Fixed(suite.MethodID(mixedNew, c.Name),
+			func(tb testing.TB, sub suite.Subject[Mixed]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -935,16 +1003,108 @@ func GreenMixed(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- Mixed's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// mixedModelRows is what this package's model tier claims.
 //
-// Mixed carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
+	return []suite.Check[Mixed]{
+		{
+			ID:          mixedCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- Mixed's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of Mixed's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and MixedSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Old (reader), New (reader)
+
+// mixedModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return s },
+	)
+}
+
+// mixedModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
+	keys := mixedModelKeys(fx)
+	out := []model.Action[Mixed]{
+		action.Reader("Old", keys,
+			func(ctx context.Context, s deprecated.Mixed, k string) (string, error) {
+				return s.Old(ctx, k)
+			}),
+		action.Reader("New", keys,
+			func(ctx context.Context, s deprecated.Mixed, k string) (string, error) {
+				return s.New(ctx, k)
+			}),
+	}
+	return out
+}
+
+// mixedAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func mixedAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() Mixed { return sub.New(tb) },
+		mixedModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 9b3af293315805175b6f1554eb18a7104f240ad11c49ed0ea1d312998db5e23c
+// testkit:provenance d9ed623c0a0b72ae58453a002e87f5bef372ac5b548800ff66ea672792e30aa3

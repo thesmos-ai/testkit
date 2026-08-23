@@ -572,7 +572,6 @@ func GreenPoisonAccessor(
 // PoisonAccessor carries //testkit:model, and no rows above come from it:
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
-//   poison-accessor differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //   poison-accessor differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -580,4 +579,4 @@ func GreenPoisonAccessor(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 680c2cd785cff80d09c21276faa2f1e2626fe22f8832fbf3abde53641d1cc59f
+// testkit:provenance 1ee04490b407afa10272344b23792d846607938acbf6dd62f8f9e6ddfd4e10dd

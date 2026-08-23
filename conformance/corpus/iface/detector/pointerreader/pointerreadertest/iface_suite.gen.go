@@ -26,6 +26,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/pointerreader"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -48,6 +51,7 @@ import (
 // The checks this file runs:
 //
 //	Find/smoke
+//	model/pointer-reader/differential
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -245,7 +249,8 @@ func (pointerReaderVeneer) Suite(fx PointerReaderFixture) suite.Suite[PointerRea
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var pointerReaderIndexPath = map[suite.ID]string{
-	pointerReaderCheckIndex.Find.Smoke(): "PointerReaderSuite.Checks.Find.Smoke()",
+	pointerReaderCheckIndex.Find.Smoke():   "PointerReaderSuite.Checks.Find.Smoke()",
+	pointerReaderCheckIndex.Model.Agrees(): "PointerReaderSuite.Checks.Model.Agrees()",
 }
 
 var pointerReaderDropHint = suite.DropHinter(
@@ -256,22 +261,28 @@ var pointerReaderDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	pointerReaderFind = "Find"
+
+	// The interface's word inside a family-scoped identity.
+	pointerReaderQualifier = "pointer-reader"
 )
 
 // pointerReaderCheckIndex names every check in this file, grouped by method.
 // Reach it through PointerReaderSuite.Checks.
 var pointerReaderCheckIndex = pointerReaderCheckIndexT{
-	Find: pointerReaderFindChecks{},
+	Find:  pointerReaderFindChecks{},
+	Model: pointerReaderModelChecks{},
 }
 
 type pointerReaderCheckIndexT struct {
-	Find pointerReaderFindChecks
+	Find  pointerReaderFindChecks
+	Model pointerReaderModelChecks
 }
 
 // All returns every ID this package emits.
 func (pointerReaderCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, pointerReaderFindChecks{}.All()...)
+	out = append(out, pointerReaderModelChecks{}.All()...)
 	return out
 }
 
@@ -287,6 +298,18 @@ func (pointerReaderFindChecks) All() []suite.ID {
 	}
 }
 
+type pointerReaderModelChecks struct{}
+
+func (pointerReaderModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, pointerReaderQualifier, suite.SegDifferential)
+}
+
+func (pointerReaderModelChecks) All() []suite.ID {
+	return []suite.ID{
+		pointerReaderModelChecks{}.Agrees(),
+	}
+}
+
 // pointerReaderSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -296,7 +319,8 @@ func pointerReaderSuite(fx PointerReaderFixture) suite.Suite[PointerReader] {
 	return suite.Suite[PointerReader]{
 		Name:     "PointerReader",
 		DropHint: pointerReaderDropHint,
-		Checks:   pointerReaderSignatureChecks(fx),
+		Checks: append(pointerReaderSignatureChecks(fx),
+			pointerReaderModelRows(fx)...),
 	}
 }
 
@@ -390,6 +414,20 @@ type PointerReaderCheck struct {
 	ProvenBy     PointerReaderDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s PointerReader, fx PointerReaderFixture)
+
+	// PropFind is Prop with Find's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Find, so leave Method empty.
+	PropFind func(rt *PropT, s PointerReader, key string)
 }
 
 // pointerReaderMethods is the interface's method names — see
@@ -408,6 +446,22 @@ func (c PointerReaderCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, pointerReaderMethods)
+	b.Offers("Prop, PropFind")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[PointerReader]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropFind; fn != nil {
+		b.Fixed(suite.MethodID(pointerReaderFind, c.Name),
+			func(tb testing.TB, sub suite.Subject[PointerReader]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), pointerReaderModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -588,16 +642,104 @@ func GreenPointerReader(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- PointerReader's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// pointerReaderModelRows is what this package's model tier claims.
 //
-// PointerReader carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   pointer-reader differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func pointerReaderModelRows(fx PointerReaderFixture) []suite.Check[PointerReader] {
+	return []suite.Check[PointerReader]{
+		{
+			ID:          pointerReaderCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[PointerReader]) {
+				pointerReaderAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- PointerReader's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of PointerReader's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and PointerReaderSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Find (pointerreader)
+
+// pointerReaderModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func pointerReaderModelKeys(fx PointerReaderFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return s },
+	)
+}
+
+// pointerReaderModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func pointerReaderModelActions(fx PointerReaderFixture) []model.Action[PointerReader] {
+	keys := pointerReaderModelKeys(fx)
+	out := []model.Action[PointerReader]{
+		action.PointerReader("Find", keys,
+			func(ctx context.Context, s pointerreader.PointerReader, k string) *pointerreader.Value {
+				return s.Find(ctx, k)
+			}),
+	}
+	return out
+}
+
+// pointerReaderAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func pointerReaderAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[PointerReader],
+	fx PointerReaderFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() PointerReader { return sub.New(tb) },
+		pointerReaderModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 9b14616fc8e3bd3083fed77efe59d2e605241ad928d9414c1b7052a62dd2dc16
+// testkit:provenance ef8ea2637e7d8149920ec65e315597e5184be47722c24d45d90e80cd75f3e6e8

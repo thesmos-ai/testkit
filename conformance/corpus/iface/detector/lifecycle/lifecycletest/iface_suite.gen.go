@@ -778,7 +778,6 @@ func lifecycleModelRows() []suite.Check[Lifecycle] {
 //	Not bound:
 //	           AUTO-IDEMPOTENT-LIFECYCLE — observes state through no method here — no drain, no aggregate, no keyed read
 //	           lifecycle differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           lifecycle differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // lifecycleModelActions is the operation vocabulary both legs drive.
 //
@@ -830,4 +829,4 @@ func lifecycleAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 1d974f032588913d51063e7df310b237ef65ee52645537d59480769449a4769b
+// testkit:provenance fbe4e0cb4733994667a1465ba0e86e890c34b6453483b360aac3f602219556b0

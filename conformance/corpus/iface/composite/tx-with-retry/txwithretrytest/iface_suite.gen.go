@@ -953,7 +953,6 @@ func txWithRetryModelRows() []suite.Check[TxWithRetry] {
 //	           AUTO-TWO-PHASE-MUTEX — observes through Begin, which answers nothing to observe
 //	           AUTO-TWO-PHASE-ROLLBACK-AFTER-COMMIT — observes through Begin, which answers nothing to observe
 //	           tx-with-retry differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           tx-with-retry differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // txWithRetryModelActions is the operation vocabulary both legs drive.
 //
@@ -1023,4 +1022,4 @@ func txWithRetryAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 114d084933e66afe03d846649045951aff48c129e38fd99e004d57e710aab80b
+// testkit:provenance 667d3a4dac15e07cb122bf7516324ee212355048d1b53a01a021440b0d429f6e

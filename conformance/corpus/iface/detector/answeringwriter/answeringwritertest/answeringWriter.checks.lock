@@ -5,3 +5,4 @@ Put/deadline	signature/deadline	Put reports an expired deadline as exceeded
 Put/nilcontext	signature/nilcontext	Put returns an error rather than panicking on a nil context	
 Put/smoke	signature/smoke	Put survives a call with a derived value	
 Put/zero-on-error	signature/zero-on-error	Put returns the zero Value alongside any error	
+model/answering-writer/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

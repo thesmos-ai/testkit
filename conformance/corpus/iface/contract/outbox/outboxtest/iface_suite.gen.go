@@ -915,8 +915,7 @@ func GreenContract(
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
-//   contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//   AUTO-COUNT-EQUALS-REFERENCE — Count observes Subscribe's result, a live handle only identity could compare
 //   contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -924,4 +923,4 @@ func GreenContract(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 14f1aa0889bf03a256a451ddca6499ceb45866d7778c150d7ad694bc2bcda3d2
+// testkit:provenance 1beaf719418c0bf7c7dc23a208be29ad5060f199365b2791f2d1d1b1e496f54f

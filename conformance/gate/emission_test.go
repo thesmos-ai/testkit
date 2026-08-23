@@ -186,6 +186,20 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 // See [tiers.OracleDefeat], and boundedcache, which is the fixture that
 // does.
 //
+// The count rose to 74 when the differential started being emitted for a
+// twin reference. That is a measurement change rather than a regression:
+// the row had never been emitted for a twin at all, so a fixture binding
+// no law had an empty model tier — and an empty tier is not counted here.
+// Eight detector fixtures were riding this floor invisibly, and with them
+// the action constructors for a lookup, a multi-reader, a mutator and a
+// bool-answering read were built and never driven anywhere in the corpus.
+//
+// What the row claims there is small and stated: two instances of one
+// subject must agree, which catches nondeterminism and hidden shared
+// state. It ships Argued, because no planted defect can redden it — a
+// proof run builds both sides from the defect and they agree however
+// broken it is.
+//
 // The publisher row left this table when the family gained ref.FanOut, an
 // oracle written at the shapes a Go publisher declares rather than at a
 // queue a consumer drains. Five fixtures took it, and five more stopped
@@ -193,7 +207,7 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 // their own factory, and a row that can fail on nothing but
 // nondeterminism is declined rather than shipped. Those five now report
 // an empty tier, which is what they were checking.
-const twinCeiling = 49
+const twinCeiling = 74
 
 // TestTwinFloorOnlySinks is the twin-count ratchet the audit's second item
 // commissioned: the twin is the honest floor, not the resting state, and a

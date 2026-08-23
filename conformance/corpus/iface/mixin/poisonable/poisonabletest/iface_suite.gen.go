@@ -845,7 +845,6 @@ func mixedModelRows() []suite.Check[Mixed] {
 //	           Fail — the poisonable.induce partner — the poison inducer, which would kill one side of the pair
 //	Not bound:
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // mixedModelActions is the operation vocabulary both legs drive.
 //
@@ -950,4 +949,4 @@ func mixedAssertPoisonConsistent(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance cbe0225da277339c1cbe3963c13598ceec454f548b50d11ba0a675078609e07c
+// testkit:provenance 8cce4c533e9de88d3d706e737738c98e6ea79171dd3d7f227b899a25588cd65e

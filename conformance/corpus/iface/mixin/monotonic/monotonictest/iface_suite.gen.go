@@ -61,6 +61,7 @@ import (
 //	Version/nilcontext
 //	Version/smoke
 //	Version/zero-on-error
+//	model/mixed/AUTO-COUNT-EQUALS-REFERENCE
 //	model/mixed/AUTO-LIFECYCLE-RESPECTS-CONTEXT
 //	model/mixed/AUTO-MONOTONIC-NON-DECREASING
 //
@@ -254,6 +255,7 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Advance.Smoke():                "MixedSuite.Checks.Advance.Smoke()",
 	mixedCheckIndex.Advance.Cancels():              "MixedSuite.Checks.Advance.Cancels()",
 	mixedCheckIndex.Advance.NilContext():           "MixedSuite.Checks.Advance.NilContext()",
+	mixedCheckIndex.Model.Counts():                 "MixedSuite.Checks.Model.Counts()",
 	mixedCheckIndex.Model.MonotonicNonDecreasing(): "MixedSuite.Checks.Model.MonotonicNonDecreasing()",
 	mixedCheckIndex.Model.RespectsContext():        "MixedSuite.Checks.Model.RespectsContext()",
 }
@@ -351,6 +353,10 @@ func (mixedAdvanceChecks) All() []suite.ID {
 
 type mixedModelChecks struct{}
 
+func (mixedModelChecks) Counts() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
+}
+
 func (mixedModelChecks) MonotonicNonDecreasing() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.MonotonicNonDecreasing)
 }
@@ -361,6 +367,7 @@ func (mixedModelChecks) RespectsContext() suite.ID {
 
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
+		mixedModelChecks{}.Counts(),
 		mixedModelChecks{}.MonotonicNonDecreasing(),
 		mixedModelChecks{}.RespectsContext(),
 	}
@@ -903,6 +910,19 @@ var _ = legs.CompatV1
 func mixedModelRows() []suite.Check[Mixed] {
 	return []suite.Check[Mixed]{
 		{
+			ID:    mixedCheckIndex.Model.Counts(),
+			Class: suite.ClassLaws,
+			Claim: "the subject counts what the reference counts",
+			Binds: []string{
+				lawid.CountEqualsReference,
+			},
+			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertCounts(tb, sub)
+			},
+		},
+		{
 			ID:    mixedCheckIndex.Model.MonotonicNonDecreasing(),
 			Class: suite.ClassLaws,
 			Claim: "the count never decreases across calls",
@@ -943,7 +963,6 @@ func mixedModelRows() []suite.Check[Mixed] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Version (aggregator), Advance (lifecycle)
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
 // mixedModelActions is the operation vocabulary both legs drive.
@@ -965,6 +984,30 @@ func mixedModelActions() []model.Action[Mixed] {
 			}),
 	}
 	return out
+}
+
+// mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
+//
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
+func mixedAssertCounts(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+) {
+	tb.Helper()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(),
+		[]law.Law[Mixed]{
+			law.CountEqualsReference[monotonic.Mixed, int64]{
+				Count: func(rt *model.T, s monotonic.Mixed) (int64, error) {
+					return s.Version(rt.Context())
+				},
+			},
+		})
 }
 
 // mixedAssertMonotonicNonDecreasing binds AUTO-MONOTONIC-NON-DECREASING over the shared sequences.
@@ -1025,4 +1068,4 @@ func mixedAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance f52805be48b1bd642917ada29498ea6f53e707bbdff061fb1b226e735a62126b
+// testkit:provenance 1e255dfc06974277e7a501e31ec46fab6360e2d215e86ad25bebbdc2d4fc03f0

@@ -874,7 +874,6 @@ func mixedModelRows() []suite.Check[Mixed] {
 //	           Prepare — the orderafter.fn partner — an ordering constraint, not an operation to drive at random
 //	Not bound:
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // mixedModelActions is the operation vocabulary both legs drive.
 //
@@ -926,4 +925,4 @@ func mixedAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance c72b892a57f7e66ffdb8a374480cbc2f522c74a6dce8d5943ffdb615573f0e56
+// testkit:provenance c8c2f0ce4841040082d0c895002c373edec061834361d0cb88fe4c2613687683

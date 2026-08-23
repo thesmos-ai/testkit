@@ -962,7 +962,7 @@ func contractModelRows() []suite.Check[Contract] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Next (multiaggregator), Close (lifecycle)
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
+//	           AUTO-COUNT-EQUALS-REFERENCE — observes through Next, which answers several results no single-valued closure returns
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
 // contractModelActions is the operation vocabulary both legs drive.
@@ -1071,4 +1071,4 @@ func contractAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 30870ff97f7f7cf659b78a34bc05e289980a1d97743f30a890c2bc4d42306ecf
+// testkit:provenance 60f9ef9625f5b78cc19f73f55305d29b5f58d49e69512ba076fc23205188d7f2

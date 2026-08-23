@@ -67,23 +67,34 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 	// with no law registered so nothing competes with it: a disagreement
 	// is what ends the run.
 	//
-	// Not on the twin floor, and the header says so rather than leaving a
-	// reader to notice the row is missing. A twin comparison already rides
-	// every law leg — the actions compare both sides after each call — and
-	// on its own it can only catch nondeterminism or shared state. A row
-	// for it would rerun the weakest half of what those legs already do,
-	// under a claim about a reference comparison it did not make.
-	if b.Reference.Twin() {
+	// Not on the twin floor WHERE A LAW LEG CARRIES IT. A twin comparison
+	// rides every law leg — the actions compare both sides after each call
+	// — so a row of its own would rerun the weakest half of what those legs
+	// already do, under a claim about a reference comparison it did not
+	// make.
+	//
+	// Where no law bound there are no legs, and the reasoning inverts: this
+	// row is then the only thing driving the actions at all. Declining it
+	// leaves the tier empty and the shapes it would have exercised
+	// untouched — eight detector fixtures lost their whole model tier that
+	// way, and with it the only run of the constructors for a lookup, a
+	// multi-reader, a mutator, a bool-answering read. Catching
+	// nondeterminism and hidden shared state is a smaller claim than a
+	// derived oracle makes, and it is not nothing.
+	//
+	// The twin arm below is why this is worth saying twice. Until now the
+	// row was emitted only for a derived or supplied reference, which left
+	// fifty-eight twin fixtures comparing against their own factory on law
+	// legs and nowhere else — and eight of those bind no law, so their
+	// actions were built and never driven. That was an omission rather
+	// than a verdict: nothing in the tree argued it.
+	switch decline := differentialDecline(b); {
+	case decline != "":
 		b.Unbound = append(b.Unbound, Skip{
 			Method: b.qualifier() + " differential",
-			Reason: "the reference is the subject's own factory, whose comparison " +
-				"already rides each law leg's actions; alone it catches " +
-				"nondeterminism and nothing a second instance shares",
+			Reason: decline,
 		})
-	}
-	if why := blindDifferential(b); why != "" {
-		b.Unbound = append(b.Unbound, Skip{Method: b.qualifier() + " differential", Reason: why})
-	} else if b.Reference.Derived() || b.Reference.Supplied() {
+	default:
 		dropped, writer, why := differentialDefect(b)
 		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
@@ -189,6 +200,27 @@ func freshMedium(b *Bindings) (projection.Defect, bool) {
 		Clause: projection.Clause{Text: "rebuild finds an empty medium"},
 		Ref:    projection.Expr(b.Reference.CtorName),
 	}, true
+}
+
+// differentialDecline is why this run emits no reference comparison,
+// empty where it emits one.
+//
+// Two reasons, and the order matters. A twin whose actions a law leg
+// already drives gets nothing new from a row of its own. A run whose every
+// driven method answers an error has nothing for either side to disagree
+// about, whatever stands behind the reference.
+//
+// A twin with no laws gets the row. It is the only thing that would drive
+// the actions at all, and comparing a subject against a second instance of
+// itself catches nondeterminism and hidden shared state — less than a
+// derived oracle, and more than nothing.
+func differentialDecline(b *Bindings) string {
+	if b.Reference.Twin() && len(b.Laws) > 0 {
+		return "the reference is the subject's own factory, whose comparison " +
+			"already rides each law leg's actions; alone it catches " +
+			"nondeterminism and nothing a second instance shares"
+	}
+	return blindDifferential(b)
 }
 
 // blindDifferential reports why a reference comparison could not fail,

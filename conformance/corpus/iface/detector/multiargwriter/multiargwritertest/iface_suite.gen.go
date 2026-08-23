@@ -713,7 +713,6 @@ func GreenMultiArgWriter(
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a value type no method here draws
-//   multi-arg-writer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //   multi-arg-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -721,4 +720,4 @@ func GreenMultiArgWriter(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance b64b7464094e61af43f4e380d851881019941f49b4543e1cec67b2ee2fae41e3
+// testkit:provenance 912d19bc44b2dcb8f1ae7f9580e4fe8699112d7d25f0ebebc885e30d25059a62

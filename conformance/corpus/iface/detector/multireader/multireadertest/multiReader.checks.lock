@@ -4,3 +4,4 @@ GetWithMeta/deadline	signature/deadline	GetWithMeta reports an expired deadline 
 GetWithMeta/nilcontext	signature/nilcontext	GetWithMeta returns an error rather than panicking on a nil context	
 GetWithMeta/smoke	signature/smoke	GetWithMeta survives a call with a seeded key	
 GetWithMeta/zero-on-error	signature/zero-on-error	GetWithMeta returns the zero Value and Meta alongside any error	
+model/multi-reader/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

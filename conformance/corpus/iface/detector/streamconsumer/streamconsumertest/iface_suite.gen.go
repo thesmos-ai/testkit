@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/streamconsumer"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -53,6 +56,7 @@ import (
 //	Next/nilcontext
 //	Next/smoke
 //	Next/zero-on-error
+//	model/source/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -235,6 +239,7 @@ var sourceIndexPath = map[suite.ID]string{
 	sourceCheckIndex.Next.NilContext():  "SourceSuite.Checks.Next.NilContext()",
 	sourceCheckIndex.Next.Deadline():    "SourceSuite.Checks.Next.Deadline()",
 	sourceCheckIndex.Next.ZeroOnError(): "SourceSuite.Checks.Next.ZeroOnError()",
+	sourceCheckIndex.Model.Agrees():     "SourceSuite.Checks.Model.Agrees()",
 }
 
 var sourceDropHint = suite.DropHinter(
@@ -245,22 +250,28 @@ var sourceDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	sourceNext = "Next"
+
+	// The interface's word inside a family-scoped identity.
+	sourceQualifier = "source"
 )
 
 // sourceCheckIndex names every check in this file, grouped by method.
 // Reach it through SourceSuite.Checks.
 var sourceCheckIndex = sourceCheckIndexT{
-	Next: sourceNextChecks{},
+	Next:  sourceNextChecks{},
+	Model: sourceModelChecks{},
 }
 
 type sourceCheckIndexT struct {
-	Next sourceNextChecks
+	Next  sourceNextChecks
+	Model sourceModelChecks
 }
 
 // All returns every ID this package emits.
 func (sourceCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, sourceNextChecks{}.All()...)
+	out = append(out, sourceModelChecks{}.All()...)
 	return out
 }
 
@@ -296,6 +307,18 @@ func (sourceNextChecks) All() []suite.ID {
 	}
 }
 
+type sourceModelChecks struct{}
+
+func (sourceModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, sourceQualifier, suite.SegDifferential)
+}
+
+func (sourceModelChecks) All() []suite.ID {
+	return []suite.ID{
+		sourceModelChecks{}.Agrees(),
+	}
+}
+
 // sourceSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -305,7 +328,8 @@ func sourceSuite() suite.Suite[Source] {
 	return suite.Suite[Source]{
 		Name:     "Source",
 		DropHint: sourceDropHint,
-		Checks:   sourceSignatureChecks(),
+		Checks: append(sourceSignatureChecks(),
+			sourceModelRows()...),
 	}
 }
 
@@ -479,6 +503,14 @@ type SourceCheck struct {
 	ProvenBy     SourceDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Source, fx SourceFixture)
 }
 
 // sourceMethods is the interface's method names — see
@@ -497,6 +529,14 @@ func (c SourceCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, sourceMethods)
+	b.Offers("Prop")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Source]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -720,17 +760,88 @@ func GreenSource(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- Source's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// sourceModelRows is what this package's model tier claims.
 //
-// Source carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
-//   source differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func sourceModelRows() []suite.Check[Source] {
+	return []suite.Check[Source]{
+		{
+			ID:          sourceCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Source]) {
+				sourceAssertAgrees(tb, sub)
+			},
+		},
+	}
+}
+
+// --- Source's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of Source's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and SourceSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Next (multiaggregator)
+//	Not bound:
+//	           AUTO-COUNT-EQUALS-REFERENCE — observes through Next, which answers several results no single-valued closure returns
+//
+// sourceModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func sourceModelActions() []model.Action[Source] {
+	out := []model.Action[Source]{
+		action.MultiAggregator("Next",
+			func(ctx context.Context, s streamconsumer.Source) (streamconsumer.Value, bool, error) {
+				return s.Next(ctx)
+			}),
+	}
+	return out
+}
+
+// sourceAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func sourceAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Source],
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() Source { return sub.New(tb) },
+		sourceModelActions())
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // Conformance checks for StreamConsumer, worked out from its declaration.
 //
@@ -1304,4 +1415,4 @@ func GreenStreamConsumer(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8fef685116c894cd28818baf6a847e46229c529078001dc2f1100abe0e359381
+// testkit:provenance 52166b6fc4cde42719a63f6e1fec507d88cb17e88463094b0aa81612e99e8bca

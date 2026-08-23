@@ -1,2 +1,3 @@
 testkit-checks v2
 Load/smoke	signature/smoke	Load survives a call with a seeded key	
+model/reader-with-bool/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

@@ -1,2 +1,3 @@
 testkit-checks v2
 Stop/smoke	signature/smoke	Stop survives a call	
+model/void-lifecycle/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

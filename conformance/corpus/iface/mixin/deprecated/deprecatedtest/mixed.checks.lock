@@ -9,3 +9,4 @@ Old/deadline	signature/deadline	Old reports an expired deadline as exceeded
 Old/nilcontext	signature/nilcontext	Old returns an error rather than panicking on a nil context	
 Old/smoke	signature/smoke	Old survives a call with a seeded key	
 Old/zero-on-error	signature/zero-on-error	Old returns zero alongside any error	
+model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

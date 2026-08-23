@@ -63,6 +63,7 @@ import (
 //	List/smoke
 //	List/zero-on-error
 //	model/mixed/AUTO-AGGREGATOR-BOUNDED
+//	model/mixed/AUTO-COUNT-EQUALS-REFERENCE
 //
 // Declared on this interface and checked by testkit's model tier rather
 // than by this file, which judges one call at a time. Nothing for you to
@@ -295,6 +296,7 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.List.NilContext():  "MixedSuite.Checks.List.NilContext()",
 	mixedCheckIndex.List.Deadline():    "MixedSuite.Checks.List.Deadline()",
 	mixedCheckIndex.List.ZeroOnError(): "MixedSuite.Checks.List.ZeroOnError()",
+	mixedCheckIndex.Model.Counts():     "MixedSuite.Checks.Model.Counts()",
 	mixedCheckIndex.Model.Bounded():    "MixedSuite.Checks.Model.Bounded()",
 }
 
@@ -396,12 +398,17 @@ func (mixedListChecks) All() []suite.ID {
 
 type mixedModelChecks struct{}
 
+func (mixedModelChecks) Counts() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
+}
+
 func (mixedModelChecks) Bounded() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.AggregatorBounded)
 }
 
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
+		mixedModelChecks{}.Counts(),
 		mixedModelChecks{}.Bounded(),
 	}
 }
@@ -975,6 +982,19 @@ var _ = legs.CompatV1
 func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 	return []suite.Check[Mixed]{
 		{
+			ID:    mixedCheckIndex.Model.Counts(),
+			Class: suite.ClassLaws,
+			Claim: "the subject counts what the reference counts",
+			Binds: []string{
+				lawid.CountEqualsReference,
+			},
+			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertCounts(tb, sub, fx)
+			},
+		},
+		{
 			ID:    mixedCheckIndex.Model.Bounded(),
 			Class: suite.ClassLaws,
 			Claim: "the count stays inside the declared bound",
@@ -1004,7 +1024,6 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
 // mixedModelValues is the value pool every value slot draws from.
@@ -1040,6 +1059,32 @@ func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 			}),
 	}
 	return out
+}
+
+// mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
+//
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
+func mixedAssertCounts(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			law.CountEqualsReference[bounded.Mixed, int]{
+				Count: func(rt *model.T, s bounded.Mixed) (int, error) {
+					items, err := s.List(rt.Context())
+					return len(items), err
+				},
+			},
+		})
 }
 
 // mixedAssertBounded binds AUTO-AGGREGATOR-BOUNDED over the shared sequences.
@@ -1078,4 +1123,4 @@ func mixedAssertBounded(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 160c09731fbb849b6da1c35a5420ee23c2b526b3b501d1b07b59e234e2073b20
+// testkit:provenance f5e4b5135e509b20b9504fd34a79ebf01e54e7a479a17d77eedf2c803dc6fe54

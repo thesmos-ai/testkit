@@ -64,6 +64,7 @@ import (
 //	Stats/nilcontext
 //	Stats/smoke
 //	Stats/zero-on-error
+//	model/contract/AUTO-COUNT-EQUALS-REFERENCE
 //	model/contract/AUTO-POOL-BALANCED
 //	model/contract/AUTO-POOL-LEAK-FREE
 //
@@ -267,6 +268,7 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Stats.NilContext():   "ContractSuite.Checks.Stats.NilContext()",
 	contractCheckIndex.Stats.Deadline():     "ContractSuite.Checks.Stats.Deadline()",
 	contractCheckIndex.Stats.ZeroOnError():  "ContractSuite.Checks.Stats.ZeroOnError()",
+	contractCheckIndex.Model.Counts():       "ContractSuite.Checks.Model.Counts()",
 	contractCheckIndex.Model.PoolBalanced(): "ContractSuite.Checks.Model.PoolBalanced()",
 	contractCheckIndex.Model.PoolLeakFree(): "ContractSuite.Checks.Model.PoolLeakFree()",
 }
@@ -390,6 +392,10 @@ func (contractStatsChecks) All() []suite.ID {
 
 type contractModelChecks struct{}
 
+func (contractModelChecks) Counts() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CountEqualsReference)
+}
+
 func (contractModelChecks) PoolBalanced() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.PoolBalanced)
 }
@@ -400,6 +406,7 @@ func (contractModelChecks) PoolLeakFree() suite.ID {
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
+		contractModelChecks{}.Counts(),
 		contractModelChecks{}.PoolBalanced(),
 		contractModelChecks{}.PoolLeakFree(),
 	}
@@ -1029,6 +1036,19 @@ var _ = legs.CompatV1
 func contractModelRows() []suite.Check[Contract] {
 	return []suite.Check[Contract]{
 		{
+			ID:    contractCheckIndex.Model.Counts(),
+			Class: suite.ClassLaws,
+			Claim: "the subject counts what the reference counts",
+			Binds: []string{
+				lawid.CountEqualsReference,
+			},
+			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertCounts(tb, sub)
+			},
+		},
+		{
 			ID:    contractCheckIndex.Model.PoolBalanced(),
 			Class: suite.ClassLaws,
 			Claim: "the pool's outstanding count never goes negative and returns to zero at rest",
@@ -1077,7 +1097,6 @@ func contractModelRows() []suite.Check[Contract] {
 //	Not driven:
 //	           Put — driven through the Get cycle — a standalone Put would leave the pool holding values no get took, and the balance claims are about the round trip
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
@@ -1103,6 +1122,30 @@ func contractModelActions() []model.Action[Contract] {
 			}),
 	}
 	return out
+}
+
+// contractAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
+//
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
+func contractAssertCounts(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+) {
+	tb.Helper()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Contract { return sub.New(tb) }, buildRef,
+		contractModelActions(),
+		[]law.Law[Contract]{
+			law.CountEqualsReference[pool.Contract, pool.Value]{
+				Count: func(rt *model.T, s pool.Contract) (pool.Value, error) {
+					return s.Get(rt.Context())
+				},
+			},
+		})
 }
 
 // contractAssertPoolBalanced binds AUTO-POOL-BALANCED over the shared sequences.
@@ -1158,4 +1201,4 @@ func contractAssertPoolLeakFree(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance f2113758354997160df29e123073e12ece9786ccd32450b3c43477a185337722
+// testkit:provenance b551eec5a45f66b9c2551e917f8e8c7a24ca67cc34011a692be560ce25990b1a

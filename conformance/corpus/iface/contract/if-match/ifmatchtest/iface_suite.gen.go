@@ -26,6 +26,9 @@ import (
 	"testing"
 
 	ifmatch "go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -58,6 +61,7 @@ import (
 //	Put/match
 //	Put/nilcontext
 //	Put/smoke
+//	model/contract/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -259,6 +263,7 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Match.Deadline():    "ContractSuite.Checks.Match.Deadline()",
 	contractCheckIndex.Match.ZeroOnError(): "ContractSuite.Checks.Match.ZeroOnError()",
 	contractCheckIndex.Match.Miss():        "ContractSuite.Checks.Match.Miss()",
+	contractCheckIndex.Model.Agrees():      "ContractSuite.Checks.Model.Agrees()",
 }
 
 var contractDropHint = suite.DropHinter(
@@ -270,6 +275,9 @@ var contractDropHint = suite.DropHinter(
 const (
 	contractPut   = "Put"
 	contractMatch = "Match"
+
+	// The interface's word inside a family-scoped identity.
+	contractQualifier = "contract"
 )
 
 // contractCheckIndex names every check in this file, grouped by method.
@@ -277,11 +285,13 @@ const (
 var contractCheckIndex = contractCheckIndexT{
 	Put:   contractPutChecks{},
 	Match: contractMatchChecks{},
+	Model: contractModelChecks{},
 }
 
 type contractCheckIndexT struct {
 	Put   contractPutChecks
 	Match contractMatchChecks
+	Model contractModelChecks
 }
 
 // All returns every ID this package emits.
@@ -289,6 +299,7 @@ func (contractCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, contractPutChecks{}.All()...)
 	out = append(out, contractMatchChecks{}.All()...)
+	out = append(out, contractModelChecks{}.All()...)
 	return out
 }
 
@@ -361,6 +372,18 @@ func (contractMatchChecks) All() []suite.ID {
 	}
 }
 
+type contractModelChecks struct{}
+
+func (contractModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, contractQualifier, suite.SegDifferential)
+}
+
+func (contractModelChecks) All() []suite.ID {
+	return []suite.ID{
+		contractModelChecks{}.Agrees(),
+	}
+}
+
 // contractSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -370,7 +393,8 @@ func contractSuite(fx ContractFixture) suite.Suite[Contract] {
 	return suite.Suite[Contract]{
 		Name:     "Contract",
 		DropHint: contractDropHint,
-		Checks:   contractSignatureChecks(fx),
+		Checks: append(contractSignatureChecks(fx),
+			contractModelRows(fx)...),
 	}
 }
 
@@ -669,6 +693,26 @@ type ContractCheck struct {
 	ProvenBy     ContractDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Contract, fx ContractFixture)
+
+	// PropPut is Prop with Put's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Put, so leave Method empty.
+	PropPut func(rt *PropT, s Contract, value ifmatch.Value)
+
+	// PropMatch is Prop with Match's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Match, so leave Method empty.
+	PropMatch func(rt *PropT, s Contract, key ifmatch.Value)
 }
 
 // contractMethods is the interface's method names — see
@@ -687,6 +731,30 @@ func (c ContractCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, contractMethods)
+	b.Offers("Prop, PropPut, PropMatch")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Contract]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropPut; fn != nil {
+		b.Fixed(suite.MethodID(contractPut, c.Name),
+			func(tb testing.TB, sub suite.Subject[Contract]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), contractModelValues(fx).Draw(rt, "value"))
+				})
+			})
+	}
+	if fn := c.PropMatch; fn != nil {
+		b.Fixed(suite.MethodID(contractMatch, c.Name),
+			func(tb testing.TB, sub suite.Subject[Contract]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), contractModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -944,18 +1012,119 @@ func GreenContract(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- Contract's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// contractModelRows is what this package's model tier claims.
 //
-// Contract carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   AUTO-WRITE-OBSERVABLE — Read closes over Match, which reads (go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value → bool) beside pools of (go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value, go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value)
-//   contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//   crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
+	return []suite.Check[Contract]{
+		{
+			ID:          contractCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
+				contractAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- Contract's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of Contract's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and ContractSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — the reader answers bool where the writer takes go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Put (writer), Match (reader)
+//	Values:    the fixture pair blended with arbitrary draws
+//	Not bound:
+//	           AUTO-WRITE-OBSERVABLE — Read closes over Match, which reads (go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value → bool) beside pools of (go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value, go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value)
+//	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
+
+// contractModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func contractModelKeys(fx ContractFixture) *model.Generator[ifmatch.Value] {
+	return model.SampledFrom([]ifmatch.Value{fx.Value(), fx.ValueOther()})
+}
+
+// contractModelValues is the value pool every value slot draws from.
+//
+// The fixture pair blended with arbitrary draws: the pair keeps identical
+// rewrites frequent, the wide arm reaches values no fixture spells, and
+// nothing in the claims licenses refusing either.
+func contractModelValues(fx ContractFixture) *model.Generator[ifmatch.Value] {
+	bodies := model.OneOf(
+		model.SampledFrom([]ifmatch.Value{fx.Value(), fx.ValueOther()}),
+		model.Make[ifmatch.Value](),
+	)
+	return bodies
+}
+
+// contractModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func contractModelActions(fx ContractFixture) []model.Action[Contract] {
+	keys := contractModelKeys(fx)
+	values := contractModelValues(fx)
+	out := []model.Action[Contract]{
+		action.Writer("Put", values,
+			func(ctx context.Context, s ifmatch.Contract, v ifmatch.Value) error {
+				return s.Put(ctx, v)
+			}),
+		action.Reader("Match", keys,
+			func(ctx context.Context, s ifmatch.Contract, k ifmatch.Value) (bool, error) {
+				return s.Match(ctx, k)
+			}),
+	}
+	return out
+}
+
+// contractAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func contractAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Contract],
+	fx ContractFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() Contract { return sub.New(tb) },
+		contractModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance a9accf20a26e26aad9a5df3057778616c1779f96ba42b791bb8aa09f87d08605
+// testkit:provenance 4768e9fc0c0e43a631bfc8d3e571832eb6d7e84209e76412d9dc1a5b183829ac

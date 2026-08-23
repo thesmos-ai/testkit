@@ -26,6 +26,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/voidlifecycle"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -48,6 +51,7 @@ import (
 // The checks this file runs:
 //
 //	Stop/smoke
+//	model/void-lifecycle/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -225,7 +229,8 @@ func (voidLifecycleVeneer) Suite() suite.Suite[VoidLifecycle] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var voidLifecycleIndexPath = map[suite.ID]string{
-	voidLifecycleCheckIndex.Stop.Smoke(): "VoidLifecycleSuite.Checks.Stop.Smoke()",
+	voidLifecycleCheckIndex.Stop.Smoke():   "VoidLifecycleSuite.Checks.Stop.Smoke()",
+	voidLifecycleCheckIndex.Model.Agrees(): "VoidLifecycleSuite.Checks.Model.Agrees()",
 }
 
 var voidLifecycleDropHint = suite.DropHinter(
@@ -236,22 +241,28 @@ var voidLifecycleDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	voidLifecycleStop = "Stop"
+
+	// The interface's word inside a family-scoped identity.
+	voidLifecycleQualifier = "void-lifecycle"
 )
 
 // voidLifecycleCheckIndex names every check in this file, grouped by method.
 // Reach it through VoidLifecycleSuite.Checks.
 var voidLifecycleCheckIndex = voidLifecycleCheckIndexT{
-	Stop: voidLifecycleStopChecks{},
+	Stop:  voidLifecycleStopChecks{},
+	Model: voidLifecycleModelChecks{},
 }
 
 type voidLifecycleCheckIndexT struct {
-	Stop voidLifecycleStopChecks
+	Stop  voidLifecycleStopChecks
+	Model voidLifecycleModelChecks
 }
 
 // All returns every ID this package emits.
 func (voidLifecycleCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, voidLifecycleStopChecks{}.All()...)
+	out = append(out, voidLifecycleModelChecks{}.All()...)
 	return out
 }
 
@@ -267,6 +278,18 @@ func (voidLifecycleStopChecks) All() []suite.ID {
 	}
 }
 
+type voidLifecycleModelChecks struct{}
+
+func (voidLifecycleModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, voidLifecycleQualifier, suite.SegDifferential)
+}
+
+func (voidLifecycleModelChecks) All() []suite.ID {
+	return []suite.ID{
+		voidLifecycleModelChecks{}.Agrees(),
+	}
+}
+
 // voidLifecycleSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -276,7 +299,8 @@ func voidLifecycleSuite() suite.Suite[VoidLifecycle] {
 	return suite.Suite[VoidLifecycle]{
 		Name:     "VoidLifecycle",
 		DropHint: voidLifecycleDropHint,
-		Checks:   voidLifecycleSignatureChecks(),
+		Checks: append(voidLifecycleSignatureChecks(),
+			voidLifecycleModelRows()...),
 	}
 }
 
@@ -369,6 +393,14 @@ type VoidLifecycleCheck struct {
 	ProvenBy     VoidLifecycleDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s VoidLifecycle, fx VoidLifecycleFixture)
 }
 
 // voidLifecycleMethods is the interface's method names — see
@@ -387,6 +419,14 @@ func (c VoidLifecycleCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, voidLifecycleMethods)
+	b.Offers("Prop")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[VoidLifecycle]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -567,16 +607,86 @@ func GreenVoidLifecycle(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- VoidLifecycle's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// voidLifecycleModelRows is what this package's model tier claims.
 //
-// VoidLifecycle carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   void-lifecycle differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func voidLifecycleModelRows() []suite.Check[VoidLifecycle] {
+	return []suite.Check[VoidLifecycle]{
+		{
+			ID:          voidLifecycleCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[VoidLifecycle]) {
+				voidLifecycleAssertAgrees(tb, sub)
+			},
+		},
+	}
+}
+
+// --- VoidLifecycle's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of VoidLifecycle's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and VoidLifecycleSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Stop (voidlifecycle)
+//
+// voidLifecycleModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func voidLifecycleModelActions() []model.Action[VoidLifecycle] {
+	out := []model.Action[VoidLifecycle]{
+		action.VoidLifecycle("Stop",
+			func(_ context.Context, s voidlifecycle.VoidLifecycle) {
+				s.Stop()
+			}),
+	}
+	return out
+}
+
+// voidLifecycleAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func voidLifecycleAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[VoidLifecycle],
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() VoidLifecycle { return sub.New(tb) },
+		voidLifecycleModelActions())
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance f79f7f4b999738e27bafff9bde8dbc18340bf6684002893d5c53d3e856ecf6b5
+// testkit:provenance 5b005d0ad2cad7de27fd578f4c949853bbadc595e956e078d2730558ddb1932e

@@ -1023,7 +1023,6 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read closes over Watch, which reads (string → go.thesmos.sh/testkit/conformance/corpus/iface/contract/watcher.Subscription) beside pools of (string, go.thesmos.sh/testkit/conformance/corpus/iface/contract/watcher.Value)
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 
 // contractModelKeys is the key pool every key slot draws from.
 //
@@ -1120,4 +1119,4 @@ func contractAssertWatcherReturnsOnChange(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 36721318c3e90a680ac656c62b4c54837a62df7368ebf75bb6324b52bb142df0
+// testkit:provenance 406d034f22a3452f0c2584dcf54a5b237e7b28b4fa7c80e7633ab434d9d6a0fd

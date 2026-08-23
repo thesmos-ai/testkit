@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/answeringwriter"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -54,6 +57,7 @@ import (
 //	Put/nilcontext
 //	Put/smoke
 //	Put/zero-on-error
+//	model/answering-writer/differential
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -250,6 +254,7 @@ var answeringWriterIndexPath = map[suite.ID]string{
 	answeringWriterCheckIndex.Put.Deadline():    "AnsweringWriterSuite.Checks.Put.Deadline()",
 	answeringWriterCheckIndex.Put.ZeroOnError(): "AnsweringWriterSuite.Checks.Put.ZeroOnError()",
 	answeringWriterCheckIndex.Put.Answer():      "AnsweringWriterSuite.Checks.Put.Answer()",
+	answeringWriterCheckIndex.Model.Agrees():    "AnsweringWriterSuite.Checks.Model.Agrees()",
 }
 
 var answeringWriterDropHint = suite.DropHinter(
@@ -260,22 +265,28 @@ var answeringWriterDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	answeringWriterPut = "Put"
+
+	// The interface's word inside a family-scoped identity.
+	answeringWriterQualifier = "answering-writer"
 )
 
 // answeringWriterCheckIndex names every check in this file, grouped by method.
 // Reach it through AnsweringWriterSuite.Checks.
 var answeringWriterCheckIndex = answeringWriterCheckIndexT{
-	Put: answeringWriterPutChecks{},
+	Put:   answeringWriterPutChecks{},
+	Model: answeringWriterModelChecks{},
 }
 
 type answeringWriterCheckIndexT struct {
-	Put answeringWriterPutChecks
+	Put   answeringWriterPutChecks
+	Model answeringWriterModelChecks
 }
 
 // All returns every ID this package emits.
 func (answeringWriterCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, answeringWriterPutChecks{}.All()...)
+	out = append(out, answeringWriterModelChecks{}.All()...)
 	return out
 }
 
@@ -316,6 +327,18 @@ func (answeringWriterPutChecks) All() []suite.ID {
 	}
 }
 
+type answeringWriterModelChecks struct{}
+
+func (answeringWriterModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, answeringWriterQualifier, suite.SegDifferential)
+}
+
+func (answeringWriterModelChecks) All() []suite.ID {
+	return []suite.ID{
+		answeringWriterModelChecks{}.Agrees(),
+	}
+}
+
 // answeringWriterSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -325,7 +348,8 @@ func answeringWriterSuite(fx AnsweringWriterFixture) suite.Suite[AnsweringWriter
 	return suite.Suite[AnsweringWriter]{
 		Name:     "AnsweringWriter",
 		DropHint: answeringWriterDropHint,
-		Checks:   answeringWriterSignatureChecks(fx),
+		Checks: append(answeringWriterSignatureChecks(fx),
+			answeringWriterModelRows(fx)...),
 	}
 }
 
@@ -523,6 +547,20 @@ type AnsweringWriterCheck struct {
 	ProvenBy     AnsweringWriterDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s AnsweringWriter, fx AnsweringWriterFixture)
+
+	// PropPut is Prop with Put's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Put, so leave Method empty.
+	PropPut func(rt *PropT, s AnsweringWriter, value answeringwriter.Value)
 }
 
 // answeringWriterMethods is the interface's method names — see
@@ -541,6 +579,22 @@ func (c AnsweringWriterCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, answeringWriterMethods)
+	b.Offers("Prop, PropPut")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[AnsweringWriter]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropPut; fn != nil {
+		b.Fixed(suite.MethodID(answeringWriterPut, c.Name),
+			func(tb testing.TB, sub suite.Subject[AnsweringWriter]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), answeringWriterModelValues(fx).Draw(rt, "value"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -774,16 +828,102 @@ func GreenAnsweringWriter(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- AnsweringWriter's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// answeringWriterModelRows is what this package's model tier claims.
 //
-// AnsweringWriter carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   answering-writer differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func answeringWriterModelRows(fx AnsweringWriterFixture) []suite.Check[AnsweringWriter] {
+	return []suite.Check[AnsweringWriter]{
+		{
+			ID:          answeringWriterCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[AnsweringWriter]) {
+				answeringWriterAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- AnsweringWriter's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of AnsweringWriter's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and AnsweringWriterSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Put (answeringwriter)
+//	Values:    the fixture pair blended with arbitrary draws
+
+// answeringWriterModelValues is the value pool every value slot draws from.
+//
+// The fixture pair blended with arbitrary draws: the pair keeps identical
+// rewrites frequent, the wide arm reaches values no fixture spells, and
+// nothing in the claims licenses refusing either.
+func answeringWriterModelValues(fx AnsweringWriterFixture) *model.Generator[answeringwriter.Value] {
+	bodies := model.OneOf(
+		model.SampledFrom([]answeringwriter.Value{fx.Value(), fx.ValueOther()}),
+		model.Make[answeringwriter.Value](),
+	)
+	return bodies
+}
+
+// answeringWriterModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func answeringWriterModelActions(fx AnsweringWriterFixture) []model.Action[AnsweringWriter] {
+	values := answeringWriterModelValues(fx)
+	out := []model.Action[AnsweringWriter]{
+		action.AnsweringWriter("Put", values,
+			func(ctx context.Context, s answeringwriter.AnsweringWriter, v answeringwriter.Value) (answeringwriter.Value, error) {
+				return s.Put(ctx, v)
+			}),
+	}
+	return out
+}
+
+// answeringWriterAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func answeringWriterAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[AnsweringWriter],
+	fx AnsweringWriterFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() AnsweringWriter { return sub.New(tb) },
+		answeringWriterModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance b52ae28edde66d95fc05bd50349d79b6c289d4b09b2bffd1cfc2abc4576522c9
+// testkit:provenance f2eba1f435eeb147839ea643a766bee4b1cf7510c404832ac8e12772dadaba22

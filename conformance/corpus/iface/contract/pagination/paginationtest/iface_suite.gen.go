@@ -1072,7 +1072,6 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
-//	           contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 
 // contractModelValues is the value pool every value slot draws from.
 //
@@ -1173,4 +1172,4 @@ func contractAssertPaginatorResumable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance ce6bfd4a62041253b768c679ea27568baccb9b05e4eefdadd4f1206c262f6aca
+// testkit:provenance 71f4f2055bb74976d0d724a33250bee9cef8e2a2d79defe72f90f62ed5f77d4e

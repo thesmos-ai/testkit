@@ -4,3 +4,4 @@ Page/deadline	signature/deadline	Page reports an expired deadline as exceeded
 Page/nilcontext	signature/nilcontext	Page returns an error rather than panicking on a nil context	
 Page/smoke	signature/smoke	Page survives a call with a seeded cursor	
 Page/zero-on-error	signature/zero-on-error	Page returns the zero for every result alongside any error	
+model/paginated-reader/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

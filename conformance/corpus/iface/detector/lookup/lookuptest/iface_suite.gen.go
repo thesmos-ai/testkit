@@ -26,6 +26,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/lookup"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -48,6 +51,7 @@ import (
 // The checks this file runs:
 //
 //	Inspect/smoke
+//	model/lookup/differential
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -246,6 +250,7 @@ func (lookupVeneer) Suite(fx LookupFixture) suite.Suite[Lookup] {
 // type rather than only what went wrong.
 var lookupIndexPath = map[suite.ID]string{
 	lookupCheckIndex.Inspect.Smoke(): "LookupSuite.Checks.Inspect.Smoke()",
+	lookupCheckIndex.Model.Agrees():  "LookupSuite.Checks.Model.Agrees()",
 }
 
 var lookupDropHint = suite.DropHinter(
@@ -256,22 +261,28 @@ var lookupDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	lookupInspect = "Inspect"
+
+	// The interface's word inside a family-scoped identity.
+	lookupQualifier = "lookup"
 )
 
 // lookupCheckIndex names every check in this file, grouped by method.
 // Reach it through LookupSuite.Checks.
 var lookupCheckIndex = lookupCheckIndexT{
 	Inspect: lookupInspectChecks{},
+	Model:   lookupModelChecks{},
 }
 
 type lookupCheckIndexT struct {
 	Inspect lookupInspectChecks
+	Model   lookupModelChecks
 }
 
 // All returns every ID this package emits.
 func (lookupCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, lookupInspectChecks{}.All()...)
+	out = append(out, lookupModelChecks{}.All()...)
 	return out
 }
 
@@ -287,6 +298,18 @@ func (lookupInspectChecks) All() []suite.ID {
 	}
 }
 
+type lookupModelChecks struct{}
+
+func (lookupModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, lookupQualifier, suite.SegDifferential)
+}
+
+func (lookupModelChecks) All() []suite.ID {
+	return []suite.ID{
+		lookupModelChecks{}.Agrees(),
+	}
+}
+
 // lookupSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -296,7 +319,8 @@ func lookupSuite(fx LookupFixture) suite.Suite[Lookup] {
 	return suite.Suite[Lookup]{
 		Name:     "Lookup",
 		DropHint: lookupDropHint,
-		Checks:   lookupSignatureChecks(fx),
+		Checks: append(lookupSignatureChecks(fx),
+			lookupModelRows(fx)...),
 	}
 }
 
@@ -390,6 +414,20 @@ type LookupCheck struct {
 	ProvenBy     LookupDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Lookup, fx LookupFixture)
+
+	// PropInspect is Prop with Inspect's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Inspect, so leave Method empty.
+	PropInspect func(rt *PropT, s Lookup, key string)
 }
 
 // lookupMethods is the interface's method names — see
@@ -408,6 +446,22 @@ func (c LookupCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, lookupMethods)
+	b.Offers("Prop, PropInspect")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Lookup]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropInspect; fn != nil {
+		b.Fixed(suite.MethodID(lookupInspect, c.Name),
+			func(tb testing.TB, sub suite.Subject[Lookup]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), lookupModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -588,16 +642,104 @@ func GreenLookup(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- Lookup's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// lookupModelRows is what this package's model tier claims.
 //
-// Lookup carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   lookup differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func lookupModelRows(fx LookupFixture) []suite.Check[Lookup] {
+	return []suite.Check[Lookup]{
+		{
+			ID:          lookupCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Lookup]) {
+				lookupAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- Lookup's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of Lookup's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and LookupSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Inspect (lookup)
+
+// lookupModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func lookupModelKeys(fx LookupFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return s },
+	)
+}
+
+// lookupModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func lookupModelActions(fx LookupFixture) []model.Action[Lookup] {
+	keys := lookupModelKeys(fx)
+	out := []model.Action[Lookup]{
+		action.Lookup("Inspect", keys,
+			func(s lookup.Lookup, k string) (lookup.Value, lookup.Meta, bool) {
+				return s.Inspect(k)
+			}),
+	}
+	return out
+}
+
+// lookupAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func lookupAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[Lookup],
+	fx LookupFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() Lookup { return sub.New(tb) },
+		lookupModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance f4ebbd457b63c18a8181e8b13da4c284331d03c8d21f574e74f62dd503927fc4
+// testkit:provenance 352495c9dcafbae7fac8922ebe38ccd05eb8dd8dcf164533d32eda14fa1acc2e

@@ -15,3 +15,4 @@ Len/deadline	signature/deadline	Len reports an expired deadline as exceeded
 Len/nilcontext	signature/nilcontext	Len returns an error rather than panicking on a nil context	
 Len/smoke	signature/smoke	Len survives a call	
 Len/zero-on-error	signature/zero-on-error	Len returns zero alongside any error	
+model/ranked/AUTO-COUNT-EQUALS-REFERENCE	model/laws	the subject counts what the reference counts	AUTO-COUNT-EQUALS-REFERENCE

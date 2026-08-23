@@ -4,3 +4,4 @@ GetAll/deadline	signature/deadline	GetAll reports an expired deadline as exceede
 GetAll/nilcontext	signature/nilcontext	GetAll returns an error rather than panicking on a nil context	
 GetAll/smoke	signature/smoke	GetAll survives a call with a seeded keys	
 GetAll/zero-on-error	signature/zero-on-error	GetAll returns nothing alongside any error	
+model/batch-reader/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

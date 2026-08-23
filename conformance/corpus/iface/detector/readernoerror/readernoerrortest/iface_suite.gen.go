@@ -26,6 +26,9 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/detector/readernoerror"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -48,6 +51,7 @@ import (
 // The checks this file runs:
 //
 //	Lookup/smoke
+//	model/reader-no-error/differential
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -246,6 +250,7 @@ func (readerNoErrorVeneer) Suite(fx ReaderNoErrorFixture) suite.Suite[ReaderNoEr
 // type rather than only what went wrong.
 var readerNoErrorIndexPath = map[suite.ID]string{
 	readerNoErrorCheckIndex.Lookup.Smoke(): "ReaderNoErrorSuite.Checks.Lookup.Smoke()",
+	readerNoErrorCheckIndex.Model.Agrees(): "ReaderNoErrorSuite.Checks.Model.Agrees()",
 }
 
 var readerNoErrorDropHint = suite.DropHinter(
@@ -256,22 +261,28 @@ var readerNoErrorDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	readerNoErrorLookup = "Lookup"
+
+	// The interface's word inside a family-scoped identity.
+	readerNoErrorQualifier = "reader-no-error"
 )
 
 // readerNoErrorCheckIndex names every check in this file, grouped by method.
 // Reach it through ReaderNoErrorSuite.Checks.
 var readerNoErrorCheckIndex = readerNoErrorCheckIndexT{
 	Lookup: readerNoErrorLookupChecks{},
+	Model:  readerNoErrorModelChecks{},
 }
 
 type readerNoErrorCheckIndexT struct {
 	Lookup readerNoErrorLookupChecks
+	Model  readerNoErrorModelChecks
 }
 
 // All returns every ID this package emits.
 func (readerNoErrorCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, readerNoErrorLookupChecks{}.All()...)
+	out = append(out, readerNoErrorModelChecks{}.All()...)
 	return out
 }
 
@@ -287,6 +298,18 @@ func (readerNoErrorLookupChecks) All() []suite.ID {
 	}
 }
 
+type readerNoErrorModelChecks struct{}
+
+func (readerNoErrorModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, readerNoErrorQualifier, suite.SegDifferential)
+}
+
+func (readerNoErrorModelChecks) All() []suite.ID {
+	return []suite.ID{
+		readerNoErrorModelChecks{}.Agrees(),
+	}
+}
+
 // readerNoErrorSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -296,7 +319,8 @@ func readerNoErrorSuite(fx ReaderNoErrorFixture) suite.Suite[ReaderNoError] {
 	return suite.Suite[ReaderNoError]{
 		Name:     "ReaderNoError",
 		DropHint: readerNoErrorDropHint,
-		Checks:   readerNoErrorSignatureChecks(fx),
+		Checks: append(readerNoErrorSignatureChecks(fx),
+			readerNoErrorModelRows(fx)...),
 	}
 }
 
@@ -390,6 +414,20 @@ type ReaderNoErrorCheck struct {
 	ProvenBy     ReaderNoErrorDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s ReaderNoError, fx ReaderNoErrorFixture)
+
+	// PropLookup is Prop with Lookup's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Lookup, so leave Method empty.
+	PropLookup func(rt *PropT, s ReaderNoError, key string)
 }
 
 // readerNoErrorMethods is the interface's method names — see
@@ -408,6 +446,22 @@ func (c ReaderNoErrorCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, readerNoErrorMethods)
+	b.Offers("Prop, PropLookup")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[ReaderNoError]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropLookup; fn != nil {
+		b.Fixed(suite.MethodID(readerNoErrorLookup, c.Name),
+			func(tb testing.TB, sub suite.Subject[ReaderNoError]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), readerNoErrorModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -588,16 +642,104 @@ func GreenReaderNoError(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- ReaderNoError's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// readerNoErrorModelRows is what this package's model tier claims.
 //
-// ReaderNoError carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   reader-no-error differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func readerNoErrorModelRows(fx ReaderNoErrorFixture) []suite.Check[ReaderNoError] {
+	return []suite.Check[ReaderNoError]{
+		{
+			ID:          readerNoErrorCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[ReaderNoError]) {
+				readerNoErrorAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- ReaderNoError's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of ReaderNoError's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and ReaderNoErrorSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Lookup (readernoerror)
+
+// readerNoErrorModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func readerNoErrorModelKeys(fx ReaderNoErrorFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return s },
+	)
+}
+
+// readerNoErrorModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func readerNoErrorModelActions(fx ReaderNoErrorFixture) []model.Action[ReaderNoError] {
+	keys := readerNoErrorModelKeys(fx)
+	out := []model.Action[ReaderNoError]{
+		action.ReaderNoError("Lookup", keys,
+			func(ctx context.Context, s readernoerror.ReaderNoError, k string) readernoerror.Value {
+				return s.Lookup(ctx, k)
+			}),
+	}
+	return out
+}
+
+// readerNoErrorAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func readerNoErrorAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[ReaderNoError],
+	fx ReaderNoErrorFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() ReaderNoError { return sub.New(tb) },
+		readerNoErrorModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance fdc4003565cca628f9164b2924302b768f82f5597ecc3c0f5cc0c4d8bb5c9a99
+// testkit:provenance 6b5287b589283c40f782bbea99f527f6707e594efb25e7675bdf61ddc593bc67

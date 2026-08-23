@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	paginatedreader "go.thesmos.sh/testkit/conformance/corpus/iface/composite/paginated-reader"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -53,6 +56,7 @@ import (
 //	Page/nilcontext
 //	Page/smoke
 //	Page/zero-on-error
+//	model/paginated-reader/differential
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -255,6 +259,7 @@ var paginatedReaderIndexPath = map[suite.ID]string{
 	paginatedReaderCheckIndex.Page.NilContext():  "PaginatedReaderSuite.Checks.Page.NilContext()",
 	paginatedReaderCheckIndex.Page.Deadline():    "PaginatedReaderSuite.Checks.Page.Deadline()",
 	paginatedReaderCheckIndex.Page.ZeroOnError(): "PaginatedReaderSuite.Checks.Page.ZeroOnError()",
+	paginatedReaderCheckIndex.Model.Agrees():     "PaginatedReaderSuite.Checks.Model.Agrees()",
 }
 
 var paginatedReaderDropHint = suite.DropHinter(
@@ -265,22 +270,28 @@ var paginatedReaderDropHint = suite.DropHinter(
 // they cannot drift apart.
 const (
 	paginatedReaderPage = "Page"
+
+	// The interface's word inside a family-scoped identity.
+	paginatedReaderQualifier = "paginated-reader"
 )
 
 // paginatedReaderCheckIndex names every check in this file, grouped by method.
 // Reach it through PaginatedReaderSuite.Checks.
 var paginatedReaderCheckIndex = paginatedReaderCheckIndexT{
-	Page: paginatedReaderPageChecks{},
+	Page:  paginatedReaderPageChecks{},
+	Model: paginatedReaderModelChecks{},
 }
 
 type paginatedReaderCheckIndexT struct {
-	Page paginatedReaderPageChecks
+	Page  paginatedReaderPageChecks
+	Model paginatedReaderModelChecks
 }
 
 // All returns every ID this package emits.
 func (paginatedReaderCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, paginatedReaderPageChecks{}.All()...)
+	out = append(out, paginatedReaderModelChecks{}.All()...)
 	return out
 }
 
@@ -316,6 +327,18 @@ func (paginatedReaderPageChecks) All() []suite.ID {
 	}
 }
 
+type paginatedReaderModelChecks struct{}
+
+func (paginatedReaderModelChecks) Agrees() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, paginatedReaderQualifier, suite.SegDifferential)
+}
+
+func (paginatedReaderModelChecks) All() []suite.ID {
+	return []suite.ID{
+		paginatedReaderModelChecks{}.Agrees(),
+	}
+}
+
 // paginatedReaderSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -325,7 +348,8 @@ func paginatedReaderSuite(fx PaginatedReaderFixture) suite.Suite[PaginatedReader
 	return suite.Suite[PaginatedReader]{
 		Name:     "PaginatedReader",
 		DropHint: paginatedReaderDropHint,
-		Checks:   paginatedReaderSignatureChecks(fx),
+		Checks: append(paginatedReaderSignatureChecks(fx),
+			paginatedReaderModelRows(fx)...),
 	}
 }
 
@@ -502,6 +526,20 @@ type PaginatedReaderCheck struct {
 	ProvenBy     PaginatedReaderDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s PaginatedReader, fx PaginatedReaderFixture)
+
+	// PropPage is Prop with Page's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Page, so leave Method empty.
+	PropPage func(rt *PropT, s PaginatedReader, key int)
 }
 
 // paginatedReaderMethods is the interface's method names — see
@@ -520,6 +558,22 @@ func (c PaginatedReaderCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, paginatedReaderMethods)
+	b.Offers("Prop, PropPage")
+	if fn := c.Prop; fn != nil {
+		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[PaginatedReader]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		})
+	}
+	if fn := c.PropPage; fn != nil {
+		b.Fixed(suite.MethodID(paginatedReaderPage, c.Name),
+			func(tb testing.TB, sub suite.Subject[PaginatedReader]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), paginatedReaderModelKeys(fx).Draw(rt, "key"))
+				})
+			})
+	}
 	return b.Seal(c.Method)
 }
 
@@ -743,18 +797,100 @@ func GreenPaginatedReader(
 		control.Answering(suite.Doors(rc.Subjects...)))
 }
 
-// --- PaginatedReader's model tier: not emitted ----------------------------------
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// paginatedReaderModelRows is what this package's model tier claims.
 //
-// PaginatedReader carries //testkit:model, and no rows above come from it:
-// no claim this tier knows how to state reached this interface,
-// so it contributes no checks. Each reason below is one it tried:
-//   AUTO-PAGINATOR-NO-DUPLICATES — Page closes over Page, which answers no page — no cursor to resume from
-//   AUTO-PAGINATOR-RESUMABLE — Page closes over Page, which answers no page — no cursor to resume from
-//   paginated-reader differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func paginatedReaderModelRows(fx PaginatedReaderFixture) []suite.Check[PaginatedReader] {
+	return []suite.Check[PaginatedReader]{
+		{
+			ID:          paginatedReaderCheckIndex.Model.Agrees(),
+			Class:       suite.ClassDifferential,
+			Claim:       "every operation sequence leaves the subject agreeing with the reference",
+			Falsifiable: suite.Argued("the reference is the subject's own factory, so a proof run builds both sides from the defect and they agree however broken it is; what this row can catch is nondeterminism, which no planted defect exhibits"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[PaginatedReader]) {
+				paginatedReaderAssertAgrees(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- PaginatedReader's model tier -------------------------------------------
 //
-// Nothing to do about it here. The claims that needed sequences are the
-// ones this package does not check, and this says so rather than letting
-// the run surface read as complete.
+// Random sequences of PaginatedReader's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and PaginatedReaderSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — no reader/writer pair derives a store,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Page (multireader)
+//	Not bound:
+//	           AUTO-PAGINATOR-NO-DUPLICATES — Page closes over Page, which answers no page — no cursor to resume from
+//	           AUTO-PAGINATOR-RESUMABLE — Page closes over Page, which answers no page — no cursor to resume from
+
+// paginatedReaderModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func paginatedReaderModelKeys(fx PaginatedReaderFixture) *model.Generator[int] {
+	return model.SampledFrom([]int{fx.Cursor(), fx.CursorOther()})
+}
+
+// paginatedReaderModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func paginatedReaderModelActions(fx PaginatedReaderFixture) []model.Action[PaginatedReader] {
+	keys := paginatedReaderModelKeys(fx)
+	out := []model.Action[PaginatedReader]{
+		action.MultiReader("Page", keys,
+			func(ctx context.Context, s paginatedreader.PaginatedReader, k int) ([]paginatedreader.Value, int, error) {
+				return s.Page(ctx, k)
+			}),
+	}
+	return out
+}
+
+// paginatedReaderAssertAgrees drives random operation sequences against the subject and
+// the reference, comparing after every call.
+//
+// The differential is the strongest oracle this tier has, and it is this
+// leg's whole job: no laws are registered, so nothing competes with it and
+// a disagreement is what ends the run.
+func paginatedReaderAssertAgrees(
+	tb testing.TB,
+	sub suite.Subject[PaginatedReader],
+	fx PaginatedReaderFixture,
+) {
+	tb.Helper()
+	legs.Differential(tb, sub,
+		func() PaginatedReader { return sub.New(tb) },
+		paginatedReaderModelActions(fx))
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance c1c06d15dcbbe49858180cae2779345763b6642c43059b81f78c7fbfe704ecda
+// testkit:provenance afc6e6266d28109595f17856808fb3ff8dc80edb14a5917258c1173f6b493fe2

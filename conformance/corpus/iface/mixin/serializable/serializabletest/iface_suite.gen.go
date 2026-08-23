@@ -68,6 +68,7 @@ import (
 //	Record/deadline
 //	Record/nilcontext
 //	Record/smoke
+//	model/mixed/AUTO-COUNT-EQUALS-REFERENCE
 //	model/mixed/AUTO-SNAPSHOT-ISOLATION-G2
 //
 // Declared on this interface and checked by testkit's model tier rather
@@ -292,6 +293,7 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Get.Deadline():              "MixedSuite.Checks.Get.Deadline()",
 	mixedCheckIndex.Get.ZeroOnError():           "MixedSuite.Checks.Get.ZeroOnError()",
 	mixedCheckIndex.Get.Miss():                  "MixedSuite.Checks.Get.Miss()",
+	mixedCheckIndex.Model.Counts():              "MixedSuite.Checks.Model.Counts()",
 	mixedCheckIndex.Model.SnapshotIsolationG2(): "MixedSuite.Checks.Model.SnapshotIsolationG2()",
 }
 
@@ -434,12 +436,17 @@ func (mixedGetChecks) All() []suite.ID {
 
 type mixedModelChecks struct{}
 
+func (mixedModelChecks) Counts() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.CountEqualsReference)
+}
+
 func (mixedModelChecks) SnapshotIsolationG2() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.SnapshotIsolationG2)
 }
 
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
+		mixedModelChecks{}.Counts(),
 		mixedModelChecks{}.SnapshotIsolationG2(),
 	}
 }
@@ -1206,6 +1213,19 @@ var _ = legs.CompatV1
 func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 	return []suite.Check[Mixed]{
 		{
+			ID:    mixedCheckIndex.Model.Counts(),
+			Class: suite.ClassLaws,
+			Claim: "the subject counts what the reference counts",
+			Binds: []string{
+				lawid.CountEqualsReference,
+			},
+			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertCounts(tb, sub, fx)
+			},
+		},
+		{
 			ID:    mixedCheckIndex.Model.SnapshotIsolationG2(),
 			Class: suite.ClassLaws,
 			Claim: "the recorded transaction history has no write skew",
@@ -1239,7 +1259,6 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           from the pool
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
-//	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
 
@@ -1307,6 +1326,32 @@ func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
 	return out
 }
 
+// mixedAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
+//
+// One law, and the run's only oracle — see [legs.Law]
+// for why the differential is off on every law leg.
+func mixedAssertCounts(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed { return sub.New(tb) }, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			law.CountEqualsReference[serializable.Mixed, int]{
+				Count: func(rt *model.T, s serializable.Mixed) (int, error) {
+					items, err := s.History(rt.Context())
+					return len(items), err
+				},
+			},
+		})
+}
+
 // mixedAssertSnapshotIsolationG2 binds AUTO-SNAPSHOT-ISOLATION-G2 over the shared sequences.
 //
 // One law, and the run's only oracle — see [legs.Law]
@@ -1339,4 +1384,4 @@ func mixedAssertSnapshotIsolationG2(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance dec4d71c380a0a8f157b1e858edd467fab13a365f3dc998fb55ca89d71019447
+// testkit:provenance 9cd85ba9ba361d180b9ac2306b31389ef79b348ecd4cbec3b83810bbb21eeb1c

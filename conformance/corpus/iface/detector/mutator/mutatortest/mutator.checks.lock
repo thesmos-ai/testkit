@@ -1,2 +1,3 @@
 testkit-checks v2
 Touch/smoke	signature/smoke	Touch survives a call with a seeded key	
+model/mutator/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

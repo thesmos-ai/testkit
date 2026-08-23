@@ -730,7 +730,6 @@ func GreenContract(
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//   contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //   contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
 //
 // Nothing to do about it here. The claims that needed sequences are the
@@ -738,4 +737,4 @@ func GreenContract(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance d114c79643c9a7cdb35b2c1b82cc147d6c089fb49b8c2a58151c3fc0a4ae6de3
+// testkit:provenance a25c5e5cfbae0b4815d3e5859d3adece2723ca5c797fca44003f3958e0c40f55
