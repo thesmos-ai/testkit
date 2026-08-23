@@ -754,7 +754,7 @@ var rules = []Rule{
 			{Name: fieldRead, Kind: KindRole, From: "ttl.read"},
 			{Name: fieldKeys, Kind: KindGenerator, From: genKeys},
 			{Name: fieldValues, Kind: KindGenerator, From: genValues},
-			{Name: "TTL", Kind: KindConstant, From: paramTTLDuration},
+			{Name: "TTL", Kind: KindConstant, From: paramTTLDuration, PerValue: true},
 			{Name: fieldAdvance, Kind: KindHandle, From: handleClock},
 			{Name: "NotFound", Kind: KindConstant, From: paramTTLNotFound},
 		},

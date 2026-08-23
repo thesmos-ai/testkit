@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"go.thesmos.sh/eidos/emit"
 	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/plugins/annotator/shape"
 	"go.thesmos.sh/eidos/plugins/annotator/shape/detectors/answeringwriter"
@@ -174,12 +175,56 @@ func intPair(nth int) (sample, alternate string) {
 	return strconv.Itoa(base), strconv.Itoa(base + 1)
 }
 
-// derivedPair is [golang.SampleRefFor] under testkit's integer policy — the
-// one derivation both the parameter and the struct-field paths draw from, so
-// a field and the parameter carrying it cannot disagree about what an int is.
+// The duration pair a conformance fixture draws.
+//
+// eidos samples a time.Duration as 42 and 7, which are nanoseconds —
+// right for a builder setting a magnitude and reading it back, and wrong
+// here for the reason the integer pair above is wrong. The durations a
+// Go interface takes are lifetimes, deadlines and windows, and a claim
+// held to 42ns is one nearly everything passes by accident: the TTL law
+// advances past its lifetime with a millisecond of slack, so at 42ns the
+// slack is the whole quantity and a store expiring on any schedule at
+// all looks correct.
+//
+// The symbol rather than the nanoseconds it multiplies out to, which is
+// what the stamped-duration spelling already argues: `1m` and
+// `60000000000` compile the same and only one can be read against the
+// declaration. Distinct so the pair still discriminates, and a whole
+// multiple so the difference between them is legible in a failure.
+const (
+	durationUnit      = "Minute"
+	durationAlternate = 2
+)
+
+// pkgTime is the import path the duration pair's symbol comes from.
+const pkgTime = "time"
+
+// durationPair is the two values a time.Duration field takes: one unit,
+// and a multiple of it.
+//
+// Carried as expressions rather than as a Ref-and-Text pair, because
+// `time.Minute` is a symbol and `2 * time.Minute` an operator applied to
+// one — neither is a conversion of a literal, which is all the pair form
+// can spell. The backend registers the import from the reference inside,
+// exactly as it does for any other contributed expression.
+func durationPair() (sample, alternate golang.Sample) {
+	unit := func() *sdk.Expr { return sdk.NewExternal(pkgTime, durationUnit) }
+	return golang.Sample{Expr: unit()},
+		golang.Sample{Expr: emit.NewBinary(
+			emit.NewLiteralInt(durationAlternate), "*", unit(),
+		)}
+}
+
+// derivedPair is [golang.SampleRefFor] under testkit's integer and
+// duration policies — the one derivation both the parameter and the
+// struct-field paths draw from, so a field and the parameter carrying it
+// cannot disagree about what an int is.
 func derivedPair(
 	t *sdk.TypeRef, name string, r golang.Resolver,
 ) (sample, alternate golang.Sample) {
+	if shape.QName(t) == subject.QNameDuration {
+		return durationPair()
+	}
 	sample, alternate = golang.SampleRefFor(t, name, r)
 	if !golang.IsInteger(t) {
 		return sample, alternate
@@ -236,7 +281,9 @@ func partsFor(p golang.Param, r golang.Resolver, admissible bool) []subject.Fixt
 			// parameter feeds.
 			continue
 		}
-		parts = append(parts, subject.FixturePart{Name: f.Name, Sample: inner, Other: innerAlt})
+		parts = append(parts, subject.FixturePart{
+			Name: f.Name, Q: shape.QName(f.Type), Sample: inner, Other: innerAlt,
+		})
 	}
 	return parts
 }

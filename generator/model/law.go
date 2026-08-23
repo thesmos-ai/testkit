@@ -113,6 +113,16 @@ type LawField struct {
 	// a keyed observation revisits.
 	KeyField string
 
+	// Reads are the fixture accessors a quantity carried on the drawn value
+	// is read through — `fx.Entry().Lifetime` beside
+	// `fx.EntryOther().Lifetime` — one per member of the pool the law draws
+	// from.
+	//
+	// Every member rather than the first, because the field holds the law's
+	// one number for whatever it draws: see [perValueQuantity], which takes
+	// the largest of them.
+	Reads []string
+
 	// Pairs are the permitted transitions a workflow stamp declares, parsed
 	// from its `from>to` list.
 	Pairs [][2]string

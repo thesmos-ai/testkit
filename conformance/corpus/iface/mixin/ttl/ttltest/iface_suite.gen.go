@@ -1123,6 +1123,15 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
+		ix.Model.Expiry(): prove.One("a Mixed whose Read answers past the lifetime it was given",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 ttl.Value, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = ttl.Value{Key: "other-value"}
+						return
+					}))
+			}).IgnoringClock(),
 	}
 }
 
@@ -1321,7 +1330,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Needs: suite.Caps{
 				suite.CapClock: nil,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
 				mixedAssertExpiry(tb, sub, fx)
@@ -1608,4 +1617,4 @@ func mixedAssertExpiry(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance db090a1e470e38f00d100e1670a3f44a5dab54399d60220660220e594418e04f
+// testkit:provenance 1d9ed78bc264975cf137201921b82e29c5c6a1a0113a353afc11663bb78a2b72

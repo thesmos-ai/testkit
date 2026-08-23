@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/mixin/ttlperwrite/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/mixin/ttlperwrite/...
+// Command:   testkit run ./corpus/...
 
 package ttlperwritetest_test
 
@@ -47,6 +47,8 @@ import (
 //	Sim.Recovery — a Mixed whose rebuild finds an empty medium
 //
 //	Model.WriteObservable — a Mixed whose Put reports success and keeps nothing
+//
+//	Model.Expiry — a Mixed whose Read answers past the lifetime it was given
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -76,4 +78,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance c389a34530fa971e41853c5771dcfe5ef2fb3e3b7760ee6d3898f6b88dff9422
+// testkit:provenance 29b6d868cbc72fad312de766e5a9359ca0e9c018a3add0a62c43fc6760680718

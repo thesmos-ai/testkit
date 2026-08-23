@@ -47,6 +47,8 @@ import (
 //	Sim.Recovery — a Mixed whose rebuild finds an empty medium
 //
 //	Model.WriteObservable — a Mixed whose Put reports success and keeps nothing
+//
+//	Model.Expiry — a Mixed whose Read answers past the lifetime it was given
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -76,4 +78,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance d7e3ac6c6ef299126d2202473903b9ebd4d6d142ee71c55d212b74e741712025
+// testkit:provenance e817fdb367037408680baed0f229dcec390c97c29ad9f1b97b2e1749cebd1d81

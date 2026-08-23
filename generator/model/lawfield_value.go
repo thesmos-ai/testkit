@@ -68,6 +68,9 @@ func constFieldOf(
 		if f.Optional {
 			return nil, ""
 		}
+		if f.PerValue {
+			return perValueQuantity(b, harness, f, field)
+		}
 		return nil, f.Name + " reads the " + f.From + " stamp, which this declaration does not carry"
 	}
 
@@ -135,6 +138,58 @@ func constFieldOf(
 	}
 	return nil, f.Name + "'s stamp names " + value +
 		", which is neither a qualified symbol nor a number"
+}
+
+// perValueQuantity fills a quantity the declaration carries on the value
+// instead of stamping — the drawn value's own duration field, read off
+// every member of the pool the law draws from.
+//
+// The LARGEST of them, because the field holds one number for a law that
+// draws several values. A run that wrote a two-minute lifetime and then
+// advanced past a one-minute one would report a store which expired
+// nothing wrong, and the red would be the fixture's fault rather than the
+// subject's.
+//
+// A duration field and exactly one. Two of them is a value carrying a
+// lifetime beside some other interval, and picking either would be the
+// generator deciding which of the author's numbers the claim is about.
+func perValueQuantity(
+	b *Bindings, harness *subject.Projection, f tiers.Field, field *LawField,
+) (*LawField, string) {
+	unstamped := f.Name + " reads the " + f.From + " stamp, which this declaration does not carry"
+	if b.Values.Field == "" || harness == nil {
+		return nil, unstamped + ", and no drawn value carries it either"
+	}
+	head, _, _ := strings.Cut(b.Values.Field, ".")
+	sample, derived := harness.Fixture.Field(head)
+	if !derived {
+		return nil, unstamped + ", and no drawn value carries it either"
+	}
+
+	var carried []string
+	for _, p := range sample.Parts {
+		if p.Q == subject.QNameDuration {
+			carried = append(carried, p.Name)
+		}
+	}
+	switch len(carried) {
+	case 0:
+		return nil, unstamped + ", and the drawn value carries no duration field " +
+			"for it to be read from instead"
+	case 1:
+	default:
+		return nil, unstamped + ", and the drawn value carries " +
+			strings.Join(carried, " and ") + ", so which of them the claim is " +
+			"about is the declaration's to say"
+	}
+
+	field.Reads = []string{fixtureRead(b.Values.Field + "." + carried[0])}
+	if b.Values.OtherField != "" {
+		field.Reads = append(field.Reads, fixtureRead(b.Values.OtherField+"."+carried[0]))
+	}
+	field.KindName = sdk.Kind(LawFieldKindPrefix + "FixtureQuantity")
+	b.LawsUseFixture = true
+	return field, ""
 }
 
 // durationUnits are the stamp suffixes this spells back as a symbol,

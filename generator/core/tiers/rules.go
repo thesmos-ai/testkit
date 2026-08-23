@@ -93,6 +93,20 @@ type Field struct {
 	// constants.
 	From string
 
+	// PerValue admits the second way a quantity is declared: carried on
+	// the drawn value rather than fixed by the stamp From names.
+	//
+	// `ttl duration=1m` sets one lifetime for every write. A store whose
+	// writes each say how long they last stamps no duration and puts the
+	// number on the value instead — SETEX, a message with its own
+	// expiry — and it is the same claim worded the same way, so declining
+	// the law there would leave the commoner of the two shapes unchecked.
+	//
+	// Read only where the stamp is absent. A declaration carrying both has
+	// said the quantity twice, and the stamp is the one somebody wrote on
+	// purpose.
+	PerValue bool
+
 	// Optional marks a field a correct binding may leave at its zero value.
 	//
 	// Without it the gate cannot tell a deliberate nil from a field the binding

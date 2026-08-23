@@ -1,0 +1,15 @@
+{{- /*
+A quantity carried on the drawn value rather than fixed by a stamp.
+
+Read off the fixture the pool draws from, so the number the law advances
+past and the number the writes ask for cannot drift apart: restating it
+as a literal would leave two places to change and one of them silent.
+
+The largest member, because the law holds every value it draws to one
+number — see perValueQuantity, which says why the smallest would report
+a correct store as broken. `max` of one argument is the argument, so a
+pool with no second member renders without a special case.
+*/ -}}
+{{- define "model.lawfield.FixtureQuantity" -}}
+{{ .Name }}: max({{ range $i, $read := .Reads }}{{ if $i }}, {{ end }}{{ $read }}{{ end }})
+{{- end -}}

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"go.thesmos.sh/testkit/clock"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/ttlperwrite"
 	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/engine/legs"
@@ -37,6 +38,7 @@ import (
 	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/model/linearize"
 	"go.thesmos.sh/testkit/engine/model/ref"
+	"go.thesmos.sh/testkit/engine/model/timeaware"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
@@ -77,6 +79,7 @@ import (
 //	Read/smoke
 //	Read/zero-on-error
 //	model/mixed/AUTO-LINEARIZABLE
+//	model/mixed/AUTO-TTL-EXPIRY
 //	model/mixed/AUTO-WRITE-OBSERVABLE
 //	model/mixed/differential
 //	sim/mixed/recovery
@@ -126,8 +129,8 @@ func DefaultMixedFixture() MixedFixture {
 // the same way, and no check should be able to tell them apart.
 func mixedNewFixture() MixedFixture {
 	return MixedFixture{
-		entry:      ttlperwrite.Entry{Key: "test-key", Body: "test-body", Lifetime: time.Duration(42)},
-		entryOther: ttlperwrite.Entry{Key: "other-key", Body: "other-body", Lifetime: time.Duration(7)},
+		entry:      ttlperwrite.Entry{Key: "test-key", Body: "test-body", Lifetime: time.Minute},
+		entryOther: ttlperwrite.Entry{Key: "other-key", Body: "other-body", Lifetime: 2 * time.Minute},
 		key:        "test-key",
 		keyOther:   "other-key",
 	}
@@ -216,6 +219,18 @@ type MixedHarness[T Mixed] struct {
 	// a fixed port.
 	Serial bool
 
+	// OnClock builds an instance reading the given clock. Checks that move
+	// time need it, and fail naming this field when it is nil.
+	// StartOnClock is its Start-shaped sibling, for a clocked constructor
+	// that also needs the test's lifecycle; set at most one of the two.
+	//
+	// A constructor rather than a clock handed to a built instance: an
+	// implementation that reads the clock at construction cannot be told
+	// about a different one afterwards, and a check that moved time would
+	// be moving a clock the subject never looks at.
+	OnClock      func(clk clock.Clock) T
+	StartOnClock func(tb testing.TB, clk *clock.TestClock) T
+
 	// Recover builds the process again over the medium the prior instance
 	// left behind — no Close first, because a crash is the goodbye that
 	// never happens. Checks that kill the process need it, and fail
@@ -249,6 +264,20 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  suite.ExcuseSet(h.Excuse),
+	}
+	if err := suite.ExclusivePair(h.Name, "OnClock", "StartOnClock",
+		h.OnClock != nil, h.StartOnClock != nil); err != nil {
+		return suite.Subject[Mixed]{}, err
+	}
+	if h.OnClock != nil {
+		out.OnClock = func(_ testing.TB, clk *clock.TestClock) Mixed {
+			return h.OnClock(clk)
+		}
+	}
+	if h.StartOnClock != nil {
+		out.OnClock = func(tb testing.TB, clk *clock.TestClock) Mixed {
+			return h.StartOnClock(tb, clk)
+		}
 	}
 	if err := suite.ExclusivePair(h.Name, "Recover", "StartRecover",
 		h.Recover != nil, h.StartRecover != nil); err != nil {
@@ -338,6 +367,7 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Model.Agrees():          "MixedSuite.Checks.Model.Agrees()",
 	mixedCheckIndex.Model.Linearizable():    "MixedSuite.Checks.Model.Linearizable()",
 	mixedCheckIndex.Model.WriteObservable(): "MixedSuite.Checks.Model.WriteObservable()",
+	mixedCheckIndex.Model.Expiry():          "MixedSuite.Checks.Model.Expiry()",
 	mixedCheckIndex.Sim.Recovery():          "MixedSuite.Checks.Sim.Recovery()",
 }
 
@@ -459,11 +489,16 @@ func (mixedModelChecks) WriteObservable() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.WriteObservable)
 }
 
+func (mixedModelChecks) Expiry() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.TTLExpiry)
+}
+
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedModelChecks{}.Agrees(),
 		mixedModelChecks{}.Linearizable(),
 		mixedModelChecks{}.WriteObservable(),
+		mixedModelChecks{}.Expiry(),
 	}
 }
 
@@ -1088,6 +1123,15 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
+		ix.Model.Expiry(): prove.One("a Mixed whose Read answers past the lifetime it was given",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedRead(
+					func(_ context.Context, _ string) (r0 ttlperwrite.Entry, err error) {
+						// A value for a call a correct subject answers nothing for.
+						r0 = ttlperwrite.Entry{Key: "other-entry"}
+						return
+					}))
+			}).IgnoringClock(),
 	}
 }
 
@@ -1276,6 +1320,22 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertWriteObservable(tb, sub, fx)
 			},
 		},
+		{
+			ID:    mixedCheckIndex.Model.Expiry(),
+			Class: suite.ClassClocked,
+			Claim: "an entry stops being readable once its lifetime has run out",
+			Binds: []string{
+				lawid.TTLExpiry,
+			},
+			Needs: suite.Caps{
+				suite.CapClock: nil,
+			},
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthDifferential,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertExpiry(tb, sub, fx)
+			},
+		},
 	}
 }
 
@@ -1289,8 +1349,6 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           keyed on Key; NewMixedModelReference replaces it
 //	Sequences: Put (writer), Read (reader)
 //	Values:    the fixture pair — time.Duration reaches a type this build cannot prove a wide draw serves
-//	Not bound:
-//	           AUTO-TTL-EXPIRY — TTL reads the shape.mixin.ttl.duration stamp, which this declaration does not carry
 
 // mixedModelKeys is the key pool every key slot draws from.
 //
@@ -1494,6 +1552,56 @@ func mixedAssertWriteObservable(
 		})
 }
 
+// mixedAssertExpiry binds AUTO-TTL-EXPIRY over the shared sequences, on a clock
+// the run controls.
+//
+// The guard is here as well as in the runner because a check that
+// quietly skipped for want of wiring looks exactly like one that passed.
+func mixedAssertExpiry(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+
+	if sub.OnClock == nil {
+		tb.Fatalf("this check moves time: subject %q has no OnClock; set it on "+
+			"the harness, or drop the check", sub.Name)
+	}
+	keys := mixedModelKeys(fx)
+	values := mixedModelValues(fx)
+
+	// One clock per iteration, from a fixed origin: the factory builds the
+	// subject on it and the law's Advance moves exactly it, so the two
+	// cannot disagree about which clock the subject reads. A wall reading
+	// would make the choice stream unreplayable.
+	var clk *clock.TestClock
+	buildRef, tier := legs.Reference(tb, sub, NewMixedModelReference)
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed {
+			clk = clock.NewTestClock(time.Unix(0, 0))
+			return sub.OnClock(tb, clk)
+		}, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			timeaware.TTLExpiryAfterAdvance[ttlperwrite.Mixed, string, ttlperwrite.Entry]{
+				Put: func(rt *model.T, s ttlperwrite.Mixed, k string, v ttlperwrite.Entry) error {
+					v.Key = k
+					return s.Put(rt.Context(), v)
+				},
+				Read: func(rt *model.T, s ttlperwrite.Mixed, k string) (ttlperwrite.Entry, error) {
+					return s.Read(rt.Context(), k)
+				},
+				Keys:     keys,
+				Values:   values,
+				TTL:      max(fx.Entry().Lifetime, fx.EntryOther().Lifetime),
+				Advance:  func(d time.Duration) { clk.Advance(d) },
+				NotFound: ttlperwrite.ErrExpired,
+			},
+		})
+}
+
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1503,4 +1611,4 @@ func mixedAssertWriteObservable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance c30e280d4e272e1ccc1e2a471e7d4f906bd42218f954c7184be1700cba566e5c
+// testkit:provenance ca75691d6d44d7b745924ba37ceccd10dc1208186fcb218406f00d11f00bef0d

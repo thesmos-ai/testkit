@@ -419,10 +419,26 @@ func (f FixtureField) Reason() string {
 	return "which no literal can be written for"
 }
 
+// QNameDuration is time.Duration in the annotator's stamp spelling — the
+// vocabulary a pool's Q and a fixture part's Q are both written in.
+//
+// One home, because two tiers ask about it from opposite ends: the suite
+// decides what value a duration field takes, and the model tier reads a
+// law's quantity back off the one it wrote.
+const QNameDuration = "time.Duration"
+
 // FixturePart is one field of a composed struct value.
 type FixturePart struct {
 	// Name is the field's identifier in the composite literal.
 	Name string
+
+	// Q is the field's type in the annotator's stamp spelling, so a reader
+	// can ask what a part IS without resolving it again.
+	//
+	// Needed because a sample does not always carry its type: one spelled
+	// as an expression — `2 * time.Minute` — leaves Ref empty by contract,
+	// and the type is exactly what a law binding a quantity has to match on.
+	Q string
 
 	// Sample and Other are the two values for it.
 	Sample, Other golang.Sample

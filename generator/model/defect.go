@@ -4,7 +4,9 @@
 package model
 
 import (
+	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/plugins/annotator/shape/mixins/lifecycleafterclose"
+	"go.thesmos.sh/eidos/plugins/annotator/shape/mixins/ttl"
 
 	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/generator/internal/projection"
@@ -33,6 +35,9 @@ const (
 	// mixinPoisonable is the stamp that names a latch and the probe that
 	// reads it — the other road to the poison claims.
 	mixinPoisonable = "poisonable"
+
+	mixinTTL     = ttl.Name
+	mixinTTLRead = ttl.ParamRead
 )
 
 // defectFor is the planted defect for one law's row, and the method the
@@ -90,6 +95,7 @@ func lawDefects() map[string]lawDefectRule {
 		lawid.PoisonNilOnFresh:         poisonBornFailing,
 		lawid.PoisonIdempotentRead:     poisonAnswersTwoWays,
 		lawid.AppenderMonotonicOffsets: appenderFreezes,
+		lawid.TTLExpiry:                ttlKeepsAnswering,
 		// A frozen answer is a subject ignoring the clock, which is
 		// exactly what this claim forbids: the law advances and demands
 		// the reading move, and one pinned to a constant cannot.
@@ -277,6 +283,52 @@ func poisonAnswersTwoWays(b *Bindings, _ *LawBinding) (projection.Defect, *subje
 		Clause: projection.Clause{Text: m.Name + " answers differently the second time"},
 		Option: projection.OptionName(b.IfaceName, m.Name),
 	}, m, true
+}
+
+// ttlKeepsAnswering plants a store whose entries never lapse: the read
+// answers whatever it is asked, including a key whose lifetime the clock
+// has already run past.
+//
+// The read half rather than the write, and the choice is what makes the
+// defect isolate the claim. The law puts, reads, advances and reads
+// again, and only the last of those four states the claim — so a defect
+// on the read breaks that one and leaves the first three alone. A defect
+// on the write would have to store something the later read still finds,
+// which a double with no medium behind it cannot do: it would break the
+// pre-advance read instead, and the red would name a claim about
+// storing rather than one about expiring.
+//
+// The method the stamp NAMES rather than the one carrying it. Both
+// corpus fixtures declare the mixin on their own reader, which is the
+// common shape and exactly why reading the carrier would look right
+// until an interface stamped it somewhere else.
+func ttlKeepsAnswering(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+	m := roleNamed(b, mixinTTL, mixinTTLRead)
+	if m == nil {
+		return nil, nil, false
+	}
+	return projection.AnswersWithValue{
+		Clause: projection.Clause{Text: m.Name + " answers past the lifetime it was given"},
+		Option: projection.OptionName(b.IfaceName, m.Name),
+	}, m, true
+}
+
+// roleNamed is the method a mixin's callable parameter names, nil where
+// nothing on this interface carries the stamp or where the name it
+// carries is not a method here.
+//
+// Through [golang.LocalName], because a sibling callable arrives
+// qualified — the resolver answers with the name as identity spells it,
+// and a method is looked up by the name the interface declares.
+func roleNamed(b *Bindings, mixin, param string) *subject.Method {
+	for i := range b.Methods {
+		name, stamped := b.Methods[i].MixinParam(mixin, param)
+		if !stamped || name == "" {
+			continue
+		}
+		return methodNamed(b, golang.LocalName(name))
+	}
+	return nil
 }
 
 // appenderFreezes plants the frozen position: every append lands and

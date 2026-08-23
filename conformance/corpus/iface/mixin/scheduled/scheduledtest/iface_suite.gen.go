@@ -120,8 +120,8 @@ func DefaultMixedFixture() MixedFixture {
 // the same way, and no check should be able to tell them apart.
 func mixedNewFixture() MixedFixture {
 	return MixedFixture{
-		duration:      time.Duration(42),
-		durationOther: time.Duration(7),
+		duration:      time.Minute,
+		durationOther: 2 * time.Minute,
 	}
 }
 
@@ -1277,4 +1277,4 @@ func mixedAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 784c0582fdc5c450b460814407128c422d5113cb142c55d36f4f4d3cb485f5da
+// testkit:provenance 234de2793d3476dd36e20df5070366cdf05b809f641fb8204ca34e44e6495a5e
