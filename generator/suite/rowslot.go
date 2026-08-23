@@ -26,6 +26,31 @@ func (c *Contract) Rows() *sdk.Slot {
 	return c.rows
 }
 
+// SlotsByName is every region another tier contributes into, keyed by
+// the region's name.
+//
+// The Go backend's header reads it, and reads nothing else about a
+// plugin-defined node: emit.BaseEmit carries no slot map, so a custom
+// kind is attributed by whoever appended it and no further unless it
+// declares this. Without it the model tier — which emits no node of its
+// own and contributes into six of these — was absent from the Plugins:
+// line of all 132 files it writes a third of.
+//
+// Read-only by intent: the accessors below own construction, and a
+// region nothing has contributed to is one this map has no reason to
+// carry.
+func (c *Contract) SlotsByName() map[string]*sdk.Slot {
+	out := make(map[string]*sdk.Slot, 6)
+	for _, s := range []*sdk.Slot{
+		c.rows, c.decls, c.doors, c.lowering, c.checkFields, c.checkBodies,
+	} {
+		if s != nil {
+			out[s.SlotName] = s
+		}
+	}
+	return out
+}
+
 // RowsSlotName is the region's name, for the template's helper.
 func (*Contract) RowsSlotName() string { return naming.SlotSuiteChecks }
 

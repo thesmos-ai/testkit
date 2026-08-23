@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/mixin/serializable/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/mixin/snapshotisolation/... ./corpus/iface/mixin/serializable/...
+// Command:   testkit run ./corpus/...
 
 package serializabletest_test
 

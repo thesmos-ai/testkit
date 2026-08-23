@@ -258,8 +258,13 @@ func worded() map[string]law {
 			"calling the lifecycle method twice leaves what calling it once left",
 			"IdempotentLifecycle", "IdempotentLifecycle",
 		},
+		// Not "leak no goroutines". The law counts them only where the
+		// declaration names no counter of its own, and prefers the
+		// subject's when it does — a global count reads a parallel test's
+		// parked work as this subject's growth. What both arms state is
+		// that the cycles balance.
 		LeakFree: {
-			"repeated open-and-close cycles leak no goroutines",
+			"repeated open-and-close cycles leave nothing outstanding",
 			"LeakFree", "LeakFree",
 		},
 		PoisonIdempotentRead: {
@@ -294,8 +299,13 @@ func worded() map[string]law {
 			"the call answers the same on repeated calls",
 			"PureDeterministic", "PureDeterministic",
 		},
+		// "The declared default" promised a stamp the mixin has no
+		// parameter for. What a binding fills is the type's zero, which
+		// the manifest argues is the only default a signature states — so
+		// the claim says that, over the keys the run draws rather than
+		// over the one the suite tier's zero-on-error check uses.
 		DefaultOnError: {
-			"a read that errs answers the declared default",
+			"a read that errs answers the zero value, for every key the run draws",
 			"DefaultOnError", "DefaultOnError",
 		},
 		MonotonicNonDecreasing: {

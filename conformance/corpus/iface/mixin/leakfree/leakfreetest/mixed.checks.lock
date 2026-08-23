@@ -10,4 +10,4 @@ Outstanding/zero-on-error	signature/zero-on-error	Outstanding returns zero along
 Release/cancel	signature/cancel	Release reports a cancelled context as cancelled	
 Release/nilcontext	signature/nilcontext	Release returns an error rather than panicking on a nil context	
 Release/smoke	signature/smoke	Release survives a call	
-model/mixed/AUTO-LEAK-FREE	model/laws	repeated open-and-close cycles leak no goroutines	AUTO-LEAK-FREE
+model/mixed/AUTO-LEAK-FREE	model/laws	repeated open-and-close cycles leave nothing outstanding	AUTO-LEAK-FREE

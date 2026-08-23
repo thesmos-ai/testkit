@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/mixin/restrictedpool/iface.go
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/mixin/restrictedpool/...
+// Command:   testkit run ./corpus/...
 
 package restrictedpooltest_test
 

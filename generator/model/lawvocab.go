@@ -143,6 +143,7 @@ const (
 	fromFamilyKeyedWr   = "family.keyedwriter"
 	fromFamilyHandleWr  = "family.handlewriter"
 	handleKeyProjection = "key-projection"
+	handleReferenceMiss = "reference-miss"
 	handleCoalesce      = "coalesce-probe"
 	handleVersionStamp  = "version-stamp"
 	handleHistoryLog    = "history"

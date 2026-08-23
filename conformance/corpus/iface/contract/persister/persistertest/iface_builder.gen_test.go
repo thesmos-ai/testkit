@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/contract/persister/iface.go
 // Plugins:   golang 1.0.0, builder 1.4.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/contract/persister/...
+// Command:   testkit run ./corpus/...
 
 package persistertest_test
 

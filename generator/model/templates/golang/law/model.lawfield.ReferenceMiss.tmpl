@@ -1,0 +1,12 @@
+{{- /*
+The identity the derived reference reports for a key it does not hold.
+
+The law's guard asks the REFERENCE whether the key is absent, and the
+sentinel beside it is what the SUBJECT owes once its delete removed one.
+On a store keeping a tombstone those are different errors, and one field
+for both made the guard ask a plain map about a tombstone it never heard
+of — so it never matched and the law held vacuously.
+*/ -}}
+{{- define "model.lawfield.ReferenceMiss" -}}
+{{ .Name }}: {{ if .MissSym }}{{ renderExpr .MissSym }}{{ else }}{{ .MissName }}{{ end }}
+{{- end -}}

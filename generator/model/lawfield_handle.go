@@ -142,6 +142,18 @@ func handleFieldOf(
 		field.KindName = sdk.Kind(LawFieldKindPrefix + "Hash")
 		return field, ""
 
+	case handleReferenceMiss:
+		// What the DERIVED reference answers for a key it does not hold.
+		// A twin has no such identity — it answers whatever the subject
+		// does — so the law falls back to its sentinel there, which is
+		// then the same error on both sides.
+		if b.Reference.MissSym == nil && b.Reference.MissName == "" {
+			return nil, ""
+		}
+		field.MissSym, field.MissName = b.Reference.MissSym, b.Reference.MissName
+		field.KindName = sdk.Kind(LawFieldKindPrefix + "ReferenceMiss")
+		return field, ""
+
 	case "subject-factory":
 		field.KindName = sdk.Kind(LawFieldKindPrefix + "Factory")
 		return field, ""

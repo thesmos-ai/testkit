@@ -225,14 +225,19 @@ const (
 
 // The handles the generated file constructs and shares.
 const (
-	handleKeyOf    = "key-projection"
-	handleFactory  = "subject-factory"
-	handleHistory  = "history"
-	handleWriteLog = "write-log"
-	handleClock    = "clock"
-	handleIdentity = "identity-hash"
-	handleOrder    = "natural-order"
-	handleClassify = "trace-classifier"
+	handleKeyOf = "key-projection"
+	// handleReferenceMiss is the identity the derived reference reports
+	// for a key it does not hold — the minted var, or the declaration's
+	// own sentinel where one is stamped and the reference was built with
+	// it.
+	handleReferenceMiss = "reference-miss"
+	handleFactory       = "subject-factory"
+	handleHistory       = "history"
+	handleWriteLog      = "write-log"
+	handleClock         = "clock"
+	handleIdentity      = "identity-hash"
+	handleOrder         = "natural-order"
+	handleClassify      = "trace-classifier"
 
 	// handleVersionStamp is the version-coherent draw: an attempt stamped
 	// at the cell's current version, which is what makes "exactly one
@@ -539,6 +544,11 @@ var rules = []Rule{
 			// No classification names the not-found sentinel, and a
 			// nil one fails every correct subject — so this does not bind.
 			{Name: fieldSentinel, Kind: KindConstant, From: paramDeleteSentinel},
+			// The reference's own miss, which is what the law's guard
+			// compares against. Left to the sentinel above, the guard asked
+			// a plain map for a tombstone it never heard of and the law
+			// held vacuously for every subject.
+			{Name: "RefMiss", Kind: KindHandle, From: handleReferenceMiss},
 		},
 	},
 

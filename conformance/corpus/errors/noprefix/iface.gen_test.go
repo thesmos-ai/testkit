@@ -2,7 +2,7 @@
 //
 // Source:    corpus/errors/noprefix/iface.go
 // Plugins:   golang 1.0.0, sentinel 1.0.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/errors/...
+// Command:   testkit run ./corpus/...
 
 package noprefix_test
 

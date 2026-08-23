@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/contract/batch-writer/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/contract/batch-writer/...
+// Command:   testkit run ./corpus/...
 
 package batchwritertest_test
 

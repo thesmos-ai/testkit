@@ -112,12 +112,19 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 		// for a serialisation of a recorded history rather than from an
 		// invariant after a step, and a row folding it into the bundle
 		// would report a linearizability violation as a law that failed.
+		//
+		// Except on the session families, where the model steps nothing and
+		// the laws beside it are the whole verdict — so the row says that
+		// and names them. It claimed linearizability while checking a
+		// session guarantee, which is the wider claim of the two and the
+		// one nothing here establishes.
 		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
 				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: vocab.SegLinearizable,
 			},
 			Class: vocab.ClassConcurrent,
-			Claim: concClaim,
+			Claim: concClaimFor(b),
+			Binds: concBinds(b),
 			Body:  projection.ConcurrentLeg{},
 		}, b, nil, nil, false))
 	}
@@ -172,6 +179,38 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 		}
 	}
 	return append(out, ownLegRows(b)...)
+}
+
+// concClaimFor words the concurrent row by what decides it.
+//
+// A stepped family's model searches the recorded history for a serial
+// order, which is linearizability and is worth naming. A session family
+// has no such model — its reader hands the partition no key and its
+// writer's answer is no step the KV model understands — so the laws
+// beside it carry the verdict, and the row is about those holding when
+// the calls overlap.
+func concClaimFor(b *Bindings) string {
+	if b.ConcFamily != concFamilySession {
+		return concClaim
+	}
+	return "the session guarantees this interface declares hold when calls overlap"
+}
+
+// concBinds names the laws a stepless concurrent row's verdict comes
+// from, empty where a model decides instead.
+//
+// A row binding a law and not saying so reads as a row with an oracle of
+// its own. These have none.
+func concBinds(b *Bindings) []projection.Bind {
+	if b.ConcFamily != concFamilySession {
+		return nil
+	}
+	session := b.SessionLaws()
+	out := make([]projection.Bind, 0, len(session))
+	for _, l := range session {
+		out = append(out, projection.Bind{Law: l.ID})
+	}
+	return out
 }
 
 // proveOrArgue settles one plan's falsifiability from a rule's verdict:

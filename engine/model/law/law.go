@@ -164,6 +164,30 @@ type DeleteReturnsNotFound[T any, K comparable, V any] struct {
 	Read     func(*rapid.T, T, K) (V, error)
 	Keys     *rapid.Generator[K]
 	Sentinel error
+
+	// RefMiss is what the REFERENCE reports for a key it does not hold,
+	// which is what decides whether this check has anything to ask.
+	//
+	// Apart from Sentinel because the two are different errors whenever a
+	// store keeps a tombstone: Sentinel is what the SUBJECT owes for a
+	// key its delete removed, and the reference is a plain map that never
+	// heard of it. Read through one field, the guard compared the
+	// reference's miss against the subject's tombstone, never matched,
+	// and the law held vacuously for every subject.
+	//
+	// Empty falls back to Sentinel, which is right where a declaration
+	// names no separate tombstone: the reference is then built with that
+	// identity and the two are one error.
+	RefMiss error
+}
+
+// absent is [DeleteReturnsNotFound.RefMiss], or Sentinel where the
+// declaration names no separate tombstone.
+func (l DeleteReturnsNotFound[T, K, V]) absent() error {
+	if l.RefMiss != nil {
+		return l.RefMiss
+	}
+	return l.Sentinel
 }
 
 // ID returns the stable identifier for this law.
@@ -176,7 +200,7 @@ func (DeleteReturnsNotFound[T, K, V]) REQID() string { return "" }
 func (l DeleteReturnsNotFound[T, K, V]) Check(rt *rapid.T, sut, ref T) error {
 	k := l.Keys.Draw(rt, "DeleteReturnsNotFound_key")
 	_, refErr := l.Read(rt, ref, k)
-	if !errors.Is(refErr, l.Sentinel) {
+	if !errors.Is(refErr, l.absent()) {
 		return Vacuous // the key the draw picked exists, so nothing was deleted
 	}
 	_, sutErr := l.Read(rt, sut, k)
