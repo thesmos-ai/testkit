@@ -1,0 +1,23 @@
+{{- /*
+model.lowering.induce — carry the harness's trigger table onto the
+runtime subject.
+
+Rendered inside the harness's Subject method, after the subject is built.
+The runtime's trigger takes the testing.TB as well, so a consumer's
+can register cleanup without every one of them having to take a
+parameter it does not read.
+
+The narrowing is [Recover]'s, and for the same reason: the runtime speaks
+the interface and the harness its own concrete type, and this is one of
+the two places an instance travels back the other way.
+*/ -}}
+{{- define "model.lowering.induce" -}}
+if len(h.Induce) > 0 {
+		out.Induces = make(map[error]func({{ renderExpr (external "testing" "TB") }}, {{ .Subject }}), len(h.Induce))
+		for sentinel, trigger := range h.Induce {
+			out.Induces[sentinel] = func(tb {{ renderExpr (external "testing" "TB") }}, s {{ .Subject }}) {
+				trigger({{ renderExpr (external .LegsPkg "AsBuilt") }}[T](tb, h.Name, s))
+			}
+		}
+	}
+{{- end -}}

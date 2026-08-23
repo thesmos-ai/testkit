@@ -166,11 +166,28 @@ func TestConstFieldArms(t *testing.T) {
 		testkit.True(t, field == nil && reason == "", "zero is the declared floor")
 	})
 
-	t.Run("a numeric stamp renders as its literal", func(t *testing.T) {
+	// The declared bound is emitted once as a constant and named
+	// wherever it is used — the harness constructors take it, this law
+	// enforces it, and a consumer's policy check needs the same number.
+	// Writing it out here put two homes for one number in one file, four
+	// lines apart: `const mixedCapacity = 5` and `Max: 5`.
+	t.Run("the declared bound names its constant", func(t *testing.T) {
 		t.Parallel()
-		field, reason := constField(lawid.AggregatorBounded, "Max", "shape.mixin.bounded.limit",
-			false, stamped("shape.mixin.bounded.limit", "100"))
-		testkit.True(t, reason == "" && field.Lit == "100", "the bound is the stamp's own number")
+		field, reason := constField(lawid.AggregatorBounded, "Max", tiers.ParamBoundedLimit,
+			false, stamped(tiers.ParamBoundedLimit, "100"))
+		testkit.True(t, reason == "", "the stamp parses: "+reason)
+		testkit.Equal(t, field.Lit, "mixedCapacity",
+			"the constant the harness already declares, not the number again")
+	})
+
+	// Every other numeric stamp is still its own literal: only the bound
+	// has a constant to name, because only the bound reaches more than
+	// one place.
+	t.Run("another numeric stamp renders as its literal", func(t *testing.T) {
+		t.Parallel()
+		field, reason := constField(lawid.AggregatorBounded, "Min", "shape.mixin.bounded.min",
+			false, stamped("shape.mixin.bounded.min", "3"))
+		testkit.True(t, reason == "" && field.Lit == "3", "the stamp's own number")
 	})
 
 	t.Run("the workflow's transitions parse or refuse", func(t *testing.T) {
@@ -213,17 +230,37 @@ func TestClockConstAndTypeArms(t *testing.T) {
 
 	errRet := res(namedRef("error"))
 
-	t.Run("a duration stamp renders as untyped nanoseconds", func(t *testing.T) {
-		t.Parallel()
+	// The count and the unit the stamp spelled, not the nanoseconds they
+	// multiply out to. Both compile to the same value; only one can be
+	// read against the declaration. `timeout=100ms` and
+	// `Timeout: 100000000` agree and nothing shows that they do.
+	ttlField := func(t *testing.T, stamp string) (*LawField, string) {
+		t.Helper()
 		m := unstamped()
-		sdk.EnsureKey("shape.mixin.ttl.ttl", sdk.StringParser).Set(m.Source.EnsureMeta(), "5s", "test")
+		sdk.EnsureKey("shape.mixin.ttl.ttl", sdk.StringParser).Set(m.Source.EnsureMeta(), stamp, "test")
 		r := tiers.Rule{Law: lawid.TTLExpiry, Fields: []tiers.Field{
 			{Name: "TTL", Kind: tiers.KindConstant, From: "shape.mixin.ttl.ttl"},
 		}}
-		field, reason := lawFieldOf(&Bindings{Subject: subject.Subject{IfaceName: "Mixed"}},
+		return lawFieldOf(&Bindings{Subject: subject.Subject{IfaceName: "Mixed"}},
 			nil, r, r.Fields[0], m, nil)
+	}
+
+	t.Run("a duration stamp keeps the unit it was written in", func(t *testing.T) {
+		t.Parallel()
+		field, reason := ttlField(t, "5s")
 		testkit.True(t, reason == "", "a duration stamp binds: "+reason)
-		testkit.Equal(t, field.Lit, "5000000000", "as nanoseconds, assignable without an import")
+		testkit.Equal(t, field.Lit, "5", "the count the declaration spelled")
+		testkit.Equal(t, string(field.KindName), LawFieldKindPrefix+"ConstDur",
+			"rendered as count times unit, so the two can be read against each other")
+	})
+
+	// A compound has no single symbol to multiply, so it falls back to
+	// the nanosecond literal rather than being spelled wrong.
+	t.Run("a compound duration falls back to nanoseconds", func(t *testing.T) {
+		t.Parallel()
+		field, reason := ttlField(t, "1h30m")
+		testkit.True(t, reason == "", "it still binds: "+reason)
+		testkit.Equal(t, field.Lit, "5400000000000", "as nanoseconds, which is exact if unreadable")
 	})
 
 	t.Run("a triple-returning role instantiates at its first result", func(t *testing.T) {

@@ -576,7 +576,13 @@ var VacuityDebt = map[string]VacuityRow{
 		// both a config a run can replace and a tier that draws from one.
 		// Its Put and Get each take a context, attributed by removing the
 		// fixture and watching the count return to 325.
-		Ceiling: 330,
+		//
+		// 330 -> 333: the ttlperwrite fixture, added because the corpus
+		// carried a lifetime only as a directive constant — no fixture
+		// declared one as a field on the value, which is the shape a
+		// defect can reach for. Its Put and Read take a context, and its
+		// Entry carries one more.
+		Ceiling: 333,
 		Why: "what is left of the generated stub's zero arguments after pinning every one a " +
 			"literal can be written for: a context, an interface, a variadic tail, a type " +
 			"from a package the run never read. Those are handed in at their zero and the " +

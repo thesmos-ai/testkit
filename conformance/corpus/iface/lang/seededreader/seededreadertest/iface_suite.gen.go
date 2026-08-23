@@ -4,12 +4,28 @@
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package seededreadertest
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/seededreader"
@@ -19,24 +35,22 @@ import (
 
 // Conformance checks for Catalog, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Catalog's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunCatalog(t, CatalogHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	CatalogHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	CatalogChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveCatalog
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenCatalog
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	CatalogSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -88,9 +102,9 @@ type CatalogFixture struct {
 	// carries exactly what you passed. See KeyPool.
 	keyPool []seededreader.Key
 
-	// keyPoolGiven records that the run passed this pool
-	// rather than taking the derived one. See KeyPoolDerived.
-	keyPoolGiven bool
+	// keyPoolRestricted records that the run narrowed this
+	// pool rather than taking the derived one. See KeyPoolDerived.
+	keyPoolRestricted bool
 
 	// bodyPool is the whole payload pool this run drew,
 	// which is not the same as the two members above: a DERIVED pool
@@ -98,9 +112,9 @@ type CatalogFixture struct {
 	// carries exactly what you passed. See BodyPool.
 	bodyPool []seededreader.Body
 
-	// bodyPoolGiven records that the run passed this pool
-	// rather than taking the derived one. See BodyPoolDerived.
-	bodyPoolGiven bool
+	// bodyPoolRestricted records that the run narrowed this
+	// pool rather than taking the derived one. See BodyPoolDerived.
+	bodyPoolRestricted bool
 }
 
 // DefaultCatalogFixture is what a run with no config draws.
@@ -114,19 +128,30 @@ func DefaultCatalogFixture() CatalogFixture {
 // supplied through the config and one worked out from the type are read
 // the same way, and no check should be able to tell them apart.
 func catalogNewFixture(cfg CatalogConfig) CatalogFixture {
-	// Read BEFORE the defaults land, because that is the only moment the
-	// two are distinguishable. Afterwards every pool is full and nothing
-	// can tell which was whose.
-	keyPoolGiven := len(cfg.KeyPool) > 0
-	bodyPoolGiven := len(cfg.BodyPool) > 0
+	// Compared against the derived pool by VALUE, not by whether one was
+	// set. Nil-ness reads the wrong thing the moment a consumer starts
+	// from the derived config: take catalogDefaultConfig(),
+	// change one unrelated field, and every pool arrives non-nil and
+	// equal to the one worked out here. Read as a restriction, the
+	// adversarial arm goes silently, the same values are drawn, and the
+	// report line is identical — a check that got weaker with nothing to
+	// show for it.
+	//
+	// Read BEFORE the defaults land, because that is the only moment a
+	// pool the consumer left empty is still empty.
+	derived := catalogDefaultConfig()
+	keyPoolRestricted := len(cfg.KeyPool) > 0 &&
+		!slices.Equal(cfg.KeyPool, derived.KeyPool)
+	bodyPoolRestricted := len(cfg.BodyPool) > 0 &&
+		!slices.Equal(cfg.BodyPool, derived.BodyPool)
 	cfg = cfg.orDefault()
 	return CatalogFixture{
-		keyPool:       cfg.KeyPool,
-		keyPoolGiven:  keyPoolGiven,
-		bodyPool:      cfg.BodyPool,
-		bodyPoolGiven: bodyPoolGiven,
-		key:           cfg.KeyPool[0],
-		keyOther:      cfg.KeyPool[1],
+		keyPool:            cfg.KeyPool,
+		keyPoolRestricted:  keyPoolRestricted,
+		bodyPool:           cfg.BodyPool,
+		bodyPoolRestricted: bodyPoolRestricted,
+		key:                cfg.KeyPool[0],
+		keyOther:           cfg.KeyPool[1],
 	}
 }
 
@@ -164,7 +189,7 @@ func (f CatalogFixture) KeyPool() []seededreader.Key {
 // accepts. A pool you passed IS that statement, and probing past it reds
 // correct code against inputs you ruled out.
 func (f CatalogFixture) KeyPoolDerived() bool {
-	return !f.keyPoolGiven
+	return !f.keyPoolRestricted
 }
 
 // BodyPool is every payload this run draws from, which is more
@@ -193,7 +218,7 @@ func (f CatalogFixture) BodyPool() []seededreader.Body {
 // accepts. A pool you passed IS that statement, and probing past it reds
 // correct code against inputs you ruled out.
 func (f CatalogFixture) BodyPoolDerived() bool {
-	return !f.bodyPoolGiven
+	return !f.bodyPoolRestricted
 }
 
 // CatalogConfig is the sample inputs the checks use.
@@ -476,6 +501,18 @@ func (catalogVeneer) Suite(fx CatalogFixture, docs CatalogCorpus) suite.Suite[Ca
 // take it, set the field you care about, and pass it to RunCatalog.
 func (catalogVeneer) DefaultConfig() CatalogConfig {
 	return catalogDefaultConfig()
+}
+
+// Fixture is the sample inputs a config produces — the same values the
+// generated checks are handed.
+//
+// DefaultConfig's sibling: that one says what this file worked out, and
+// this says what a run makes of it. Reach for it when you want the
+// suite's own inputs somewhere the suite is not driving — a benchmark, a
+// fuzz seed, a check of your own that has to draw what the generated
+// ones draw.
+func (catalogVeneer) Fixture(cfg CatalogConfig) CatalogFixture {
+	return catalogNewFixture(cfg)
 }
 
 // TrySuite is Suite for a config you built yourself, returning an error
@@ -1345,5 +1382,61 @@ func ProveCatalog(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenCatalog runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenCatalog(t, suite.Subject[Catalog]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveCatalog measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunCatalog, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenCatalog(
+	t *testing.T,
+	control suite.Subject[Catalog],
+	opts ...CatalogRunOpt,
+) {
+	t.Helper()
+	var rc catalogRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := catalogNewFixture(rc.cfg)
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenCatalog")
+	s := catalogSuite(fx, catalogCorpus(rc.cfg)).With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
 // testkit: end of generated content.
-// testkit:provenance 6b33ac321dbfb33277a7b7862ea7d4184a5799fd277ba97c1e55f319f36aebe6
+// testkit:provenance 63e37d2b95b6f33037f4c1f78091aad973101bffe54608f8826015f3c269539a

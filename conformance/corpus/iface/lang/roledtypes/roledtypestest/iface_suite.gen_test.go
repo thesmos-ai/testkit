@@ -9,6 +9,7 @@ package roledtypestest_test
 import (
 	"testing"
 
+	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/roledtypes"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/lang/roledtypes/roledtypestest"
 	"go.thesmos.sh/testkit/engine/suite"
 )
@@ -69,5 +70,50 @@ func TestStoreInvariants(t *testing.T) {
 	suite.VerifyDistinctIDs(t, s.IDs())
 }
 
+// TestStorePoolProvenance holds the pools to their provenance in
+// both directions.
+//
+// The failure it exists for is silent. A pool you did not narrow keeps
+// the adversarial arm, and one you did reaches every tier exactly as you
+// wrote it — but nothing about a run shows which happened. The same
+// values are drawn either way, the same rows report, and only the
+// strength of the checks moves.
+//
+// The near miss was reading provenance off nil-ness: start from
+// DefaultConfig(), change one unrelated field, and every pool
+// arrives non-nil and equal to the derived one. Read as a restriction,
+// the wide arm goes and the report line is identical.
+func TestStorePoolProvenance(t *testing.T) {
+	t.Parallel()
+
+	for name, cfg := range map[string]roledtypestest.StoreConfig{
+		"a config nobody filled in":       {},
+		"the derived config, passed back": roledtypestest.StoreSuite.DefaultConfig(),
+	} {
+		fx := roledtypestest.StoreSuite.Fixture(cfg)
+		if !fx.KeyPoolDerived() {
+			t.Errorf("%s: KeyPool equals the derived pool, so it narrows nothing and "+
+				"must keep its adversarial arm", name)
+		}
+		if !fx.BodyPoolDerived() {
+			t.Errorf("%s: BodyPool equals the derived pool, so it narrows nothing and "+
+				"must keep its adversarial arm", name)
+		}
+	}
+
+	narrowed := roledtypestest.StoreSuite.Fixture(roledtypestest.StoreConfig{
+		KeyPool:  []roledtypes.Key{"test-key", "other-key"},
+		BodyPool: []string{"test-body", "other-body"},
+	})
+	if narrowed.KeyPoolDerived() {
+		t.Error("a key pool the consumer narrowed must be recorded as narrowed, " +
+			"so no tier widens past what they allowed")
+	}
+	if narrowed.BodyPoolDerived() {
+		t.Error("a payload pool the consumer narrowed must be recorded as narrowed, " +
+			"so no tier widens past what they allowed")
+	}
+}
+
 // testkit: end of generated content.
-// testkit:provenance 8555f6d7c7dac017c6a239d86e4a196596286eeb28c90ca8595c5542293f5261
+// testkit:provenance 18198863377e70185d5e295bb3050049961adf8625f68fbe59fda46465a21fa8

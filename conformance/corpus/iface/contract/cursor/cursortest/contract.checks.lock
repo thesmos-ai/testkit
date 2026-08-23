@@ -8,4 +8,5 @@ Next/nilcontext	signature/nilcontext	Next returns an error rather than panicking
 Next/smoke	signature/smoke	Next survives a call	
 Next/zero-on-error	signature/zero-on-error	Next returns the zero Value and bool alongside any error	
 model/contract/AUTO-CURSOR-CLOSE-IDEMPOTENT	model/lifecycle	a second Close on a cursor changes nothing	AUTO-CURSOR-CLOSE-IDEMPOTENT
+model/contract/AUTO-CURSOR-NEXT-AFTER-CLOSE	model/lifecycle	once a cursor is closed, Next reports the closed sentinel	AUTO-CURSOR-NEXT-AFTER-CLOSE
 model/contract/AUTO-LIFECYCLE-RESPECTS-CONTEXT	model/laws	a lifecycle call handed an already-cancelled context reports the cancellation	AUTO-LIFECYCLE-RESPECTS-CONTEXT

@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package validatestest
 
 import (
@@ -377,4 +392,4 @@ func (s *MixedStub) Read(ctx context.Context, key string) (validates.Payload, er
 }
 
 // testkit: end of generated content.
-// testkit:provenance cdef2af75178e5ea1d40283882d0d4e4191f2f55195d21d6fe749a02074a2809
+// testkit:provenance e1aa4ac3c6adcc2b744fb9d005711ee0ba864b40b4c3d12e6290c9a0308086f1

@@ -306,7 +306,10 @@ var bindings = map[string]Binding{
 		Type: "TTLExpiryAfterAdvance", Timeaware: true,
 		Args: []BindArg{BindKey, BindValue},
 	},
-	lawid.DeadlineRespecting:         {Type: "DeadlineRespecting", Timeaware: true, Args: []BindArg{}},
+	lawid.DeadlineRespecting: {Type: "DeadlineRespecting", Timeaware: true, Args: []BindArg{}},
+	// The key and nothing else: this law asks whether the reading moved,
+	// not what it moved to, so the answer's own type never appears.
+	lawid.TimeawareMoves:             {Type: "MovesWithTheClock", Timeaware: true, Args: []BindArg{BindKey}},
 	lawid.ScheduledFiresAfterAdvance: {Type: "ScheduledFiresAfterAdvance", Timeaware: true, Args: []BindArg{}},
 	lawid.Windowed:                   {Type: "Windowed", Args: []BindArg{BindKey}},
 	lawid.HashChainIntegrityVerify:   {Type: "HashChainIntegrityViaVerify", Args: []BindArg{}},

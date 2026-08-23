@@ -272,10 +272,6 @@ var recordedMixins = map[string]string{
 		"from it instead of drawing a literal the subject may have no reason to accept. " +
 		"The bare form states what this tier does by construction — it draws one value per " +
 		"role and has no exhaustive mode to be told not to use",
-	"timeaware": "spent by WITHHOLDING rather than by asserting: the seeded hit and count " +
-		"compare an answer against what the run put in, which a subject whose answer moves " +
-		"with the clock may legitimately change in between. Controlling the clock so those " +
-		"hold again is the model tier's; this tier's obligation is not to assert them",
 	"deprecated": "documentation stamp: colours generated prose, owes no check",
 	"notfound": "an identity, not a claim: it names WHAT a miss reports, and the check " +
 		"that a miss IS reported is the reader shape's own — MissSentinel reads it, " +

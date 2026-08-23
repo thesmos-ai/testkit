@@ -369,8 +369,17 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 			Qualifier: qualifier,
 			Methods:   methods,
 			Fixture:   fixture,
+			Pooled:    len(pools) > 0,
 			Corpus:    seeded,
 		}
+		// The guidance every suite in this package shares, contributed
+		// once. What stays on each interface is the part naming its own
+		// entry points; what moves up is the part that reads identically
+		// whatever the interface is called.
+		if err := preambleFor(ctx, outPackage(iface)); err != nil {
+			return fmt.Errorf("%s: package doc for %q: %w", Name, iface.Package, err)
+		}
+
 		inventory, refusals := InventoryOf(derived)
 		refusals = append(refusals, poolRefusals...)
 		if err := inventory.Verify(); err != nil {
@@ -476,6 +485,7 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 				Prove:        Prove,
 				DrawsFixture: contract.DrawsFixture,
 				SeedsCorpus:  contract.SeedsCorpus,
+				Pools:        pools,
 				Fixture:      fixture,
 				CorpusFunc:   projection.CorpusName(token),
 				Defects:      defects,

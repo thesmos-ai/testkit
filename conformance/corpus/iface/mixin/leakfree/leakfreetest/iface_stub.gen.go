@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package leakfreetest
 
 import (
@@ -375,4 +390,4 @@ func (s *MixedStub) Outstanding(ctx context.Context) (int, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance cf3731fd8f1c325906e317ccb82d24f74ddd4017d5e8c952822f1db346593ff5
+// testkit:provenance 1e10b7fcfc8fca01bf4986e8335df00ce0cc7d31c0dc78d837cdaa8aeedb524d

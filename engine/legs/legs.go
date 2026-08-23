@@ -178,13 +178,36 @@ func Concurrent[S any](
 // time, in a worse place, and only for the rows that remembered it.
 func Recover[S any, K comparable, V any](
 	tb testing.TB, sub suite.Subject[S], sch crash.Schedule[S, K, V],
-	wrap func(*model.T, S) S,
 ) {
 	tb.Helper()
 	sch.Rebuild = func(prior S) S { return sub.Recover(tb, prior) }
 	model.Check(tb, func(rt *model.T) {
-		crash.Run(rt, sub.New(tb), sch, wrap)
+		crash.Run(rt, sub.New(tb), sch)
 	})
+}
+
+// RecoverFaulting is [Recover] with the medium free to fail: the same
+// drawn schedule, with the subject put into its failing state partway
+// through and every later write refused by the subject itself.
+//
+// The failure is INDUCED rather than intercepted, and the difference is
+// the whole claim. A double in front of the subject that answers an
+// error without calling it leaves the subject ignorant of the write, so
+// it cannot have left anything behind and the claim is unfalsifiable —
+// it would be a green row saying nothing. The trigger reaches the
+// subject, which fails on its own terms and keeps whatever it had
+// already written down.
+//
+// The trigger comes from [suite.Subject.Induces] without a nil guard: a
+// row driving this declares the sentinel in its Needs, so the runner has
+// already refused a subject with no trigger for it, by name.
+func RecoverFaulting[S any, K comparable, V any](
+	tb testing.TB, sub suite.Subject[S], sch crash.Schedule[S, K, V], sentinel error,
+) {
+	tb.Helper()
+	trigger, _ := sub.Inducer(sentinel)
+	sch.Induce = func(world S) { trigger(tb, world) }
+	Recover(tb, sub, sch)
 }
 
 // AsBuilt narrows an instance the run is holding back to the type the

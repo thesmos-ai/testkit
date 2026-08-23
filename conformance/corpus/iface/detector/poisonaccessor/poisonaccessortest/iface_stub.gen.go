@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package poisonaccessortest
 
 import (
@@ -200,4 +215,4 @@ func (s *PoisonAccessorStub) Err() error {
 }
 
 // testkit: end of generated content.
-// testkit:provenance b96d1d11185eb0e0470394f61009c04c7d4078bcf89acd5cb2c48edd05b00de4
+// testkit:provenance c64be7d488e3e345bfb22a103708715888803c4b353f9b401ed7f2e599e69e0f

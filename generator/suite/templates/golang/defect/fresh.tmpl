@@ -1,0 +1,18 @@
+{{- /*
+The crash claim's defect: the rebuild finds an empty medium.
+
+Correct while it runs and amnesiac across the seam — every write lands
+and every one is gone the moment the process is built again. That is the
+whole of what crash recovery claims, stated in one line.
+
+The subject is the reference, which is a working implementation: the
+defect has to be right about everything else, or the schedule reds on
+the first read rather than on the first read AFTER a crash, and the
+message names the wrong thing.
+*/ -}}
+{{- define "suite.defect.fresh-medium" -}}
+{{ renderExpr (external $.Prove "One") }}({{ printf "%q" .DefectName }},
+	func({{ renderExpr (external "testing" "TB") }}) {{ renderExpr (external .Pkg .Subject) }} {
+		return {{ renderExpr (external .Pkg .Ref) }}()
+	}).RecoveringFresh(){{ template "suite.frag.defect-reason" . }}
+{{- end -}}

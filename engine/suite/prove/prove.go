@@ -43,6 +43,7 @@ import (
 	"testing"
 
 	"go.thesmos.sh/testkit"
+	"go.thesmos.sh/testkit/clock"
 	"go.thesmos.sh/testkit/engine/suite"
 )
 
@@ -99,6 +100,41 @@ func (d Defects[S]) Answering(doors map[suite.Capability]any) Defects[S] {
 // constructor because a defect over a real medium registers cleanup.
 func One[S any](name string, build func(tb testing.TB) S) Defect[S] {
 	return Defect[S]{Subject: suite.Subject[S]{Name: name, New: build}}
+}
+
+// IgnoringClock lets this defect stand for a clocked check by accepting
+// the run's clock and reading nothing from it.
+//
+// The gate that makes this necessary is the right one: a clocked check
+// refuses a subject with no OnClock, and a defect refused for wiring
+// reds without saying anything about the claim. What this adds is the
+// honest answer for a defect whose whole content is that time does not
+// reach it — a frozen reading, a lifetime that never expires. It takes
+// the clock and ignores it, which is the statement.
+//
+// A defect that needs to READ the clock builds its subject with OnClock
+// directly; the field is on the embedded subject for that reason.
+func (d Defect[S]) IgnoringClock() Defect[S] {
+	build := d.New
+	d.OnClock = func(tb testing.TB, _ *clock.TestClock) S { return build(tb) }
+	return d
+}
+
+// RecoveringFresh makes this defect rebuild onto an empty medium: the
+// crash seam answered by throwing the medium away.
+//
+// The claim it breaks is the whole of crash recovery — an acknowledged
+// write is a debt the medium owes across a rebuild — and the shape is
+// not a method override, which is why it lives here. Recover is a field
+// on the subject, and a stub option cannot reach it.
+//
+// build is the same constructor the defect's New uses, called again: a
+// second instance over nothing, which is exactly a process that came
+// back up and found its disk blank.
+func (d Defect[S]) RecoveringFresh() Defect[S] {
+	build := d.New
+	d.Recover = func(tb testing.TB, _ S) S { return build(tb) }
+	return d
 }
 
 // Reasoned pins the substring this defect's red must contain, so a red

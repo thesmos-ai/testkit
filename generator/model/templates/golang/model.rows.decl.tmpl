@@ -32,7 +32,7 @@ func {{ .Func }}{{ renderTypeParams .TypeParams }}({{ if .FixtureParam }}{{ .Fix
 {{- if .Needs }}
 			Needs: {{ renderExpr (external $.Vocab "Caps") }}{
 {{- range .Needs }}
-				{{ if .Const }}{{ renderExpr (external $.Vocab .Const) }}{{ else }}{{ printf "%q" .Name }}{{ end }}: nil,
+				{{ if .Const }}{{ renderExpr (external $.Vocab .Const) }}{{ else }}{{ printf "%q" .Name }}{{ end }}: {{ if .Sym }}{{ renderExpr .Sym }}{{ else }}nil{{ end }},
 {{- end }}
 			},
 {{- end }}

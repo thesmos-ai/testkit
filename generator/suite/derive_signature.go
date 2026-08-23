@@ -177,7 +177,11 @@ func missCall(f Iface, m subject.Method) projection.CallPlan {
 // answer — the remedy the skip names.
 func missPool(f Iface, m subject.Method) string {
 	fields := m.ArgFields
-	if len(fields) == 0 {
+	if len(fields) == 0 || !f.Pooled {
+		// No config is emitted for this interface, so there is no field to
+		// send a reader to. The skip still says the check proved nothing;
+		// what it stops doing is naming a type this package does not
+		// declare, which costs a reader the time to go and look.
 		return ""
 	}
 	return projection.ConfigName(f.Name) + "." + projection.PoolFieldName(fields[0])

@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package snapshotisolationtest
 
 import (
@@ -380,4 +395,4 @@ func (s *MixedStub) Get(ctx context.Context, key string) (snapshotisolation.Entr
 }
 
 // testkit: end of generated content.
-// testkit:provenance fb1a18e6b89993128c82f00173141c31167f9b942b83a413d4826cba0164f27c
+// testkit:provenance a1c6fb1317d7bef63e0fb70c521c6f8b47916f3e382102cea44a071238b16545

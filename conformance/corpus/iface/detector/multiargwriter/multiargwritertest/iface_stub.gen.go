@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package multiargwritertest
 
 import (
@@ -205,4 +220,4 @@ func (s *MultiArgWriterStub) Set(ctx context.Context, key string, body string, m
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9e9367c5d6b385c282a2206ed5461fd8989d4ff2d97257c530d1dcb47a3a8cf3
+// testkit:provenance 232ccc0e90d58839daf5a9b8f4209510515a9b670d09f56d9c3c6447c9d329a2

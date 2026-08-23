@@ -56,7 +56,17 @@ quote the message from its declared home. Absent where the failure's
 prose is authored in a body template, which has no constant to quote —
 a weaker proof, said out loud rather than left to look identical.
 */ -}}
+{{- /*
+The modifiers every planted defect closes with, whatever shape it is.
+
+Both are facts about the CHECK rather than about the defect, which is why
+they live here and not in each variant: whether a red has to name a
+reason, and whether the check demands a clock before it will admit a
+subject at all. A clocked check refuses one with no OnClock, and a defect
+refused for wiring reds without saying anything about the claim.
+*/ -}}
 {{- define "suite.frag.defect-reason" -}}
+{{- if .NeedsClock }}.IgnoringClock(){{ end }}
 {{- if .ReasonConst }}.Reasoned({{ renderExpr (external .Vocab .ReasonConst) }}){{ end }}
 {{- end -}}
 

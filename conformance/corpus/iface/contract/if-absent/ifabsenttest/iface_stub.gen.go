@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package ifabsenttest
 
 import (
@@ -203,4 +218,4 @@ func (s *ContractStub) Put(ctx context.Context, v ifabsent.Value) error {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 7686f11338740b5675e68960580df5949a2f353524f8b4d766bf1dccbfed70c0
+// testkit:provenance bf017a13c02744d89f584b58b5b24341560e7f43b7b6a80a5aeb386dea201572

@@ -36,6 +36,8 @@ import (
 	"errors"
 	"fmt"
 
+	"go.thesmos.sh/eidos/sdk"
+
 	"go.thesmos.sh/testkit/engine/suite"
 )
 
@@ -154,6 +156,16 @@ func (l Licence) Licensed() bool { return l.Axis != "" && l.Name != "" }
 type NeedPlan struct {
 	Capability suite.Capability
 	Value      Expr
+
+	// Sym is the declaration's own identifier where the door is answered
+	// by one — the sentinel an induce door names, qualified so the
+	// generated file registers the import rather than assuming another
+	// contribution already did.
+	//
+	// Apart from Value because that is a bare spelling: it renders what
+	// it holds and nothing registers anything, which is right for `nil`
+	// and `ctx` and wrong for a name owned by the source package.
+	Sym *sdk.Expr
 }
 
 // Body is the closed set of check-body shapes. One template per kind;

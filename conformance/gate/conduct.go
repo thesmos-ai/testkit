@@ -160,4 +160,9 @@ var LawConduct = map[string]Conduct{
 	// TTL check even resynchronizes its own unmirrored put by expiring it.
 	lawid.TTLExpiry:                  ConductSelfCleaning,
 	lawid.ScheduledFiresAfterAdvance: ConductMirrored,
+
+	// Reads only, and the advance it makes is to the shared clock both
+	// twins already age under — so it leaves the pair exactly as it found
+	// it, in the same state as each other.
+	lawid.TimeawareMoves: ConductObservational,
 }

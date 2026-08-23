@@ -502,9 +502,9 @@ func Test{{ $b }}Build(t *{{ renderExpr $T }}) {
 {{- with .Seedable }}
 	t.Run("returns every field that was configured", func(t *{{ renderExpr $T }}) {
 		t.Parallel()
-		// Configured, which the name always claimed and the body did not do:
-		// this compared a zero value against itself and passed for any Build
-		// that answered the zero, however much had been set on the way.
+		// Every field set on the way, not a zero compared against itself:
+		// a Build that answered the zero would satisfy the second form
+		// however much had been configured.
 		seed := {{ $ctor }}{{ $ta }}(){{ range . }}.With{{ .Name }}({{ renderSample .Sample }}){{ end }}.Build()
 		{{ renderExpr $equal }}(t, {{ renderExpr $.FromRef }}{{ $ta }}(seed).Build(), seed,
 			"Build returns the value under construction")

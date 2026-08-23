@@ -108,5 +108,6 @@ var lawRoleShapes = map[string]map[string]lawShape{
 	lawid.TTLExpiry:                  {"Put": shapePinnedWrite, fRead: shapeKeyedRead},
 	lawid.DeadlineRespecting:         {"Op": shapeCtxOpFixed},
 	lawid.ScheduledFiresAfterAdvance: {"Schedule": shapeScheduleAt, "FiredCount": shapeCountObs},
+	lawid.TimeawareMoves:             {fRead: shapeKeyedRead},
 	lawid.Windowed:                   {"Incr": shapeKeyedOp, fCount: shapeKeyedRead},
 }

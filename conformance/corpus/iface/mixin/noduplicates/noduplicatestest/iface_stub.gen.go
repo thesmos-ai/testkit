@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package noduplicatestest
 
 import (
@@ -291,4 +306,4 @@ func (s *MixedStub) Items(ctx context.Context) ([]noduplicates.Value, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3a403149f6108473df1967660547fdd8f61e7df8398200bf04c4f8047e321dce
+// testkit:provenance a1979a723b3c284c8ff50f1f1f01c62982e3bc4ff3b81538191c4f9d9c4e4d60

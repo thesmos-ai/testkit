@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package scopetest
 
 import (
@@ -295,4 +310,4 @@ func (s *MixedStub) Get(ctx context.Context, scope string, key string) (string, 
 }
 
 // testkit: end of generated content.
-// testkit:provenance af8e5e3770414404201bf9c6dc8e2165789537446cdc17f9865082fd10e8bbd6
+// testkit:provenance 385d1351add04b1476a82dab957982ad8934bfdb49b4a85f88124292287073ac

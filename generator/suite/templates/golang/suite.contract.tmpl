@@ -2,24 +2,22 @@
 {{ $c := . }}
 // Conformance checks for {{ .IfaceName }}, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// {{ .IfaceName }}'s half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		{{ suite_runName .IfaceName }}(t, {{ suite_harnessName .IfaceName }}[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	{{ suite_harnessName .IfaceName }}
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	{{ suite_rowsName .IfaceName }}
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	{{ suite_proveName .IfaceName }}
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	{{ suite_greenName .IfaceName }}
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	{{ suite_veneerVar .IfaceName }}.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -28,6 +26,9 @@
 // The checks this file runs:
 //
 {{- range $id := .EmittedIDs }}
+//	{{ $id }}
+{{- end }}
+{{- range $id := .AllContributedIDs }}
 //	{{ $id }}
 {{- end }}
 {{- if .Withheld }}
@@ -95,9 +96,9 @@ type {{ $.Fixture.TypeName }}{{ renderTypeParams $.TypeParams }} struct {
 	// carries exactly what you passed. See {{ $p.Field }}.
 	{{ camel $p.Field }} []{{ renderType $p.Type }}
 
-	// {{ camel $p.Field }}Given records that the run passed this pool
-	// rather than taking the derived one. See {{ $p.Field }}Derived.
-	{{ camel $p.Field }}Given bool
+	// {{ camel $p.Field }}Restricted records that the run narrowed this
+	// pool rather than taking the derived one. See {{ $p.Field }}Derived.
+	{{ camel $p.Field }}Restricted bool
 {{- end }}
 }
 
@@ -115,18 +116,28 @@ func {{ suite_newFixtureName $.Token }}{{ renderTypeParams $.TypeParams }}(
 	{{- if $.Pools }}cfg {{ suite_configName $.IfaceName }}{{ $.TypeArgs }}{{ end -}}
 ) {{ $.Fixture.TypeName }}{{ $.TypeArgs }} {
 {{- if $.Pools }}
-	// Read BEFORE the defaults land, because that is the only moment the
-	// two are distinguishable. Afterwards every pool is full and nothing
-	// can tell which was whose.
+	// Compared against the derived pool by VALUE, not by whether one was
+	// set. Nil-ness reads the wrong thing the moment a consumer starts
+	// from the derived config: take {{ suite_defaultConfigName $.Token }}(),
+	// change one unrelated field, and every pool arrives non-nil and
+	// equal to the one worked out here. Read as a restriction, the
+	// adversarial arm goes silently, the same values are drawn, and the
+	// report line is identical — a check that got weaker with nothing to
+	// show for it.
+	//
+	// Read BEFORE the defaults land, because that is the only moment a
+	// pool the consumer left empty is still empty.
+	derived := {{ suite_defaultConfigName $.Token }}{{ $.TypeArgs }}()
 {{- range $p := $.Pools }}
-	{{ camel $p.Field }}Given := len(cfg.{{ $p.Field }}) > 0
+	{{ camel $p.Field }}Restricted := len(cfg.{{ $p.Field }}) > 0 &&
+		!{{ renderExpr (external "slices" "Equal") }}(cfg.{{ $p.Field }}, derived.{{ $p.Field }})
 {{- end }}
 	cfg = cfg.orDefault()
 {{- end }}
 	return {{ $.Fixture.TypeName }}{{ $.TypeArgs }}{
 {{- range $p := $.Pools }}
 		{{ camel $p.Field }}:      cfg.{{ $p.Field }},
-		{{ camel $p.Field }}Given: {{ camel $p.Field }}Given,
+		{{ camel $p.Field }}Restricted: {{ camel $p.Field }}Restricted,
 {{- end }}
 {{- range $.Fixture.Fields }}
 {{- if .OK }}
@@ -180,7 +191,7 @@ func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $p.Field }}() []{{ renderTy
 // accepts. A pool you passed IS that statement, and probing past it reds
 // correct code against inputs you ruled out.
 func (f {{ $.Fixture.TypeName }}{{ $.TypeArgs }}) {{ $p.Field }}Derived() bool {
-	return !f.{{ camel $p.Field }}Given
+	return !f.{{ camel $p.Field }}Restricted
 }
 {{ end }}
 

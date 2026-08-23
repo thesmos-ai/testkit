@@ -34,7 +34,13 @@ type TTLExpiryAfterAdvance[T any, K comparable, V any] struct {
 	Keys   *rapid.Generator[K]
 	Values *rapid.Generator[V]
 
-	// TTL is the configured time-to-live for entries.
+	// TTL is the time-to-live the run holds entries to.
+	//
+	// One duration for the whole law, whichever way the declaration
+	// spelled it: a directive that fixes it once, or a field on the value
+	// whose declared default the fixture carries. The second shape is
+	// what gives a defect a field to reach for, and the law cannot tell
+	// them apart — nor should it, since the claim is the same sentence.
 	TTL time.Duration
 
 	// Advance advances the test clock by the supplied duration.

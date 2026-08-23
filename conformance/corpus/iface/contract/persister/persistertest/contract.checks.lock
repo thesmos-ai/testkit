@@ -13,4 +13,5 @@ model/contract/AUTO-LINEARIZABLE	model/concurrent	concurrent operation histories
 model/contract/AUTO-PERSISTER-RETRIEVABLE	model/laws	what a save answers is what a read finds	AUTO-PERSISTER-RETRIEVABLE
 model/contract/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/contract/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	
+sim/contract/fault	sim/fault	a write the medium refused leaves nothing behind for a rebuild to find	
 sim/contract/recovery	sim/recovery	every acknowledged write is still readable after the process is rebuilt over its medium	

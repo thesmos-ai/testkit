@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package readertest
 
 import (
@@ -206,4 +221,4 @@ func (s *ReaderStub) Get(ctx context.Context, key string) (reader.Value, error) 
 }
 
 // testkit: end of generated content.
-// testkit:provenance 0cb7f175c2fb71a5212d35494ac919dd12bd6fae32d5c0f187978c0f15567294
+// testkit:provenance cf783adf3c9320364c695dc160c2e220bbb76440b93a8f7e79ef461dff2449c0

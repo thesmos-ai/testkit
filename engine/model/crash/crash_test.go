@@ -32,6 +32,10 @@ func scratch(t *testing.T) {
 // hold, so the schedule's absent reading has a sentinel to name.
 var errMissing = errors.New("crash_test: no such key")
 
+// errMediumGone is what an induced store reports once its medium has
+// failed. Any error refuses the write; the wording carries no weight.
+var errMediumGone = errors.New("crash_test: the medium is gone")
+
 // record is what a write installs and a read asks for.
 type record struct {
 	Key  string
@@ -129,6 +133,49 @@ func (corrupting) rebuild(prior corrupting) corrupting {
 	return corrupting{m: prior.m}
 }
 
+// failing refuses every write once its medium has gone, and writes
+// nothing down when it does — the correct behaviour under a failure.
+type failing struct {
+	m      *medium
+	broken bool
+}
+
+func (s *failing) Put(ctx context.Context, r record) error {
+	if s.broken {
+		return errMediumGone
+	}
+	return store{m: s.m}.Put(ctx, r)
+}
+
+func (s *failing) Get(ctx context.Context, k string) (record, error) {
+	return store{m: s.m}.Get(ctx, k)
+}
+
+// journalling records the write to its medium and only then discovers it
+// cannot commit, leaving behind a row nothing acknowledged.
+//
+// The defect the induced form exists to catch. A double answering the
+// error in front of the subject never delivers the write, so this store
+// would look identical to the correct one.
+type journalling struct {
+	m      *medium
+	broken bool
+}
+
+func (s *journalling) Put(ctx context.Context, r record) error {
+	if err := (store{m: s.m}).Put(ctx, r); err != nil {
+		return err
+	}
+	if s.broken {
+		return errMediumGone
+	}
+	return nil
+}
+
+func (s *journalling) Get(ctx context.Context, k string) (record, error) {
+	return store{m: s.m}.Get(ctx, k)
+}
+
 // schedule is the same drawn interleaving for every store below, with
 // only the four verbs swapped — so a difference in verdict is a
 // difference in the implementation and nothing else.
@@ -169,12 +216,14 @@ func TestAWriteThroughStoreSurvivesTheSchedule(t *testing.T) {
 
 	model.Check(t, func(rt *model.T) {
 		s := store{m: newMedium()}
-		crash.Run(rt, s, schedule(store.Put, store.Get, s.rebuild), nil)
+		crash.Run(rt, s, schedule(store.Put, store.Get, s.rebuild))
 	})
 }
 
 // An acknowledged write that a rebuild cannot find is the defect this
 // leg exists for, and it is named as a debt rather than as a mismatch.
+//
+//nolint:paralleltest // scratch moves the cwd, which t.Chdir and t.Parallel refuse together.
 func TestABufferedWriteLostToACrashIsRejected(t *testing.T) {
 	scratch(t)
 
@@ -183,7 +232,7 @@ func TestABufferedWriteLostToACrashIsRejected(t *testing.T) {
 			tb.Helper()
 			model.Check(tb, func(rt *model.T) {
 				s := buffered{m: newMedium(), buf: map[string]record{}}
-				crash.Run(rt, s, schedule(buffered.Put, buffered.Get, s.rebuild), nil)
+				crash.Run(rt, s, schedule(buffered.Put, buffered.Get, s.rebuild))
 			})
 		})
 
@@ -197,6 +246,8 @@ func TestABufferedWriteLostToACrashIsRejected(t *testing.T) {
 // Worth stating on its own. An oracle recording attempts rather than
 // acknowledgements would pass this defect, and an oracle that only read
 // back what it had written would never ask the question.
+//
+//nolint:paralleltest // scratch moves the cwd, which t.Chdir and t.Parallel refuse together.
 func TestARebuildThatInventsStateIsRejected(t *testing.T) {
 	scratch(t)
 
@@ -205,7 +256,7 @@ func TestARebuildThatInventsStateIsRejected(t *testing.T) {
 			tb.Helper()
 			model.Check(tb, func(rt *model.T) {
 				s := inventive{m: newMedium()}
-				crash.Run(rt, s, schedule(inventive.Put, inventive.Get, s.rebuild), nil)
+				crash.Run(rt, s, schedule(inventive.Put, inventive.Get, s.rebuild))
 			})
 		})
 
@@ -215,6 +266,8 @@ func TestARebuildThatInventsStateIsRejected(t *testing.T) {
 
 // A rebuild that keeps every key and changes what they hold is caught by
 // the comparison rather than by the presence check.
+//
+//nolint:paralleltest // scratch moves the cwd, which t.Chdir and t.Parallel refuse together.
 func TestARebuildThatMangesWhatItKeptIsRejected(t *testing.T) {
 	scratch(t)
 
@@ -223,7 +276,7 @@ func TestARebuildThatMangesWhatItKeptIsRejected(t *testing.T) {
 			tb.Helper()
 			model.Check(tb, func(rt *model.T) {
 				s := corrupting{m: newMedium()}
-				crash.Run(rt, s, schedule(corrupting.Put, corrupting.Get, s.rebuild), nil)
+				crash.Run(rt, s, schedule(corrupting.Put, corrupting.Get, s.rebuild))
 			})
 		})
 
@@ -243,38 +296,60 @@ func TestNoAbsentReadsEveryErrorAsAMiss(t *testing.T) {
 		s := store{m: newMedium()}
 		sch := schedule(store.Put, store.Get, s.rebuild)
 		sch.Absent = nil
-		crash.Run(rt, s, sch, nil)
+		crash.Run(rt, s, sch)
 	})
 }
 
-// wrap dresses every incarnation, including the ones a crash produces.
+// A failure induced in the subject carries across the crash seam.
 //
-// The fault schedule depends on this: a medium that fails is failing for
-// one boot, and a rebuild is a new boot. A wrap applied once would arm
-// the first incarnation and leave every later one bare, which reads as a
-// fault schedule and runs as a plain one.
-//
-// Counted rather than merely observed. "The wrap ran" is true of the
-// broken version too, and a test that asserted only that would pass
-// against exactly the defect it is here for.
-func TestWrapRunsOnceMoreThanTheScheduleCrashes(t *testing.T) {
+// A medium that has failed does not recover by being reopened, so every
+// incarnation a crash produces is put back into the failing state. A
+// schedule that induced once and forgot would report a store as having
+// survived a failure it stopped having.
+func TestAnInducedFailureSurvivesTheRebuild(t *testing.T) {
 	t.Parallel()
 
 	model.Check(t, func(rt *model.T) {
-		crashed, dressed := 0, 0
-		s := store{m: newMedium()}
-		sch := schedule(store.Put, store.Get, s.rebuild)
-		sch.Rebuild = func(prior store) store {
-			crashed++
-			return s.rebuild(prior)
-		}
-		crash.Run(rt, s, sch, func(_ *model.T, w store) store {
-			dressed++
-			return w
-		})
-		if dressed != crashed+1 {
-			rt.Fatalf("dressed %d incarnations across %d crashes, want one for the "+
-				"first boot and one for every boot a crash produced", dressed, crashed)
-		}
+		m := newMedium()
+		s := &failing{m: m}
+		sch := schedule(func(w *failing, ctx context.Context, r record) error {
+			return w.Put(ctx, r)
+		}, func(w *failing, ctx context.Context, k string) (record, error) {
+			return w.Get(ctx, k)
+		}, func(prior *failing) *failing { return &failing{m: prior.m} })
+		sch.Induce = func(w *failing) { w.broken = true }
+		crash.Run(rt, s, sch)
 	})
+}
+
+// A store that writes to its medium and only then discovers it cannot
+// commit is caught, and this is the defect the induced form exists for.
+//
+// A double in front of the subject cannot find it. That arrangement
+// answers the error without calling the subject, so the write never
+// arrives, nothing is written down, and the claim has nothing to be
+// false about — a green row saying nothing. Here the subject receives
+// the write, records it, and then fails.
+//
+//nolint:paralleltest // scratch moves the cwd, which t.Chdir and t.Parallel refuse together.
+func TestAWriteRecordedBeforeItFailedIsRejected(t *testing.T) {
+	scratch(t)
+
+	got := testkit.Rejects(t, "a store that journals before it commits must not pass",
+		func(tb testing.TB) {
+			tb.Helper()
+			model.Check(tb, func(rt *model.T) {
+				s := &journalling{m: newMedium()}
+				sch := schedule(func(w *journalling, ctx context.Context, r record) error {
+					return w.Put(ctx, r)
+				}, func(w *journalling, ctx context.Context, k string) (record, error) {
+					return w.Get(ctx, k)
+				}, func(prior *journalling) *journalling { return &journalling{m: prior.m} })
+				sch.Induce = func(w *journalling) { w.broken = true }
+				crash.Run(rt, s, sch)
+			})
+		})
+
+	testkit.Contains(t, got, "nothing acknowledged this key",
+		"the write was refused, so what it left behind is state nobody asked for")
 }

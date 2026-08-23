@@ -98,6 +98,20 @@ func (*Plugin) Generate(ctx *sdk.GeneratorContext) error {
 
 		call := rowCallFor(c, iface, b, harness)
 		if call == nil {
+			// The tier ran, planned nothing, and would otherwise say so
+			// nowhere: the row call is what carries every declaration,
+			// including the header naming what did not bind. Meanwhile
+			// the harness file tells a reader this interface is "checked
+			// by testkit's model tier", which is then untrue with no
+			// trace. The note is the honest state.
+			note := &Declined{
+				BaseEmit: sdk.EmitBase(c, iface),
+				Iface:    iface.Name,
+				Why:      nothingBoundWhy(b),
+			}
+			if err := harness.Decls().Append(note, c.Provenance(Name+".declined")); err != nil {
+				return fmt.Errorf("%s: record the empty plan for %q: %w", Name, iface.Name, err)
+			}
 			continue
 		}
 		if err := harness.Rows().Append(call, c.Provenance(Name+".rows")); err != nil {
@@ -172,14 +186,21 @@ func plantDefects(ctx *sdk.GeneratorContext, b *Bindings, proofs *suite.Proofs) 
 		return
 	}
 	for _, o := range b.overrides {
-		if o.Method == nil {
-			continue
-		}
 		plan, at := planAt(b, o.ID)
 		if plan == nil {
 			continue
 		}
-		if proofs.Plant(ctx.Reader, *o.Method, *plan, rowAccessor(o.ID)) {
+		// A nil method is not a missing one. Most defects are a method
+		// override and name the method they go through; a few are facts
+		// about the SUBJECT — a rebuild onto an empty medium, a clock
+		// that is accepted and ignored — and there is no method to name.
+		// The view's spellings all tolerate an absent signature, and the
+		// template for such a defect reaches for none of them.
+		var over subject.Method
+		if o.Method != nil {
+			over = *o.Method
+		}
+		if proofs.Plant(ctx.Reader, over, *plan, rowAccessor(o.ID)) {
 			continue
 		}
 		// The rule reached it and this run cannot write it out. The row
@@ -230,6 +251,29 @@ func declineReason(b *Bindings, harness *suite.Contract) []string {
 		}
 	}
 	return nil
+}
+
+// nothingBoundWhy words an empty plan for the generated header.
+//
+// Each refusal the derivation already recorded, and a closing sentence
+// where it recorded none — because "no rows" with no reasons beside it
+// is the state that reads as an oversight and is usually a shape this
+// tier has no claim for.
+func nothingBoundWhy(b *Bindings) []string {
+	why := []string{
+		"no claim this tier knows how to state reached this interface,",
+		"so it contributes no checks. Each reason below is one it tried:",
+	}
+	for _, u := range b.Unbound {
+		why = append(why, "  "+u.Method+" — "+u.Reason)
+	}
+	if len(b.Unbound) == 0 {
+		why = append(why,
+			"  nothing was tried: no law's classification is stamped here, and",
+			"  no reference derives from these methods, so there is no sequence",
+			"  claim to make. A directive naming a partner method is what opens one.")
+	}
+	return why
 }
 
 // rowCallFor is this tier's contribution to the run surface, nil where
@@ -476,6 +520,7 @@ func bindingsOf(
 	saturationOf(b, harness)
 	concurrentOf(b, harness, keyed, valued)
 	simOf(b, keyed, valued)
+	b.FaultSym = faultSymOf(iface.Package, valued)
 	// Last, because a row is planned from what bound: the laws decide
 	// which legs report, and the reference decides whether there is a
 	// differential at all.

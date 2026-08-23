@@ -46,7 +46,7 @@ forever is correct.
 			func{{ renderParams .AnonParams }} {{ renderReturns .NamedReturns }} {
 				if !reported {
 					reported = true
-					{{ .ErrSlot }} = {{ renderExpr .Sentinel }}
+					{{ .ErrSlot }} = {{ if .Sentinel }}{{ renderExpr .Sentinel }}{{ else }}{{ renderExpr (external "errors" "New") }}({{ printf "%q" .HealsMessage }}){{ end }}
 					return
 				}
 				// Healed. The state the sentinel described is still the

@@ -29,6 +29,10 @@ import (
 const (
 	mixinAfterClose         = lifecycleafterclose.Name
 	mixinAfterCloseSentinel = lifecycleafterclose.ParamSentinel
+
+	// mixinPoisonable is the stamp that names a latch and the probe that
+	// reads it — the other road to the poison claims.
+	mixinPoisonable = "poisonable"
 )
 
 // defectFor is the planted defect for one law's row, and the method the
@@ -39,13 +43,38 @@ const (
 // one: the double's option is per-method, and a rule that picked its
 // target then handed back only the plan would leave the caller to guess
 // which method it meant.
-func defectFor(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool) {
+func defectFor(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool, string) {
 	rule, ruled := lawDefects()[l.ID]
 	if !ruled {
-		return nil, nil, false
+		return nil, nil, false, NoRule
 	}
-	return rule(b, l)
+	defect, over, planted := rule(b, l)
+	if !planted {
+		return nil, nil, false, RuleDeclined
+	}
+	return defect, over, true, ""
 }
+
+// The reasons a row goes Argued, told apart because they are fixed in
+// different places.
+//
+// One sentence used to serve every case and was false for several of
+// them: it said no rule exists, on rows where a rule exists and this
+// declaration could not supply it. A reader sent to the rule table for a
+// gap that is in their own stamp loses the time twice.
+const (
+	// NoRule is the honest residue: nothing in the table reaches this
+	// claim from shape and stamps alone.
+	NoRule = "no mechanical rule plants a defect for this claim; the ones that " +
+		"would are domain composites, which no rule reaches from shape and stamps alone"
+
+	// RuleDeclined is the other half: a rule exists and this declaration
+	// did not give it what it needs — a method it names, a stamp it
+	// reads, or a reference to be correct against.
+	RuleDeclined = "a rule for this claim exists and this declaration does not supply " +
+		"what it needs: the method it plants through, the stamp it reads, or a " +
+		"derived reference for the defect to be right about everything else"
+)
 
 // lawDefectRule plants one law's defect from the interface's own stamps.
 type lawDefectRule func(b *Bindings, l *LawBinding) (projection.Defect, *subject.Method, bool)
@@ -58,7 +87,13 @@ func lawDefects() map[string]lawDefectRule {
 	return map[string]lawDefectRule{
 		lawid.LifecycleAfterClose:      afterCloseOutlives,
 		lawid.PoisonConsistent:         poisonHeals,
+		lawid.PoisonNilOnFresh:         poisonBornFailing,
+		lawid.PoisonIdempotentRead:     poisonAnswersTwoWays,
 		lawid.AppenderMonotonicOffsets: appenderFreezes,
+		// A frozen answer is a subject ignoring the clock, which is
+		// exactly what this claim forbids: the law advances and demands
+		// the reading move, and one pinned to a constant cannot.
+		lawid.TimeawareMoves: appenderFreezes,
 
 		// The carrier-does-nothing family. Each of these laws reads what
 		// one method answers — a value read back, a delivery, a refusal
@@ -186,9 +221,62 @@ func poisonHeals(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method
 		if !stamped || v == "" {
 			continue
 		}
-		return projection.SentinelOnce{Sentinel: projection.Expr(v)}, m, true
+		return projection.SentinelOnce{
+			Clause:   projection.Clause{Text: m.Name + " reports it once and heals"},
+			Sentinel: projection.Expr(v),
+		}, m, true
+	}
+	// The other road to the same law. `poisonable induce=` stamps the
+	// PROBE, and the law asks only that its answer stay non-nil once the
+	// induction has taken — so the defect reports something once and
+	// heals, and what it reports does not matter.
+	if m := poisonProbe(b); m != nil {
+		return projection.SentinelOnce{
+			Clause: projection.Clause{Text: m.Name + " reports the state once and heals"},
+		}, m, true
 	}
 	return nil, nil, false
+}
+
+// poisonProbe is the method the poison mixin is stamped on: the one that
+// reads the state, which is what every poison law observes through.
+func poisonProbe(b *Bindings) *subject.Method {
+	return carrierOf(b, func(m *subject.Method) bool { return m.HasMixin(mixinPoisonable) })
+}
+
+// poisonBornFailing plants a probe that reports poison from the start.
+//
+// The claim is that a freshly built subject is clean, and the law builds
+// one and reads it. A probe that always answers an error breaks exactly
+// that and nothing else: no induction has run, so there is no stickiness
+// to confuse it with.
+func poisonBornFailing(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+	m := poisonProbe(b)
+	if m == nil {
+		return nil, nil, false
+	}
+	return projection.RefusesAlways{
+		Clause: projection.Clause{Text: m.Name + " reports poison on a subject nothing touched"},
+		Option: projection.OptionName(b.IfaceName, m.Name),
+	}, m, true
+}
+
+// poisonAnswersTwoWays plants a probe whose two consecutive reads
+// disagree.
+//
+// Read purity rather than stickiness: the law calls the probe twice and
+// compares. A probe that answers clean once and poisoned after breaks
+// the pair without ever being induced, which is what keeps this defect
+// off the other two claims.
+func poisonAnswersTwoWays(b *Bindings, _ *LawBinding) (projection.Defect, *subject.Method, bool) {
+	m := poisonProbe(b)
+	if m == nil {
+		return nil, nil, false
+	}
+	return projection.SecondCallErrs{
+		Clause: projection.Clause{Text: m.Name + " answers differently the second time"},
+		Option: projection.OptionName(b.IfaceName, m.Name),
+	}, m, true
 }
 
 // appenderFreezes plants the frozen position: every append lands and

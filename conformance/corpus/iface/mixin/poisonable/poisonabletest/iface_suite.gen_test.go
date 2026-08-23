@@ -29,6 +29,12 @@ import (
 //	Fail.NilContext — a Mixed whose Fail forgives a nil context and answers
 //
 //	Probe.Smoke — a Mixed whose Probe panics
+//
+//	Model.PoisonNilOnFresh — a Mixed whose Probe reports poison on a subject nothing touched
+//
+//	Model.PoisonIdempotentRead — a Mixed whose Probe answers differently the second time
+//
+//	Model.PoisonConsistent — a Mixed whose Probe reports the state once and heals
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -58,4 +64,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 76aa7b58505ad181277f254d595f84030ce04709b276d6886ccab4346e7c6f7d
+// testkit:provenance e6fadd20dc376fe892301450abb908c52ccf60db9e3f613a58f1d2ec5103f334

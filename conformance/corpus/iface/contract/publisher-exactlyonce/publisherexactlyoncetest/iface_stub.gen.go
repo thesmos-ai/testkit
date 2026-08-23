@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package publisherexactlyoncetest
 
 import (
@@ -377,4 +392,4 @@ func (s *ContractStub) Subscribe(ctx context.Context) (<-chan publisherexactlyon
 }
 
 // testkit: end of generated content.
-// testkit:provenance 47d52cb661d6ad7e2ce00a9e25d1c612cbf4302dac8f8496104dbb843080107c
+// testkit:provenance aa6f1c216be12a0a2ddbc1538d518a6b84bd20c781defddb64d22b301d7fae14

@@ -14,7 +14,26 @@ import (
 )
 
 // Value is the payload the contract's roles carry.
-type Value struct{ Key, Body string }
+type Value struct {
+	// Key files the value, and this subject refuses one that is empty —
+	// which is what gives `mode=atomic` a failure to be about.
+	//
+	// Roled, and that is the point: a role opens a pool, and a pool is
+	// how a consumer says which inputs their implementation accepts. The
+	// adversarial arm draws the empty string among others, and a subject
+	// that narrows what it takes has to say so or be red against inputs
+	// its own author ruled out.
+	//
+	//testkit:role key
+	//testkit:default "test-key"
+	Key string
+
+	// Body is what the value carries.
+	//
+	//testkit:role payload
+	//testkit:default "test-body"
+	Body string
+}
 
 // Contract is the fixture interface.
 //

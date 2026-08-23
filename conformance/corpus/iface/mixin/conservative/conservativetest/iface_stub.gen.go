@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package conservativetest
 
 import (
@@ -291,4 +306,4 @@ func (s *MixedStub) Total(ctx context.Context) (int, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 6b4992a2e12e58e3b3b8c37dd4644cea038dbdb217406e5d9b5b51287704b5fc
+// testkit:provenance 0d9660ac5a03aa709885cc15a52962bdb91b4c86fdd8574dd599127874f0e65c

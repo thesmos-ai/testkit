@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package overmatchtest
 
 import (
@@ -291,4 +306,4 @@ func (s *MixedStub) Items(ctx context.Context) ([]overmatch.Value, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 95257f6d081b92549a7aba93cd5943f7098523a5c5a2f79d0a9a8ed1b5f0509c
+// testkit:provenance e2a146e1d1bc20e89b96d42677323f9bbb12c7db39763a56fe50f00fbc73b649

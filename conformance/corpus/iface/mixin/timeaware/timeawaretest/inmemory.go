@@ -34,6 +34,16 @@ type InMemory struct {
 
 var _ timeaware.Mixed = (*InMemory)(nil)
 
+// NewInMemoryOn returns a store reading the clock the run controls.
+//
+// The constructor the clocked check needs. A store that read the wall
+// clock would pass every check whose test never advances far enough to
+// notice, and fail the one claim `timeaware` states on its own: what it
+// reports has to move when the run moves time.
+func NewInMemoryOn(clk clock.Clock) *InMemory {
+	return &InMemory{clk: clk, seen: map[string]time.Time{}}
+}
+
 // NewInMemory returns a store on a clock that only moves when told to.
 func NewInMemory() *InMemory {
 	return &InMemory{

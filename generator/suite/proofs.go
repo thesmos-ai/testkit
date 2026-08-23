@@ -4,7 +4,9 @@
 package suite
 
 import (
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.thesmos.sh/eidos/lang/golang"
@@ -72,6 +74,15 @@ type Proofs struct {
 	// harness's own answer rather than deciding it again.
 	SeedsCorpus bool
 	CorpusFunc  string
+
+	// Pools are the config's drawn fields, for the provenance regression.
+	//
+	// The one property of this surface nothing else can see: a pool the
+	// consumer did not narrow has to keep its adversarial arm, and a pool
+	// they did narrow has to reach every tier verbatim. Both directions,
+	// because getting either wrong is silent — the same values are drawn,
+	// the same rows report, and only the strength of the check moves.
+	Pools []projection.PoolPlan
 
 	// Defects are the planted defects, shared with the run surface that
 	// renders them.
@@ -229,6 +240,23 @@ type defectView struct {
 	// double reports, beside the three above for the same reason.
 	RefusalMessage string
 
+	// NeedsClock marks a defect standing in for a clocked check.
+	NeedsClock bool
+
+	// ForwardParams is the override's parameter list with every position
+	// named, and ForwardArgs the call that passes them on — the two
+	// halves a delegating defect needs. Ref, DelegateTo and Mutate are
+	// its other three: what to put behind the double, the option that
+	// does it, and the one statement that makes it wrong.
+	ForwardParams   []*sdk.EmitParam
+	ForwardArgs     string
+	Ref, DelegateTo string
+	Mutate          string
+
+	// HealsMessage is what the healing defect reports where the
+	// declaration stamps no sentinel for it to borrow.
+	HealsMessage string
+
 	// Echo is a live value of the method's first result, for the two
 	// defects that must ANSWER something a correct subject would not.
 	//
@@ -300,6 +328,8 @@ func defectRendered() map[projection.DefectKind]bool {
 		projection.KindEchoBesideError:  true,
 		projection.KindPartialOutlive:   true,
 		projection.KindSentinelOnce:     true,
+		projection.KindDelegated:        true,
+		projection.KindFreshMedium:      true,
 		projection.KindFreezeReturn:     true,
 	}
 }
@@ -427,9 +457,26 @@ func defectViewOf(
 ) defectView {
 	sig := m.Sig
 	reason, _ := vocab.RedConst(plan.ID.Seg)
-	echo, _ := echoSample(m, r)
+	// A defect scoped to the SUBJECT rather than to a method arrives with
+	// no method at all — a rebuild onto an empty medium overrides
+	// nothing. Method embeds its signature by pointer and promotes Name
+	// through it, so every read below has to go through this rather than
+	// through m.
+	var name string
+	var echo golang.Sample
+	if sig != nil {
+		name = m.Name
+		echo, _ = echoSample(m, r)
+	}
 	var sentinel *sdk.Expr
-	if heals, ok := plan.Defect.(projection.SentinelOnce); ok {
+	var ref, delegateTo, mutate string
+	if d, ok := plan.Defect.(projection.DelegatedOverride); ok {
+		ref, delegateTo, mutate = string(d.Ref), string(d.DelegateTo), d.Mutate
+	}
+	if d, ok := plan.Defect.(projection.FreshMedium); ok {
+		ref = string(d.Ref)
+	}
+	if heals, ok := plan.Defect.(projection.SentinelOnce); ok && heals.Sentinel != "" {
 		// The declaration's own package, because the stamp names the
 		// sentinel as the source spells it: bare where the interface
 		// declares it, qualified where it does not.
@@ -443,20 +490,39 @@ func defectViewOf(
 		Prove:         Prove,
 		Vocab:         Vocab,
 		Subject:       ifaceName,
-		Method:        m.Name,
+		Method:        name,
 		Ctor:          projection.StubCtorName(ifaceName, naming.StubSuffix),
-		Option:        string(projection.OptionName(ifaceName, m.Name)),
-		DefectName:    projection.DefectName(ifaceName, defectClause(m.Name, plan.Defect)),
-		PanicMessage:  plantedPrefix + m.Name + " panics",
-		RepeatMessage: plantedPrefix + m.Name + " refuses its repeat",
-		EchoMessage:   plantedPrefix + m.Name + " refused with a believable value",
-		RefusalMessage: plantedPrefix + m.Name +
+		Option:        string(projection.OptionName(ifaceName, name)),
+		DefectName:    projection.DefectName(ifaceName, defectClause(name, plan.Defect)),
+		PanicMessage:  plantedPrefix + name + " panics",
+		RepeatMessage: plantedPrefix + name + " refuses its repeat",
+		EchoMessage:   plantedPrefix + name + " refused with a believable value",
+		RefusalMessage: plantedPrefix + name +
 			" refuses everything it is handed",
+		// What the healing defect reports where the declaration stamps
+		// no sentinel. The law it breaks asks only that the answer stay
+		// non-nil once the state is reached, so the identity is free —
+		// but the message still says the state is planted, because a
+		// reader meeting it in a failure has to know it was put there.
+		HealsMessage: plantedPrefix + name + " reports the state once and heals",
 		ReasonConst:  reason,
-		AnonParams:   anonParams(sig),
-		AnonReturns:  anonReturns(sig),
-		NamedReturns: namedReturns(sig),
-		ErrSlot:      errLocal,
+		// A clocked check refuses a subject with no OnClock, and a defect
+		// refused for wiring reds without saying anything about the
+		// claim. The defects this tier plants never read the clock —
+		// that is usually the planted statement — so they accept one and
+		// ignore it.
+		NeedsClock: slices.ContainsFunc(plan.Needs, func(n projection.NeedPlan) bool {
+			return n.Capability == vocab.CapClock
+		}),
+		AnonParams:    anonParams(sig),
+		ForwardParams: forwardParams(sig),
+		ForwardArgs:   forwardArgs(sig),
+		Ref:           ref,
+		DelegateTo:    delegateTo,
+		Mutate:        mutate,
+		AnonReturns:   anonReturns(sig),
+		NamedReturns:  namedReturns(sig),
+		ErrSlot:       errLocal,
 	}
 }
 
@@ -578,6 +644,52 @@ func anonParams(sig *golang.Sig) []*sdk.EmitParam {
 		out = append(out, &sdk.EmitParam{Name: "_", Type: p.Type, Variadic: p.Variadic})
 	}
 	return out
+}
+
+// forwardParams is the parameter list with every position named, for an
+// override that has to refer to what it was handed.
+//
+// The delegating defect needs both halves: a statement altering one
+// argument, and a call forwarding the rest. A blanked list serves the
+// defects that ignore their arguments and cannot serve these.
+func forwardParams(sig *golang.Sig) []*sdk.EmitParam {
+	if sig == nil {
+		return nil
+	}
+	out := make([]*sdk.EmitParam, 0, len(sig.Params))
+	for i, p := range sig.Params {
+		out = append(out, &sdk.EmitParam{Name: forwardName(i, p), Type: p.Type, Variadic: p.Variadic})
+	}
+	return out
+}
+
+// forwardArgs is [forwardParams]'s call site — the same names in the
+// same order, with a variadic tail spread.
+func forwardArgs(sig *golang.Sig) string {
+	if sig == nil {
+		return ""
+	}
+	names := make([]string, 0, len(sig.Params))
+	for i, p := range sig.Params {
+		name := forwardName(i, p)
+		if p.Variadic {
+			name += "..."
+		}
+		names = append(names, name)
+	}
+	return strings.Join(names, ", ")
+}
+
+// forwardName is one parameter's local, its own where the declaration
+// gave it one and a positional otherwise.
+//
+// A declaration may name none of its parameters — `Put(context.Context,
+// Value)` is legal — and a forwarding body has to call them something.
+func forwardName(i int, p golang.Param) string {
+	if p.Name != "" && p.Name != "_" {
+		return p.Name
+	}
+	return "a" + strconv.Itoa(i)
 }
 
 // anonReturns is the result list with no names, for a body that panics

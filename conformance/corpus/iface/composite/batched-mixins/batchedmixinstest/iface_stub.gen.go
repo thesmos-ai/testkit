@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package batchedmixinstest
 
 import (
@@ -381,4 +396,4 @@ func (s *BatchedStub) List(ctx context.Context) ([]string, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance dbcfe9e63f6b2e2b044f2ca348cfdffd29ca2b5f9438da933b083659a7d5707f
+// testkit:provenance 0d412c6dfa5aea1cf23f99d64ef560fad2856c91d386f1f5c647a71880c3755b

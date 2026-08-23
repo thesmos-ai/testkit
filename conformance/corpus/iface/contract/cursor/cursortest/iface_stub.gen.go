@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package cursortest
 
 import (
@@ -293,4 +308,4 @@ func (s *ContractStub) Close(ctx context.Context) error {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 131fe3bfbd7a645c010feca7c072058c94295e55d8d4c5b1b8a8aedad10341d8
+// testkit:provenance ad408c8e3c8d8ee7d44367cfc583cb25c8efa83d9135d048b3cf9cf7fc0eb29a

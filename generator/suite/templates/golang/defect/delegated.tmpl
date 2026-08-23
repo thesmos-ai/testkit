@@ -1,0 +1,28 @@
+{{- /*
+The delegating override: correct everywhere except one statement.
+
+A working reference behind the double, one method replaced by a closure
+that alters what it is handed and forwards the rest. Every claim of the
+form "does the right thing except for X" needs this shape, and a bare
+stub cannot express it — a double with no delegate stores nothing, so a
+check about what survives or expires has nothing to observe and the red
+says nothing about the claim.
+
+The delegate is built ONCE and closed over. Calling the constructor
+again inside the override would forward to a second, empty instance:
+every write would land somewhere the reads never look, which is a
+different defect and a much less interesting one.
+*/ -}}
+{{- define "suite.defect.delegated-override" -}}
+{{ renderExpr (external $.Prove "One") }}({{ printf "%q" .DefectName }},
+	func(tb {{ renderExpr (external "testing" "TB") }}) {{ renderExpr (external .Pkg .Subject) }} {
+		inner := {{ renderExpr (external .Pkg .Ref) }}()
+		return {{ renderExpr (external .Pkg .Ctor) }}(tb,
+			{{ renderExpr (external .Pkg .DelegateTo) }}(inner),
+			{{ renderExpr (external .Pkg .Option) }}(
+				func{{ renderParams .ForwardParams }} {{ renderReturns .AnonReturns }} {
+					{{ .Mutate }}
+					return inner.{{ .Method }}({{ .ForwardArgs }})
+				}))
+	}){{ template "suite.frag.defect-reason" . }}
+{{- end -}}

@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package cacheabletest
 
 import (
@@ -206,4 +221,4 @@ func (s *MixedStub) Get(ctx context.Context, key string) (string, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 73b2c56fc7d28cff551ffd60238128c9307995effd92179b90178b6f37a6892f
+// testkit:provenance d05abfbde95774dda36df2c4a84cf77efc15fbc6434e3237a65d29faebe4b8f9

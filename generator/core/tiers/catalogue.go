@@ -137,7 +137,7 @@ const (
 // each to the live registry for exactly that reason.
 const (
 	paramBatchMode           = "shape.contract.batch-writer.param.mode"
-	paramBoundedLimit        = "shape.mixin.bounded.limit"
+	ParamBoundedLimit        = "shape.mixin.bounded.limit"
 	paramBoundedMin          = "shape.mixin.bounded.min"
 	paramCASMismatch         = "shape.contract.cas.param.mismatch"
 	paramCursorSentinel      = "shape.contract.cursor.param.sentinel"
@@ -458,7 +458,7 @@ var rules = []Rule{
 			// attaches to; a signed quantity needs the option until eidos
 			// carries a second parameter.
 			{Name: "Min", Kind: KindConstant, From: paramBoundedMin, Optional: true},
-			{Name: "Max", Kind: KindConstant, From: paramBoundedLimit},
+			{Name: "Max", Kind: KindConstant, From: ParamBoundedLimit},
 		},
 	},
 
@@ -730,6 +730,22 @@ var rules = []Rule{
 	// deadline on an operation are different promises that happen to share a
 	// clock. Neither rule needs `timeaware` as well: a classification that
 	// names a duration has already said a clock is involved.
+	// The claim `timeaware` states on its own. Every other rule in this
+	// family needs a quantity, and the quantities belong to the
+	// classifications layered on top — what is left is the dependency
+	// itself, which is the half worth checking first: a subject reading
+	// wall time passes every quantity claim whose test never advances far
+	// enough, and fails this one at once.
+	{
+		Law:   lawid.TimeawareMoves,
+		Needs: []string{mixinTimeaware},
+		Fields: []Field{
+			{Name: fieldRead, Kind: KindRole, From: roleSelf},
+			{Name: fieldKeys, Kind: KindGenerator, From: genKeys},
+			{Name: fieldAdvance, Kind: KindHandle, From: handleClock},
+		},
+	},
+
 	{
 		Law:   lawid.TTLExpiry,
 		Needs: []string{mixinTTL},

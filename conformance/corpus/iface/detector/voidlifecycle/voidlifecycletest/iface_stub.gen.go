@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package voidlifecycletest
 
 import (
@@ -180,4 +195,4 @@ func (s *VoidLifecycleStub) Stop() {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 052db914dfc106d0ab2e4829873928751764481d38c1559823b55ea130afdcc5
+// testkit:provenance cb931381b28e7401b85c7f842a9756401feb621cd5f858fccf96d95ae6491852

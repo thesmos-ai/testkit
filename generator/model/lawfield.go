@@ -66,7 +66,7 @@ func lawFieldOf(
 		}
 		return got, reason
 	case tiers.KindConstant:
-		return constFieldOf(harness, r, f, field, m)
+		return constFieldOf(b, harness, r, f, field, m)
 	case tiers.KindGenerator:
 		return generatorFieldOf(b, harness, r, f, field, m, keyed)
 	case tiers.KindHandle:

@@ -41,6 +41,8 @@ import (
 //	AgeOf.ZeroOnError — a Mixed whose AgeOf answers a believable value beside its error
 //
 //	AgeOf.Miss — a Mixed whose AgeOf answers for an input nothing wrote
+//
+//	Model.MovesWithTheClock — a Mixed whose AgeOf freeze-return
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -70,4 +72,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a246e77afcf1acd23ef528d946298e9f6542272d214041f42328926b1f69b15a
+// testkit:provenance 6fc94fd40c7df686182e764458a01dc40d64497a172acfe7c4b93354fc8076a2

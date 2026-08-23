@@ -42,10 +42,10 @@ func TestOnlyRuledLawsCarryADefect(t *testing.T) {
 
 	b := defectBindings(stamped("Close", mixinAfterCloseSentinel, "kv.ErrClosed"))
 
-	_, _, ruled := defectFor(b, &LawBinding{ID: lawid.PoisonConsistent})
+	_, _, ruled, _ := defectFor(b, &LawBinding{ID: lawid.PoisonConsistent})
 	testkit.True(t, ruled, "a law the table words plants its defect")
 
-	_, _, unruled := defectFor(b, &LawBinding{ID: lawid.CursorCloseIdempotent})
+	_, _, unruled, _ := defectFor(b, &LawBinding{ID: lawid.CursorCloseIdempotent})
 	testkit.False(t, unruled,
 		"and one it does not stays Argued rather than wearing a proof nobody wrote")
 }
@@ -60,7 +60,7 @@ func TestARuleWithNoTargetDeclines(t *testing.T) {
 
 	bare := defectBindings(subject.Method{Sig: &golang.Sig{Name: "Read"}})
 
-	_, _, planted := defectFor(bare, &LawBinding{ID: lawid.PoisonConsistent})
+	_, _, planted, _ := defectFor(bare, &LawBinding{ID: lawid.PoisonConsistent})
 	testkit.False(t, planted, "no stamped sentinel, so no sentinel to heal from")
 
 	_, _, drops := differentialDefect(bare)
@@ -76,7 +76,7 @@ func TestThePoisonDefectNamesTheStampedSentinel(t *testing.T) {
 
 	b := defectBindings(stamped("Close", mixinAfterCloseSentinel, "kv.ErrClosed"))
 
-	defect, over, planted := defectFor(b, &LawBinding{ID: lawid.PoisonConsistent})
+	defect, over, planted, _ := defectFor(b, &LawBinding{ID: lawid.PoisonConsistent})
 	testkit.True(t, planted, "the stamp is there, so the rule reaches")
 	heals, is := defect.(projection.SentinelOnce)
 	testkit.True(t, is, "the un-sticky poison the law forbids")
@@ -97,11 +97,40 @@ func TestTheAppenderDefectFollowsTheLawsCarrier(t *testing.T) {
 	appendM.Name = "Append"
 	b := defectBindings(appendM)
 
-	defect, over, planted := defectFor(b, &LawBinding{
+	defect, over, planted, _ := defectFor(b, &LawBinding{
 		ID: lawid.AppenderMonotonicOffsets, carrier: appendM,
 	})
 	testkit.True(t, planted, "the carrier is on the interface, so the rule reaches")
 	testkit.Equal(t, over.Name, "Append", "planted through the method the law drives")
 	_, frozen := defect.(projection.FreezeReturn)
 	testkit.True(t, frozen, "the position stops moving while the writes keep landing")
+}
+
+// A row that goes Argued says which of the two gaps it met.
+//
+// One sentence used to serve both and was false for half of them: it
+// told a reader no rule exists, on rows where one exists and the
+// declaration did not supply what it needs. The two are fixed in
+// different places — the rule table, or your own stamp — so a reader
+// sent to the wrong one loses the time twice.
+func TestArguedSaysWhichGapItMet(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no rule reaches the claim", func(t *testing.T) {
+		t.Parallel()
+		_, _, planted, why := defectFor(defectBindings(), &LawBinding{ID: "AUTO-NOBODY-WROTE-THIS"})
+		testkit.False(t, planted, "nothing in the table reaches it")
+		testkit.Equal(t, why, NoRule, "so the reader is sent to the rule table")
+	})
+
+	t.Run("a rule reaches it and the declaration falls short", func(t *testing.T) {
+		t.Parallel()
+		// The lifecycle rule exists and reads a sentinel stamp. A
+		// declaration carrying none gives it nothing to plant.
+		_, _, planted, why := defectFor(defectBindings(),
+			&LawBinding{ID: lawid.LifecycleAfterClose})
+		testkit.False(t, planted, "the rule found no sentinel to report once")
+		testkit.Equal(t, why, RuleDeclined,
+			"so the reader is sent to their own declaration instead")
+	})
 }

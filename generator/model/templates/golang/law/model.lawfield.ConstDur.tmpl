@@ -1,0 +1,16 @@
+{{- /*
+A duration bound, spelled as the declaration spelled it.
+
+The count and the unit rather than the nanoseconds they multiply out to.
+Both compile to the same value, and only one of them can be checked
+against the stamp a reader is holding: `timeout=100ms` and
+`Timeout: 100000000` agree, and nobody can see that they do.
+
+The unit is a symbol, so the import registers through the backend the way
+every other reference does — the earlier spelling avoided the import by
+emitting the arithmetic already done, which is a saving of one import
+line against a number no reader can verify.
+*/ -}}
+{{- define "model.lawfield.ConstDur" -}}
+{{ .Name }}: {{ .Lit }} * {{ renderExpr .Const }}
+{{- end -}}

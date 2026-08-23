@@ -94,6 +94,23 @@ func (c *Contract) ContributedIDs() ([]string, error) {
 	return emittedIDs(projection.Inventory{Checks: c.contributedPlans()})
 }
 
+// AllContributedIDs is [Contract.ContributedIDs] for the header, which
+// has no way to handle an error and no reason to fail the run over one.
+//
+// The listing at the top of the file said what THIS tier emits and
+// stopped there, so a package whose model tier contributed four rows
+// advertised eight of its twelve checks — with the lock carrying all
+// twelve, which is where a reader found out. A contribution that cannot
+// render its own ID is a defect the emission gate catches first; here it
+// is simply left out rather than taking the file down.
+func (c *Contract) AllContributedIDs() []string {
+	ids, err := c.ContributedIDs()
+	if err != nil {
+		return nil
+	}
+	return ids
+}
+
 // contributedPlans is every plan the regions carry, in contribution
 // order.
 //

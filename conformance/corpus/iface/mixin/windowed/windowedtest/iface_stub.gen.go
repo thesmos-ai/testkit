@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package windowedtest
 
 import (
@@ -292,4 +307,4 @@ func (s *MixedStub) CountIn(ctx context.Context, key string) (int, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 5228c36ea3caeb0d09f9193cba21730e9a034c4676c0d36f002fdb2a06249360
+// testkit:provenance 41938bcc66b726a5c59dd4922a000f13555f4a149ffce6a99f958f6fefee3abd

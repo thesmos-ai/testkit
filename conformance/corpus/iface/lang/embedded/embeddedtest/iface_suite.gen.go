@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package embeddedtest
 
 import (
@@ -19,24 +34,22 @@ import (
 
 // Conformance checks for Base, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Base's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunBase(t, BaseHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	BaseHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	BaseChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveBase
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenBase
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	BaseSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -434,8 +447,7 @@ type BaseCheck struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do.
 	Run     func(tb testing.TB, s Base, fx BaseFixture)
 	RunWith func(tb testing.TB, sub BaseSubject, fx BaseFixture)
 
@@ -684,26 +696,80 @@ func ProveBase(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenBase runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenBase(t, suite.Subject[Base]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveBase measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunBase, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenBase(
+	t *testing.T,
+	control suite.Subject[Base],
+	opts ...BaseRunOpt,
+) {
+	t.Helper()
+	var rc baseRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := baseNewFixture()
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenBase")
+	s := baseSuite().With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
 // Conformance checks for Closer, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Closer's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunCloser(t, CloserHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	CloserHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	CloserChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveCloser
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenCloser
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	CloserSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -1101,8 +1167,7 @@ type CloserCheck struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do.
 	Run     func(tb testing.TB, s Closer, fx CloserFixture)
 	RunWith func(tb testing.TB, sub CloserSubject, fx CloserFixture)
 
@@ -1351,26 +1416,80 @@ func ProveCloser(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenCloser runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenCloser(t, suite.Subject[Closer]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveCloser measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunCloser, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenCloser(
+	t *testing.T,
+	control suite.Subject[Closer],
+	opts ...CloserRunOpt,
+) {
+	t.Helper()
+	var rc closerRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := closerNewFixture()
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenCloser")
+	s := closerSuite().With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
 // Conformance checks for Composed, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Composed's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunComposed(t, ComposedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	ComposedHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	ComposedChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveComposed
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenComposed
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	ComposedSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -2011,8 +2130,7 @@ type ComposedCheck struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do.
 	Run     func(tb testing.TB, s Composed, fx ComposedFixture)
 	RunWith func(tb testing.TB, sub ComposedSubject, fx ComposedFixture)
 
@@ -2338,5 +2456,61 @@ func ProveComposed(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenComposed runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenComposed(t, suite.Subject[Composed]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveComposed measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunComposed, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenComposed(
+	t *testing.T,
+	control suite.Subject[Composed],
+	opts ...ComposedRunOpt,
+) {
+	t.Helper()
+	var rc composedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := composedNewFixture()
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenComposed")
+	s := composedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
 // testkit: end of generated content.
-// testkit:provenance 062fef954511f2512954fe420b252a13b09bf2812100d0ad0a18fa1473c412da
+// testkit:provenance b1b83982092e9441193c7e1f18d45aab111d44e78297c47eeffd55c2ec36fccf

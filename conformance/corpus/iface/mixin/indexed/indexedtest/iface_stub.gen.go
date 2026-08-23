@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package indexedtest
 
 import (
@@ -380,4 +395,4 @@ func (s *RankedStub) At(ctx context.Context, i int) (indexed.Value, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 094b7f2266f86d2f7bd2e00ee9708024b1be102fc577ad2a5b641c127d3a58ec
+// testkit:provenance 85f4995922217b645ea1ac31ea9bcd497a307c1beef990a6cd496ec6f4795f5a

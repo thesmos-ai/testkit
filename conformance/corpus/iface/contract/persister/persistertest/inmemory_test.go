@@ -50,6 +50,13 @@ func inMemory(name string) persistertest.ContractHarness[*persistertest.InMemory
 		// is what makes a rebuild over it mean anything: an acknowledged
 		// write is still there when the process that took it is not.
 		Recover: persistertest.Reopen,
+		// And the state a caller can put the store into, keyed by the
+		// error it then reports. The trigger reaches the store rather
+		// than wrapping it, which is what lets a check ask what a
+		// REFUSED write left behind.
+		Induce: map[error]func(*persistertest.InMemory){
+			persister.ErrMediumGone: (*persistertest.InMemory).LoseTheMedium,
+		},
 	}
 }
 

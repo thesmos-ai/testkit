@@ -38,7 +38,7 @@ import (
 //
 //	Model.AfterClose — a Mixed whose Work partial-outlive
 //
-//	Model.PoisonConsistent — a Mixed whose Work sentinel-once
+//	Model.PoisonConsistent — a Mixed whose Work reports it once and heals
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -68,4 +68,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 973ad39e525077689c8e447303fbb699a36b8f9224130f568cef1511e8f3fb10
+// testkit:provenance e5c1a5a12ef5adeb715d59555a3b615cba9d31ec9b90aa0c4736caa8bbf96fc6

@@ -42,6 +42,9 @@ func Run[S any](t *testing.T, s Suite[S], subjects ...Subject[S]) {
 	if errRapidPolicy != nil {
 		t.Fatalf("suite.Run: %v", errRapidPolicy)
 	}
+	if err := rapidBridgeAlive(s); err != nil {
+		t.Fatalf("suite.Run: %v", err)
+	}
 
 	if err := validate(s, subjects); err != nil {
 		t.Fatalf("suite.Run: %v", err)
@@ -553,6 +556,63 @@ func applyRapidEnv() error {
 		}
 	}
 	return nil
+}
+
+// rapidBridgeAlive refuses a run whose property checks have lost the
+// seed bridge.
+//
+// [applyRapidEnv] skips a flag it cannot find, on purpose: a CI
+// environment is global and most packages link no rapid, so a set
+// variable there means nothing. That silence is wrong for exactly one
+// case — a run that DOES drive properties. Those packages link the
+// engine and rapid with it, so the flags this maps onto have to exist;
+// if one does not, rapid has renamed it and CI's pinned seed has been
+// doing nothing, with every run still green and no longer reproducible.
+//
+// Asked here rather than in each generated package. It is a fact about
+// the run, one binary links one rapid, and eighty copies of the same
+// lookup would be eighty places to keep in step.
+func rapidBridgeAlive[S any](s Suite[S]) error {
+	return bridgeAlive(s, flag.Lookup)
+}
+
+// bridgeAlive is [rapidBridgeAlive] with the lookup handed in.
+//
+// Injected for one reason: a binary that links rapid always finds the
+// flags, so the guard cannot fail where it runs and a test of it would
+// assert nothing. The seam is what lets the absent case be driven and
+// the message read.
+func bridgeAlive[S any](s Suite[S], lookup func(string) *flag.Flag) error {
+	if !drivesProperties(s) {
+		return nil
+	}
+	for _, name := range []string{"rapid.seed", "rapid.checks"} {
+		if lookup(name) == nil {
+			return fmt.Errorf("this run drives property checks, so rapid is linked, and "+
+				"flag -%s is absent: the %s bridge is dead and a pinned seed is "+
+				"silently doing nothing", name, EnvRapidSeed)
+		}
+	}
+	return nil
+}
+
+// drivesProperties reports whether any check in the suite is driven by
+// the property engine rather than by a fixed call sequence.
+//
+// Read off the ID's family, which is the one place that fact is already
+// written down: the model tier's legs and the crash schedule both draw
+// and shrink, and every other family settles its claim with calls it
+// spells itself.
+func drivesProperties[S any](s Suite[S]) bool {
+	for _, id := range s.IDs() {
+		switch family, _, found := strings.Cut(string(id), "/"); {
+		case !found:
+			continue
+		case family == FamilyModel, family == FamilySim:
+			return true
+		}
+	}
+	return false
 }
 
 // classFamilies is the closed set of class-family prefixes. The leaf stays

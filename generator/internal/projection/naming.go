@@ -373,6 +373,25 @@ func InvariantsTestName(iface string) string {
 	return golang.TestFuncName(iface, invariantsSuffix)
 }
 
+// GreenName is the negative control's entry point — the specificity half
+// of what ProveName measures.
+func GreenName(iface string) string { return greenPrefix + iface }
+
+const greenPrefix = "Green"
+
+// ProvenanceTestName is the generated regression over pool provenance.
+//
+// Its own function rather than a case inside the invariants one, because
+// it asserts about a surface only some interfaces have: a package with
+// no roles stamped emits no config, so there is no provenance to hold.
+// Folding it in would make the invariants test conditional on something
+// its name does not mention.
+func ProvenanceTestName(iface string) string {
+	return golang.TestFuncName(iface, provenanceSuffix)
+}
+
+const provenanceSuffix = "PoolProvenance"
+
 // LockPath is the manifest this interface's rows are pinned in.
 //
 // Per interface for the reason above. The packs write one checks.lock

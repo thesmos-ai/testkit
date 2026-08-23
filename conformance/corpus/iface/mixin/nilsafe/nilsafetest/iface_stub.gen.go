@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package nilsafetest
 
 import (
@@ -203,4 +218,4 @@ func (s *MixedStub) Store(ctx context.Context, v *nilsafe.Payload) error {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 1ccf8ab0b4cad7c33acd853fece404a75468dd1eeb4fe51df6c6b9731c2a5883
+// testkit:provenance edbbebb75af9d929098b485aec8735906a63df5b7f3004f7c2058e96e9cb8051

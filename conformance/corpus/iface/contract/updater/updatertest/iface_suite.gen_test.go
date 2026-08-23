@@ -42,6 +42,8 @@ import (
 //
 //	Get.Miss — a Contract whose Get answers for an input nothing wrote
 //
+//	Sim.Recovery — a Contract whose rebuild finds an empty medium
+//
 //	Model.WriteObservable — a Contract whose Put reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
@@ -72,4 +74,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 426741826e340bb95b9a80451005dc0ca5cfcdc19a2de04b2377156fe34be545
+// testkit:provenance e4214535e54aa1db0ba5201213e2000e73b8b0cc6ea6ad9489fe5b04e91961d9

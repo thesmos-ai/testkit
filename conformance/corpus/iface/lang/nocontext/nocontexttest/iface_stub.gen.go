@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package nocontexttest
 
 import (
@@ -354,4 +369,4 @@ func (s *CalculatorStub) Reset() {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3518318365b8d9536dd71c59b06ba992770f67587826b2e22a5be5b3f8f490cc
+// testkit:provenance bd3f300757a4edb795ff959d34caa21c9c70c392232b78bc4a65fb9da2d83b8d

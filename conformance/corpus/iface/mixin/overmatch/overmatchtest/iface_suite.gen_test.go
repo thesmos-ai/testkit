@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/mixin/overmatch/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/iface/mixin/overmatch/...
+// Command:   testkit run ./corpus/...
 
 package overmatchtest_test
 

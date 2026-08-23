@@ -90,6 +90,7 @@ var LawTypes = map[string]reflect.Type{
 	lawid.SnapshotIsolationG1:          reflect.TypeFor[law.SnapshotIsolationG1[any, string]](),
 	lawid.SnapshotIsolationG2:          reflect.TypeFor[law.SnapshotIsolationG2[any, string]](),
 	lawid.Sticky:                       reflect.TypeFor[law.Sticky[any, string, any]](),
+	lawid.TimeawareMoves:               reflect.TypeFor[timeaware.MovesWithTheClock[any, string]](),
 	lawid.StreamCompletion:             reflect.TypeFor[law.StreamCompletion[any, any]](),
 	lawid.StreamNoDuplicates:           reflect.TypeFor[law.StreamNoDuplicates[any, any, string]](),
 	lawid.StreamOverMatch:              reflect.TypeFor[law.StreamOverMatch[any, any, string]](),

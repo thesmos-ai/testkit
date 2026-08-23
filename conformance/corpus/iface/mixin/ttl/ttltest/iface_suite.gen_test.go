@@ -44,6 +44,8 @@ import (
 //
 //	Model.Agrees — a Mixed whose Put reports success and keeps nothing
 //
+//	Sim.Recovery — a Mixed whose rebuild finds an empty medium
+//
 //	Model.WriteObservable — a Mixed whose Put reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
@@ -74,4 +76,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance b1b026de56aa48c1734f78bb84c6d60a0128d9e39d53b1c41e736dd0d3ed0a86
+// testkit:provenance d7e3ac6c6ef299126d2202473903b9ebd4d6d142ee71c55d212b74e741712025

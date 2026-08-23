@@ -598,3 +598,60 @@ func TestTextNamesPartialVacuityAndTiers(t *testing.T) {
 		t.Errorf("the fallback tier line must name the mix:\n%s", text)
 	}
 }
+
+// A run that drives properties needs the flags the seed bridge maps
+// onto, and says so when they are gone.
+//
+// applyRapidEnv skips a flag it cannot find on purpose — a CI variable
+// is global and most packages link no rapid — and that silence is right
+// everywhere except here. A package with model or sim checks links the
+// engine and rapid with it, so a missing flag means rapid renamed one
+// and a pinned seed has been doing nothing, with the run still green and
+// no longer reproducible.
+//
+// The lookup is handed in because a binary that links rapid always finds
+// the flags: without the seam this guard could not fail where it runs,
+// and a test of it would assert nothing.
+func TestTheSeedBridgeIsHeldAliveForPropertyRuns(t *testing.T) {
+	t.Parallel()
+
+	absent := func(string) *flag.Flag { return nil }
+	property := Suite[sut]{Checks: []Check[sut]{{ID: "model/store/differential"}}}
+	crash := Suite[sut]{Checks: []Check[sut]{{ID: "sim/store/recovery"}}}
+	fixed := Suite[sut]{Checks: []Check[sut]{{ID: "Get/smoke"}, {ID: "mixin/store/reader"}}}
+
+	t.Run("a model check with no flag behind it is refused", func(t *testing.T) {
+		t.Parallel()
+		err := bridgeAlive(property, absent)
+		if err == nil {
+			t.Fatal("a dead bridge passed; a pinned seed would silently do nothing")
+		}
+		for _, want := range []string{"rapid.seed", EnvRapidSeed, "silently doing nothing"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("message does not name %q: %v", want, err)
+			}
+		}
+	})
+
+	t.Run("the crash schedule counts too", func(t *testing.T) {
+		t.Parallel()
+		if bridgeAlive(crash, absent) == nil {
+			t.Fatal("the sim family draws and shrinks, so it needs the bridge as much")
+		}
+	})
+
+	t.Run("a run of fixed call sequences is left alone", func(t *testing.T) {
+		t.Parallel()
+		if err := bridgeAlive(fixed, absent); err != nil {
+			t.Fatalf("no check here draws, so no bridge is owed: %v", err)
+		}
+	})
+
+	// No subtest here for the live lookup. This package links testing
+	// and clock and nothing else — the doctrine legs exists to keep — so
+	// rapid's flags are absent, and TestRapidEnvAppliesToFlags registers
+	// stand-ins for them into the global set. Asserting either way about
+	// flag.Lookup from here would be asserting about which test ran
+	// first. The live path is exercised where rapid is genuinely linked,
+	// which is every generated package in the corpus.
+}

@@ -4,12 +4,28 @@
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package batchwritertest
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	batchwriter "go.thesmos.sh/testkit/conformance/corpus/iface/contract/batch-writer"
@@ -27,24 +43,22 @@ import (
 
 // Conformance checks for Contract, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Contract's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunContract(t, ContractHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	ContractHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	ContractChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveContract
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenContract
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	ContractSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -62,6 +76,11 @@ import (
 //	Put/deadline
 //	Put/nilcontext
 //	Put/smoke
+//	model/contract/AUTO-ATOMIC-WRITE
+//	model/contract/AUTO-LINEARIZABLE
+//	model/contract/AUTO-WRITE-OBSERVABLE
+//	model/contract/differential
+//	sim/contract/recovery
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -88,11 +107,31 @@ type ContractFixture struct {
 	valueOther batchwriter.Value
 	key        string
 	keyOther   string
+
+	// keyPool is the whole key pool this run drew,
+	// which is not the same as the two members above: a DERIVED pool
+	// carries a hostile member the transforms added, and a pool you passed
+	// carries exactly what you passed. See KeyPool.
+	keyPool []string
+
+	// keyPoolRestricted records that the run narrowed this
+	// pool rather than taking the derived one. See KeyPoolDerived.
+	keyPoolRestricted bool
+
+	// bodyPool is the whole payload pool this run drew,
+	// which is not the same as the two members above: a DERIVED pool
+	// carries a hostile member the transforms added, and a pool you passed
+	// carries exactly what you passed. See BodyPool.
+	bodyPool []string
+
+	// bodyPoolRestricted records that the run narrowed this
+	// pool rather than taking the derived one. See BodyPoolDerived.
+	bodyPoolRestricted bool
 }
 
 // DefaultContractFixture is what a run with no config draws.
 func DefaultContractFixture() ContractFixture {
-	return contractNewFixture()
+	return contractNewFixture(ContractConfig{})
 }
 
 // contractNewFixture builds the sample inputs for one run.
@@ -100,12 +139,33 @@ func DefaultContractFixture() ContractFixture {
 // Read these through the methods below rather than as fields. A value you
 // supplied through the config and one worked out from the type are read
 // the same way, and no check should be able to tell them apart.
-func contractNewFixture() ContractFixture {
+func contractNewFixture(cfg ContractConfig) ContractFixture {
+	// Compared against the derived pool by VALUE, not by whether one was
+	// set. Nil-ness reads the wrong thing the moment a consumer starts
+	// from the derived config: take contractDefaultConfig(),
+	// change one unrelated field, and every pool arrives non-nil and
+	// equal to the one worked out here. Read as a restriction, the
+	// adversarial arm goes silently, the same values are drawn, and the
+	// report line is identical — a check that got weaker with nothing to
+	// show for it.
+	//
+	// Read BEFORE the defaults land, because that is the only moment a
+	// pool the consumer left empty is still empty.
+	derived := contractDefaultConfig()
+	keyPoolRestricted := len(cfg.KeyPool) > 0 &&
+		!slices.Equal(cfg.KeyPool, derived.KeyPool)
+	bodyPoolRestricted := len(cfg.BodyPool) > 0 &&
+		!slices.Equal(cfg.BodyPool, derived.BodyPool)
+	cfg = cfg.orDefault()
 	return ContractFixture{
-		value:      batchwriter.Value{Key: "test-key", Body: "test-body"},
-		valueOther: batchwriter.Value{Key: "other-key", Body: "other-body"},
-		key:        "test-key",
-		keyOther:   "other-key",
+		keyPool:            cfg.KeyPool,
+		keyPoolRestricted:  keyPoolRestricted,
+		bodyPool:           cfg.BodyPool,
+		bodyPoolRestricted: bodyPoolRestricted,
+		value:              batchwriter.Value{Key: cfg.KeyPool[0], Body: cfg.BodyPool[0]},
+		valueOther:         batchwriter.Value{Key: cfg.KeyPool[1], Body: cfg.BodyPool[1]},
+		key:                cfg.KeyPool[0],
+		keyOther:           cfg.KeyPool[1],
 	}
 }
 
@@ -124,6 +184,146 @@ func (f ContractFixture) Key() string { return f.key }
 // first — so a check that expects to find nothing is asking about
 // something your implementation has genuinely never been given.
 func (f ContractFixture) KeyOther() string { return f.keyOther }
+
+// KeyPool is every key this run draws from, which is more
+// than the pair above.
+//
+// The pair is what a fixed call sequence needs: one value and a second
+// guaranteed to differ. This is what a DRAWN sequence needs, and the
+// difference is the hostile member — a control sequence, a broken rune —
+// that the transforms add to a pool derived from the type and that a pool
+// you passed does not carry.
+//
+// Which is the whole provenance rule, and it needs no flag: a derived
+// pool is a guess and attacking a guess costs nothing, while a pool you
+// passed is a statement about what the implementation accepts. Pass one
+// and the hostile member is simply not in it.
+func (f ContractFixture) KeyPool() []string {
+	return f.keyPool
+}
+
+// KeyPoolDerived reports that this run took the key pool as
+// derived rather than as one you supplied.
+//
+// The hostile member above is one value. This is what licenses reaching
+// past it: a derived pool is a guess from the type, and a tier may widen a
+// guess as far as it likes because nobody has said what the implementation
+// accepts. A pool you passed IS that statement, and probing past it reds
+// correct code against inputs you ruled out.
+func (f ContractFixture) KeyPoolDerived() bool {
+	return !f.keyPoolRestricted
+}
+
+// BodyPool is every payload this run draws from, which is more
+// than the pair above.
+//
+// The pair is what a fixed call sequence needs: one value and a second
+// guaranteed to differ. This is what a DRAWN sequence needs, and the
+// difference is the hostile member — a control sequence, a broken rune —
+// that the transforms add to a pool derived from the type and that a pool
+// you passed does not carry.
+//
+// Which is the whole provenance rule, and it needs no flag: a derived
+// pool is a guess and attacking a guess costs nothing, while a pool you
+// passed is a statement about what the implementation accepts. Pass one
+// and the hostile member is simply not in it.
+func (f ContractFixture) BodyPool() []string {
+	return f.bodyPool
+}
+
+// BodyPoolDerived reports that this run took the payload pool as
+// derived rather than as one you supplied.
+//
+// The hostile member above is one value. This is what licenses reaching
+// past it: a derived pool is a guess from the type, and a tier may widen a
+// guess as far as it likes because nobody has said what the implementation
+// accepts. A pool you passed IS that statement, and probing past it reds
+// correct code against inputs you ruled out.
+func (f ContractFixture) BodyPoolDerived() bool {
+	return !f.bodyPoolRestricted
+}
+
+// ContractConfig is the sample inputs the checks use.
+//
+// Leave it out and sensible values are worked out from your types. Supply
+// it to make the checks exercise values that mean something in your
+// domain — real key formats, payloads your implementation actually sees.
+//
+// Every field ending in Pool is a list the checks work through in turn.
+type ContractConfig struct {
+	// KeyPool serves the key role.
+	KeyPool []string
+	// BodyPool serves the payload role.
+	BodyPool []string
+}
+
+func (c ContractConfig) applyTo(rc *contractRunConfig) {
+	// Validated here, in the option loop, so a short pool arrives as a
+	// named wiring error beside every other one rather than as a panic
+	// from inside a check. A second config is refused rather than
+	// last-wins: two configs state two intentions and silently taking
+	// one is the bug this cannot report later.
+	if !rc.ConfigOnce("ContractConfig") {
+		return
+	}
+	if _, err := c.normalize(); err != nil {
+		rc.AddErr(err)
+		return
+	}
+	rc.cfg = c
+}
+
+// normalize fills in anything left unset and rejects a pool that cannot
+// support the checks.
+//
+// A pool needs three values that differ from each other: one to use, one
+// that was never stored so a lookup can genuinely miss, and one awkward
+// enough to be worth trying. Supplying a pool whose values are all equal
+// would leave every "not found" check finding something — running, and
+// asserting nothing.
+func (c ContractConfig) normalize() (ContractConfig, error) {
+	d := contractDefaultConfig()
+	var err error
+	if c.KeyPool, err = suite.DistinctPool(
+		"ContractConfig.KeyPool", c.KeyPool, d.KeyPool,
+	); err != nil {
+		return c, err
+	}
+	if c.BodyPool, err = suite.DistinctPool(
+		"ContractConfig.BodyPool", c.BodyPool, d.BodyPool,
+	); err != nil {
+		return c, err
+	}
+	return c, nil
+}
+
+// orDefault is normalize for the paths that have no test to report an
+// error through, so an unusable config panics rather than being ignored.
+func (c ContractConfig) orDefault() ContractConfig {
+	return suite.Must(c.normalize())
+}
+
+// contractDefaultConfig is the sample inputs worked out from your
+// declaration. Each position in a pool is there for a reason:
+//
+//	pool[0]  the value your declaration gave as a default, unchanged
+//	pool[1]  a different value, so a lookup can genuinely find nothing
+//	pool[2]  an awkward value, because inputs that are always tidy
+//	         exercise only the paths that expect tidy inputs
+func contractDefaultConfig() ContractConfig {
+	return ContractConfig{
+		KeyPool: []string{
+			"test-key",
+			"other-key",
+			"\x00hostile\xffkey",
+		},
+		BodyPool: []string{
+			"test-body",
+			"other-body",
+			"\x00hostile\xffpayload",
+		},
+	}
+}
 
 // Contract is your interface, under a local name.
 //
@@ -154,6 +354,12 @@ type contractRunConfig struct {
 	// read and then tied to this run's inputs. Tying them on arrival
 	// would bind them to inputs a later argument replaces.
 	rows ContractChecks
+
+	// cfg is the pools this run draws from, the zero value meaning the
+	// derived ones. Held rather than applied, for the same reason the
+	// rows are: the fixture is built once, after every option has had
+	// its say.
+	cfg ContractConfig
 }
 
 // ContractHarness describes one Contract implementation to test.
@@ -293,6 +499,39 @@ func (contractVeneer) Without(ids ...suite.ID) ContractRunOpt {
 // checks as values rather than as a run.
 func (contractVeneer) Suite(fx ContractFixture) suite.Suite[Contract] {
 	return contractSuite(fx)
+}
+
+// DefaultConfig is the sample inputs this file worked out for itself.
+//
+// Start from it when you want to change one thing and keep the rest —
+// take it, set the field you care about, and pass it to RunContract.
+func (contractVeneer) DefaultConfig() ContractConfig {
+	return contractDefaultConfig()
+}
+
+// Fixture is the sample inputs a config produces — the same values the
+// generated checks are handed.
+//
+// DefaultConfig's sibling: that one says what this file worked out, and
+// this says what a run makes of it. Reach for it when you want the
+// suite's own inputs somewhere the suite is not driving — a benchmark, a
+// fuzz seed, a check of your own that has to draw what the generated
+// ones draw.
+func (contractVeneer) Fixture(cfg ContractConfig) ContractFixture {
+	return contractNewFixture(cfg)
+}
+
+// TrySuite is Suite for a config you built yourself, returning an error
+// instead of panicking if it is unusable.
+//
+// Suite panics on a bad config because it has no test to report through.
+// If you are assembling a config in code rather than passing it straight
+// to RunContract, use this and handle the error.
+func (contractVeneer) TrySuite(cfg ContractConfig) (suite.Suite[Contract], error) {
+	if _, err := cfg.normalize(); err != nil {
+		return suite.Suite[Contract]{}, err
+	}
+	return contractSuite(contractNewFixture(cfg)), nil
 }
 
 // --- Failure messages -------------------------------------------------------
@@ -929,7 +1168,7 @@ func RunContract(
 	for _, o := range opts {
 		o.applyTo(&rc)
 	}
-	fx := contractNewFixture()
+	fx := contractNewFixture(rc.cfg)
 	for _, row := range rc.rows {
 		rc.AddCheck(row.bind(fx))
 	}
@@ -1061,6 +1300,10 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}),
+		ix.Sim.Recovery(): prove.One("a Contract whose rebuild finds an empty medium",
+			func(testing.TB) Contract {
+				return NewContractModelReference()
+			}).RecoveringFresh(),
 		ix.Model.WriteObservable(): prove.One("a Contract whose Put reports success and keeps nothing",
 			func(tb testing.TB) Contract {
 				return NewContractStub(tb, WithContractPut(
@@ -1107,7 +1350,7 @@ func ProveContract(
 	}
 	// The RUN's config, not the derived one: a check proven at default
 	// pools carries no evidence about the pools a run actually uses.
-	fx := contractNewFixture()
+	fx := contractNewFixture(rc.cfg)
 	for _, row := range rc.rows {
 		rc.AddCheck(row.bind(fx))
 	}
@@ -1140,6 +1383,62 @@ func ProveContract(
 		delete(defects, id)
 	}
 	prove.All(t, s.Checks, defects.Answering(doors))
+}
+
+// GreenContract runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenContract(t, suite.Subject[Contract]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveContract measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunContract, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenContract(
+	t *testing.T,
+	control suite.Subject[Contract],
+	opts ...ContractRunOpt,
+) {
+	t.Helper()
+	var rc contractRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := contractNewFixture(rc.cfg)
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenContract")
+	s := contractSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
 }
 
 // A second version check, for the leg idioms the rows above ride. The
@@ -1184,7 +1483,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			Needs: suite.Caps{
 				suite.CapRecover: nil,
 			},
-			Falsifiable: suite.Argued("no mechanical rule plants a defect for this claim; the ones that would are domain composites, which no rule reaches from shape and stamps alone"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertRecovery(tb, sub, fx)
@@ -1237,7 +1536,10 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 // read revisit a write and an overwrite land on held state. A wide key
 // pool would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
-	return model.SampledFrom([]string{fx.Key(), fx.KeyOther()})
+	return legs.Blend(fx.KeyPoolDerived(),
+		model.SampledFrom(fx.KeyPool()),
+		func(s string) string { return string(s) },
+	)
 }
 
 // contractModelValues is the value pool every value slot draws from.
@@ -1403,7 +1705,7 @@ func contractAssertRecovery(
 			},
 			Equal:  func(a, b batchwriter.Value) bool { return a == b },
 			Absent: nil,
-		}, nil)
+		})
 }
 
 // contractAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
@@ -1479,4 +1781,4 @@ func contractAssertAtomicWrite(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 55eb8f3abcfd0ce95d20b41a6f6dfa653fe9b0f035d22f380fa2e381cb21fa16
+// testkit:provenance 906e9ba9b4a6e8029fbd85a40be2d9c3870a50bc6ca18cd132a7d2f91135fe2a

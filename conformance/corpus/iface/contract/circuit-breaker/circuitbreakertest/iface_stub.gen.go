@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package circuitbreakertest
 
 import (
@@ -203,4 +218,4 @@ func (s *ContractStub) Run(ctx context.Context, key string) error {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 0316d7d1c84335400679e218aa3cc8c1d21a2abd2352748b7ca95dfe5bd6b0dd
+// testkit:provenance cb679810350c1f32f3f5e1361e73b7136bfac98562af701ffb921e497733b82e

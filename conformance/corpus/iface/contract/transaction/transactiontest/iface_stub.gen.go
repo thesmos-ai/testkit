@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package transactiontest
 
 import (
@@ -379,4 +394,4 @@ func (s *ContractStub) Get(ctx context.Context, key string) (transaction.Value, 
 }
 
 // testkit: end of generated content.
-// testkit:provenance 2cb4a1cfadf12ad33a5cff11e33659b2914644ffbe0da7b25529876ff777d655
+// testkit:provenance 7d57c338b200643c186ba31a85b0859963fc9f1049be750724ee3639395e5928

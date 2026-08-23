@@ -5,6 +5,7 @@ package model
 
 import (
 	"go.thesmos.sh/eidos/lang/golang"
+	"go.thesmos.sh/eidos/sdk"
 
 	"go.thesmos.sh/testkit/core/lawid"
 	vocab "go.thesmos.sh/testkit/engine/suite"
@@ -78,6 +79,18 @@ type CheckRow struct {
 // reached [Rows] is one this tier owns, and dropping it silently
 // would leave the index naming a check nothing emits.
 func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
+	return checkRows(token, plans, false)
+}
+
+// checkRows is [CheckRows] told whether this run's reference is a twin.
+//
+// A twin is a second instance of the SUBJECT, so a row comparing the two
+// is not judging against anything outside the implementation — it is
+// asking the implementation to agree with itself, which catches
+// nondeterminism and hidden shared state and nothing else. Reporting
+// that at differential strength credits it with a comparison it did not
+// make.
+func checkRows(token string, plans []projection.CheckPlan, twin bool) []CheckRow {
 	out := make([]CheckRow, 0, len(plans))
 	for _, p := range plans {
 		out = append(out, CheckRow{
@@ -85,7 +98,7 @@ func CheckRows(token string, plans []projection.CheckPlan) []CheckRow {
 			Accessor:      rowAccessor(p.ID),
 			AssertName:    rowAssertName(token, p.ID),
 			ClassConst:    classConst(p.Class),
-			StrengthConst: strengthConst(p.Body),
+			StrengthConst: strengthConst(p.Body, twin),
 			Claim:         p.Claim,
 			Proven:        p.Falsifiable.State == vocab.Proven().State,
 			Argument:      p.Falsifiable.Why,
@@ -123,10 +136,10 @@ func needsCaps(needs []projection.NeedPlan) []NeedCap {
 	out := make([]NeedCap, 0, len(needs))
 	for _, n := range needs {
 		if name, named := capConsts[n.Capability]; named {
-			out = append(out, NeedCap{Const: name})
+			out = append(out, NeedCap{Const: name, Sym: n.Sym})
 			continue
 		}
-		out = append(out, NeedCap{Name: string(n.Capability)})
+		out = append(out, NeedCap{Name: string(n.Capability), Sym: n.Sym})
 	}
 	return out
 }
@@ -153,19 +166,33 @@ var capConsts = map[vocab.Capability]string{
 // The constant where one exists, because a door the runtime names has a
 // home for its spelling — and a generated file repeating the literal is
 // where that home stops being single.
-type NeedCap struct{ Const, Name string }
+type NeedCap struct {
+	Const, Name string
+
+	// Sym is the value the door is answered with, where it takes one: an
+	// induce door names the sentinel whose state the check needs, and the
+	// runner matches a subject's trigger on that identity. Nil for a door
+	// whose presence is the whole answer, which renders as nil.
+	Sym *sdk.Expr
+}
 
 // strengthConst is the runtime's identifier for how far a body looks.
 //
 // A switch rather than a table, and the default is the weakest of the
 // three: a body whose strength nobody decided is reported as looking at
 // the least, which is the reading that cannot flatter it.
-func strengthConst(body projection.Body) string {
+func strengthConst(body projection.Body, twin bool) string {
 	if body == nil {
 		return "StrengthErrorOnly"
 	}
 	switch body.Strength() {
 	case vocab.StrengthDifferential:
+		if twin {
+			// The comparison is against a second copy of the subject, so
+			// it observes a value and judges it against nothing the
+			// subject does not already believe.
+			return "StrengthObserved"
+		}
 		return "StrengthDifferential"
 	case vocab.StrengthObserved:
 		return "StrengthObserved"

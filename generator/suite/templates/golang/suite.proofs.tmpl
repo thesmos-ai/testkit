@@ -75,6 +75,50 @@ func {{ suite_invariantsName .IfaceName }}(t *{{ renderExpr (external "testing" 
 	{{ renderExpr (external $.Vocab "VerifyDropHints") }}(t, "{{ .IfaceName }}", s.IDs(), s.DropHint)
 	{{ renderExpr (external $.Vocab "VerifyDistinctIDs") }}(t, s.IDs())
 }
+{{- if .Pools }}
+
+// {{ suite_provenanceName .IfaceName }} holds the pools to their provenance in
+// both directions.
+//
+// The failure it exists for is silent. A pool you did not narrow keeps
+// the adversarial arm, and one you did reaches every tier exactly as you
+// wrote it — but nothing about a run shows which happened. The same
+// values are drawn either way, the same rows report, and only the
+// strength of the checks moves.
+//
+// The near miss was reading provenance off nil-ness: start from
+// DefaultConfig(), change one unrelated field, and every pool
+// arrives non-nil and equal to the derived one. Read as a restriction,
+// the wide arm goes and the report line is identical.
+func {{ suite_provenanceName .IfaceName }}(t *{{ renderExpr (external "testing" "T") }}) {
+	t.Parallel()
+
+	for name, cfg := range map[string]{{ renderExpr (external $.Pkg (suite_configName .IfaceName)) }}{
+		"a config nobody filled in":       {},
+		"the derived config, passed back": {{ renderExpr (external $.Pkg .VeneerVar) }}.DefaultConfig(),
+	} {
+		fx := {{ renderExpr (external $.Pkg .VeneerVar) }}.Fixture(cfg)
+{{- range $p := .Pools }}
+		if !fx.{{ $p.Field }}Derived() {
+			t.Errorf("%s: {{ $p.Field }} equals the derived pool, so it narrows nothing and "+
+				"must keep its adversarial arm", name)
+		}
+{{- end }}
+	}
+
+	narrowed := {{ renderExpr (external $.Pkg .VeneerVar) }}.Fixture({{ renderExpr (external $.Pkg (suite_configName .IfaceName)) }}{
+{{- range $p := .Pools }}
+		{{ $p.Field }}: []{{ renderType $p.Type }}{ {{- index $p.Members 0 }}, {{ index $p.Members 1 -}} },
+{{- end }}
+	})
+{{- range $p := .Pools }}
+	if narrowed.{{ $p.Field }}Derived() {
+		t.Error("a {{ $p.Role }} pool the consumer narrowed must be recorded as narrowed, " +
+			"so no tier widens past what they allowed")
+	}
+{{- end }}
+}
+{{- end }}
 {{- end }}
 {{- if .Unproven }}
 

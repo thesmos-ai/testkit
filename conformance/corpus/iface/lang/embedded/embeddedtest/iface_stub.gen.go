@@ -2,8 +2,23 @@
 //
 // Source:    corpus/iface/lang/embedded/iface.go
 // Plugins:   golang 1.0.0, fault 1.0.0, stub 1.4.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/...
+// Command:   testkit run ./corpus/iface/lang/embedded/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package embeddedtest
 
 import (
@@ -772,4 +787,4 @@ func (s *ComposedPingStub) FaultUnreachable() *ComposedPingStub {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 98fe520ab1aca860ff0633867e141cb1ae673203c4d492e0002738142978f257
+// testkit:provenance 87ebe1c2cc2b6bc4dc5d9f81d6eae66b2269029d05ad04bb782c8a0840e52133

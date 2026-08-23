@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package singleflighttest
 
 import (
@@ -295,4 +310,4 @@ func (s *ContractStub) Flights(ctx context.Context) (int, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance d1ac578f68dbcd3d2975e891d0febe38745f346c176870e206f136057b6bb061
+// testkit:provenance 6942844a5417ca067be4b2d8aa359b441e05668e029bab0ef1273bad3f8ebe5c

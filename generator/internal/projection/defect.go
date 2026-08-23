@@ -19,6 +19,7 @@ const (
 	KindFreezeReturn     DefectKind = DefectKindPrefix + "freeze-return"
 	KindFreshMedium      DefectKind = DefectKindPrefix + "fresh-medium"
 	KindSentinelOnce     DefectKind = DefectKindPrefix + "sentinel-once"
+	KindDelegated        DefectKind = DefectKindPrefix + "delegated-override"
 	KindPartialOutlive   DefectKind = DefectKindPrefix + "partial-outlive"
 	KindExceedBound      DefectKind = DefectKindPrefix + "exceed-bound"
 	KindEchoBesideError  DefectKind = DefectKindPrefix + "echo-beside-error"
@@ -87,11 +88,54 @@ type AnswersWithValue struct {
 // FreezeReturn pins a monotonic return to a constant.
 type FreezeReturn struct{ Option Option }
 
-// FreshMedium recovers onto a new empty medium.
-type FreshMedium struct{}
+// FreshMedium recovers onto a new empty medium: correct while it runs
+// and amnesiac across the crash seam.
+//
+// Ref is the working implementation it is built from — the defect has to
+// be right about everything else, or the schedule reds on the first read
+// rather than the first read AFTER a crash, and names the wrong thing.
+type FreshMedium struct {
+	Clause
+	Ref Expr
+}
+
+// DelegatedOverride is correct by delegation and wrong in one place: a
+// working reference behind the double, with one method replaced by a
+// closure that alters what it is handed and forwards the rest.
+//
+// The shape every claim of the form "does the right thing except for X"
+// needs, and the one a bare stub cannot express. A stub with no delegate
+// stores nothing, so a check about what survives, expires or is written
+// down has nothing to observe — the defect and an empty subject look the
+// same, and the red says nothing about the claim.
+//
+// Only where the reference is DERIVED. A run on the twin floor has no
+// working implementation to put behind the double: the twin is the
+// subject, and delegating a defect to the subject would make it correct.
+type DelegatedOverride struct {
+	Clause
+
+	// Ref is the reference constructor and DelegateTo the option that
+	// puts it behind the double, both named by the tier that emits them
+	// rather than composed here.
+	Ref, DelegateTo Expr
+
+	// Option is the per-method override the defect is planted through,
+	// and Mutate the statement it makes before forwarding — `v.TTL = 0`.
+	Option Option
+	Mutate string
+}
 
 // SentinelOnce reports the sentinel once, then heals.
-type SentinelOnce struct{ Sentinel Expr }
+//
+// Sentinel is the declaration's own where it stamps one, empty where the
+// law it breaks asks only that the answer stay non-nil — the poison
+// probe's case, where no identity is promised and the defect mints its
+// own. The clause is what the report calls it either way.
+type SentinelOnce struct {
+	Clause
+	Sentinel Expr
+}
 
 // PartialOutlive keeps exactly one stamped method alive after Close —
 // the defect that forces multi-probe lifecycle laws to stay plural.
@@ -145,6 +189,9 @@ func (FreshMedium) DefectKind() DefectKind { return KindFreshMedium }
 // DefectKind names the template that plants a sentinel reported once.
 func (SentinelOnce) DefectKind() DefectKind { return KindSentinelOnce }
 
+// DefectKind names the template that plants a delegating override.
+func (DelegatedOverride) DefectKind() DefectKind { return KindDelegated }
+
 // DefectKind names the template that plants a partial that outlives its close.
 func (PartialOutlive) DefectKind() DefectKind { return KindPartialOutlive }
 
@@ -170,6 +217,7 @@ func DefectKinds() []DefectKind {
 		FreezeReturn{}.DefectKind(),
 		FreshMedium{}.DefectKind(),
 		SentinelOnce{}.DefectKind(),
+		DelegatedOverride{}.DefectKind(),
 		PartialOutlive{}.DefectKind(),
 		ExceedBound{}.DefectKind(),
 		EchoBesideError{}.DefectKind(),

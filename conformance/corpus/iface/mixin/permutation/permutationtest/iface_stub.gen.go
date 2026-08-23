@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package permutationtest
 
 import (
@@ -291,4 +306,4 @@ func (s *MixedStub) Items(ctx context.Context) ([]permutation.Value, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 62054a98ef3c3bad315a8cfe00c860cf676af7f0a7223d830a6145c84e96f731
+// testkit:provenance 91b988491f2cc97f1ee1ad8741d1be39fd3a9b9084b2cc915f86b5c483844734

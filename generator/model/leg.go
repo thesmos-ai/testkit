@@ -6,6 +6,7 @@ package model
 import (
 	"go.thesmos.sh/eidos/sdk"
 
+	vocab "go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/suite"
 )
@@ -218,6 +219,11 @@ type SimLeg struct {
 	// parameter: the schedule speaks the declaration's type where the leg
 	// speaks the harness's.
 	Iface sdk.Ref
+
+	// Fault is the sentinel this leg induces the writer to fail with, nil
+	// for the plain schedule. Its presence is what selects the faulting
+	// entry point, so the two arms cannot disagree about which they are.
+	Fault *sdk.Expr
 }
 
 // Kind returns the template this leg renders through.
@@ -412,7 +418,10 @@ func legsFor(b *Bindings, harness *suite.Contract) []sdk.EmitNode {
 		case p.Body.BodyKind() == projection.ConcurrentLeg{}.BodyKind():
 			out = append(out, concurrentLegFor(b, l))
 		case p.Body.BodyKind() == projection.SimLeg{}.BodyKind():
-			out = append(out, simLegFor(b, l))
+			// One body kind, two rows. The segment tells them apart,
+			// because the difference is what the world does to a write
+			// and not what the schedule does with it.
+			out = append(out, simLegFor(b, l, p.ID.Seg == vocab.SegFault))
 		default:
 			out = append(out, &LawsLeg{leg: l})
 		}
@@ -421,7 +430,7 @@ func legsFor(b *Bindings, harness *suite.Contract) []sdk.EmitNode {
 }
 
 // simLegFor is the crash schedule's body.
-func simLegFor(b *Bindings, base leg) sdk.EmitNode {
+func simLegFor(b *Bindings, base leg, faulting bool) sdk.EmitNode {
 	l := &SimLeg{
 		leg:        base,
 		Reader:     b.SimReader,
@@ -443,6 +452,9 @@ func simLegFor(b *Bindings, base leg) sdk.EmitNode {
 			l.Iface = a.Iface
 			break
 		}
+	}
+	if faulting {
+		l.Fault = b.FaultSym
 	}
 	return l
 }

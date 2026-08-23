@@ -392,6 +392,10 @@ type Bindings struct {
 	// the other would tie both to whichever refused first.
 	SimReader, SimWriter *Action
 
+	// FaultSym is the sentinel the crash schedule induces the writer to
+	// fail with, nil where the declaration names none — see [faultSymOf].
+	FaultSym *sdk.Expr
+
 	// PkgName is where Layout routed the file — see [Bindings.SetOutputPackages].
 	PkgName string
 

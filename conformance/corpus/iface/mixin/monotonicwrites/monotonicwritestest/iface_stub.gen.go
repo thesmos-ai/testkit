@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package monotonicwritestest
 
 import (
@@ -295,4 +310,4 @@ func (s *MixedStub) Get(ctx context.Context, key string) (monotonicwrites.Value,
 }
 
 // testkit: end of generated content.
-// testkit:provenance f33812c11e3399a1344f5611c4847ec50287b6966bae3ed346fbc864abe76676
+// testkit:provenance 343ee73c64991cea5c10c7b53a3e7db8782687db3f1d1c50eb9be46c3a56c8bf

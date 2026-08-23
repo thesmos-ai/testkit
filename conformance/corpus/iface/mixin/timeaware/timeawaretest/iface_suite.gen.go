@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package timeawaretest
 
 import (
@@ -11,32 +26,38 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
+	"go.thesmos.sh/testkit/clock"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/timeaware"
+	"go.thesmos.sh/testkit/core/lawid"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
+	"go.thesmos.sh/testkit/engine/model/law"
+	timeaware2 "go.thesmos.sh/testkit/engine/model/timeaware"
 	"go.thesmos.sh/testkit/engine/suite"
 	"go.thesmos.sh/testkit/engine/suite/prove"
 )
 
 // Conformance checks for Mixed, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Mixed's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	MixedHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	MixedChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveMixed
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenMixed
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	MixedSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -54,6 +75,13 @@ import (
 //	Touch/deadline
 //	Touch/nilcontext
 //	Touch/smoke
+//	model/mixed/AUTO-TIMEAWARE-MOVES
+//
+// Declared on this interface and checked by testkit's model tier rather
+// than by this file, which judges one call at a time. Nothing for you to
+// do — listed so that a directive you wrote is accounted for:
+//
+//	timeaware on AgeOf — stating it needs sequences of calls judged against a reference, which this file does not build.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -172,6 +200,18 @@ type MixedHarness[T Mixed] struct {
 	// a fixed port.
 	Serial bool
 
+	// OnClock builds an instance reading the given clock. Checks that move
+	// time need it, and fail naming this field when it is nil.
+	// StartOnClock is its Start-shaped sibling, for a clocked constructor
+	// that also needs the test's lifecycle; set at most one of the two.
+	//
+	// A constructor rather than a clock handed to a built instance: an
+	// implementation that reads the clock at construction cannot be told
+	// about a different one afterwards, and a check that moved time would
+	// be moving a clock the subject never looks at.
+	OnClock      func(clk clock.Clock) T
+	StartOnClock func(tb testing.TB, clk *clock.TestClock) T
+
 	// Provide supplies anything a check needs that has no field of its
 	// own above. You will not need it unless a check fails asking for a
 	// named capability, and that failure tells you the name to use here.
@@ -185,14 +225,29 @@ func (h MixedHarness[T]) Subject() (suite.Subject[Mixed], error) {
 	if err != nil {
 		return suite.Subject[Mixed]{}, err
 	}
-	return suite.Subject[Mixed]{
+	out := suite.Subject[Mixed]{
 		Name:     h.Name,
 		Provides: h.Provide,
 		New:      func(tb testing.TB) Mixed { return build(tb) },
 		Oracle:   h.Oracle,
 		Serial:   h.Serial,
 		Excused:  suite.ExcuseSet(h.Excuse),
-	}, nil
+	}
+	if err := suite.ExclusivePair(h.Name, "OnClock", "StartOnClock",
+		h.OnClock != nil, h.StartOnClock != nil); err != nil {
+		return suite.Subject[Mixed]{}, err
+	}
+	if h.OnClock != nil {
+		out.OnClock = func(_ testing.TB, clk *clock.TestClock) Mixed {
+			return h.OnClock(clk)
+		}
+	}
+	if h.StartOnClock != nil {
+		out.OnClock = func(tb testing.TB, clk *clock.TestClock) Mixed {
+			return h.StartOnClock(tb, clk)
+		}
+	}
+	return out, nil
 }
 
 func (h MixedHarness[T]) applyTo(rc *mixedRunConfig) {
@@ -253,16 +308,17 @@ func (mixedVeneer) Suite(fx MixedFixture) suite.Suite[Mixed] {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mixedIndexPath = map[suite.ID]string{
-	mixedCheckIndex.Touch.Smoke():       "MixedSuite.Checks.Touch.Smoke()",
-	mixedCheckIndex.Touch.Cancels():     "MixedSuite.Checks.Touch.Cancels()",
-	mixedCheckIndex.Touch.NilContext():  "MixedSuite.Checks.Touch.NilContext()",
-	mixedCheckIndex.Touch.Deadline():    "MixedSuite.Checks.Touch.Deadline()",
-	mixedCheckIndex.AgeOf.Smoke():       "MixedSuite.Checks.AgeOf.Smoke()",
-	mixedCheckIndex.AgeOf.Cancels():     "MixedSuite.Checks.AgeOf.Cancels()",
-	mixedCheckIndex.AgeOf.NilContext():  "MixedSuite.Checks.AgeOf.NilContext()",
-	mixedCheckIndex.AgeOf.Deadline():    "MixedSuite.Checks.AgeOf.Deadline()",
-	mixedCheckIndex.AgeOf.ZeroOnError(): "MixedSuite.Checks.AgeOf.ZeroOnError()",
-	mixedCheckIndex.AgeOf.Miss():        "MixedSuite.Checks.AgeOf.Miss()",
+	mixedCheckIndex.Touch.Smoke():             "MixedSuite.Checks.Touch.Smoke()",
+	mixedCheckIndex.Touch.Cancels():           "MixedSuite.Checks.Touch.Cancels()",
+	mixedCheckIndex.Touch.NilContext():        "MixedSuite.Checks.Touch.NilContext()",
+	mixedCheckIndex.Touch.Deadline():          "MixedSuite.Checks.Touch.Deadline()",
+	mixedCheckIndex.AgeOf.Smoke():             "MixedSuite.Checks.AgeOf.Smoke()",
+	mixedCheckIndex.AgeOf.Cancels():           "MixedSuite.Checks.AgeOf.Cancels()",
+	mixedCheckIndex.AgeOf.NilContext():        "MixedSuite.Checks.AgeOf.NilContext()",
+	mixedCheckIndex.AgeOf.Deadline():          "MixedSuite.Checks.AgeOf.Deadline()",
+	mixedCheckIndex.AgeOf.ZeroOnError():       "MixedSuite.Checks.AgeOf.ZeroOnError()",
+	mixedCheckIndex.AgeOf.Miss():              "MixedSuite.Checks.AgeOf.Miss()",
+	mixedCheckIndex.Model.MovesWithTheClock(): "MixedSuite.Checks.Model.MovesWithTheClock()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -274,6 +330,9 @@ var mixedDropHint = suite.DropHinter(
 const (
 	mixedTouch = "Touch"
 	mixedAgeOf = "AgeOf"
+
+	// The interface's word inside a family-scoped identity.
+	mixedQualifier = "mixed"
 )
 
 // mixedCheckIndex names every check in this file, grouped by method.
@@ -281,11 +340,13 @@ const (
 var mixedCheckIndex = mixedCheckIndexT{
 	Touch: mixedTouchChecks{},
 	AgeOf: mixedAgeOfChecks{},
+	Model: mixedModelChecks{},
 }
 
 type mixedCheckIndexT struct {
 	Touch mixedTouchChecks
 	AgeOf mixedAgeOfChecks
+	Model mixedModelChecks
 }
 
 // All returns every ID this package emits.
@@ -293,6 +354,7 @@ func (mixedCheckIndexT) All() []suite.ID {
 	var out []suite.ID
 	out = append(out, mixedTouchChecks{}.All()...)
 	out = append(out, mixedAgeOfChecks{}.All()...)
+	out = append(out, mixedModelChecks{}.All()...)
 	return out
 }
 
@@ -360,6 +422,18 @@ func (mixedAgeOfChecks) All() []suite.ID {
 	}
 }
 
+type mixedModelChecks struct{}
+
+func (mixedModelChecks) MovesWithTheClock() suite.ID {
+	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.TimeawareMoves)
+}
+
+func (mixedModelChecks) All() []suite.ID {
+	return []suite.ID{
+		mixedModelChecks{}.MovesWithTheClock(),
+	}
+}
+
 // mixedSuite returns the checks as data, using the given inputs.
 //
 // It takes the built inputs rather than a config, because that is what
@@ -369,7 +443,8 @@ func mixedSuite(fx MixedFixture) suite.Suite[Mixed] {
 	return suite.Suite[Mixed]{
 		Name:     "Mixed",
 		DropHint: mixedDropHint,
-		Checks:   mixedSignatureChecks(fx),
+		Checks: append(mixedSignatureChecks(fx),
+			mixedModelRows(fx)...),
 	}
 }
 
@@ -647,8 +722,7 @@ type MixedCheck struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do.
 	Run     func(tb testing.TB, s Mixed, fx MixedFixture)
 	RunWith func(tb testing.TB, sub MixedSubject, fx MixedFixture)
 
@@ -681,6 +755,26 @@ type MixedCheck struct {
 	ProvenBy     MixedDefect
 	ProvenReason string
 	Argued       string
+
+	// Prop is a body whose inputs are drawn rather than fixed, run many
+	// times with the draws shrunk on failure. Report through the PropT
+	// and not through a testing.TB: shrinking works by replaying draws, and
+	// a failure raised anywhere else is one the run cannot narrow.
+	//
+	// Requires Method, like Run.
+	Prop func(rt *PropT, s Mixed, fx MixedFixture)
+
+	// PropTouch is Prop with Touch's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Touch, so leave Method empty.
+	PropTouch func(rt *PropT, s Mixed, value string)
+
+	// PropAgeOf is Prop with AgeOf's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// AgeOf, so leave Method empty.
+	PropAgeOf func(rt *PropT, s Mixed, key string)
 }
 
 // mixedMethods is the interface's method names, used to catch a typo in
@@ -729,6 +823,40 @@ func (c MixedCheck) bind(
 		rw := c.RunWith
 		out.RunWith = func(tb testing.TB, sub MixedSubject) {
 			rw(tb, sub, fx)
+		}
+	}
+	fields += ", Prop, PropTouch, PropAgeOf"
+	if c.Prop != nil {
+		scoped = true
+		bodies++
+		if out.ID, err = suite.RowID("Prop", c.Method, c.Name, mixedMethods); err != nil {
+			return out, err
+		}
+		fn := c.Prop
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), fx)
+			})
+		}
+	}
+	if c.PropTouch != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedTouch, c.Name)
+		fn := c.PropTouch
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelValues(fx).Draw(rt, "value"))
+			})
+		}
+	}
+	if c.PropAgeOf != nil {
+		bodies++
+		out.ID = suite.MethodID(mixedAgeOf, c.Name)
+		fn := c.PropAgeOf
+		out.RunWith = func(tb testing.TB, sub suite.Subject[Mixed]) {
+			model.Check(tb, func(rt *PropT) {
+				fn(rt, sub.New(tb), mixedModelKeys(fx).Draw(rt, "key"))
+			})
 		}
 	}
 	if err := suite.OneBody(c.Name, bodies, fields); err != nil {
@@ -895,6 +1023,15 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
+		ix.Model.MovesWithTheClock(): prove.One("a Mixed whose AgeOf freeze-return",
+			func(tb testing.TB) Mixed {
+				return NewMixedStub(tb, WithMixedAgeOf(
+					func(_ context.Context, _ string) (r0 int64, err error) {
+						// Every append lands and every one answers the same
+						// position. The writes are real; the accounting is not.
+						return
+					}))
+			}).IgnoringClock(),
 	}
 }
 
@@ -966,5 +1103,212 @@ func ProveMixed(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenMixed runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenMixed(t, suite.Subject[Mixed]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveMixed measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunMixed, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenMixed(
+	t *testing.T,
+	control suite.Subject[Mixed],
+	opts ...MixedRunOpt,
+) {
+	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := mixedNewFixture()
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
+// A second version check, for the leg idioms the rows above ride. The
+// harness's own covers the check format; this one covers what a model row
+// does with it. Regenerate the file to clear a mismatch.
+var _ = legs.CompatV1
+
+// mixedModelRows is what this package's model tier claims.
+//
+// Every row here needs sequences of calls judged against something
+// outside the subject, which is what separates them from the rows
+// above: those settle a claim with a fixed call sequence, and these
+// cannot be stated that way at all. That is also why each takes the
+// Subject rather than an instance — a sequence run builds its own, and
+// some of them build two.
+func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
+	return []suite.Check[Mixed]{
+		{
+			ID:    mixedCheckIndex.Model.MovesWithTheClock(),
+			Class: suite.ClassClocked,
+			Claim: "what mixed reports for a key changes when the clock does",
+			Binds: []string{
+				lawid.TimeawareMoves,
+			},
+			Needs: suite.Caps{
+				suite.CapClock: nil,
+			},
+			Falsifiable: suite.Proven(),
+			Strength:    suite.StrengthObserved,
+			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
+				mixedAssertMovesWithTheClock(tb, sub, fx)
+			},
+		},
+	}
+}
+
+// --- Mixed's model tier -------------------------------------------
+//
+// Random sequences of Mixed's methods, run against every subject and
+// something that judges them from outside. The rows on the run surface
+// above carry it, and MixedSuite.Without declines any of them by name.
+//
+//	Reference: the subject's own factory — the reader answers int64 where the writer takes string,
+//	           so a second instance driven identically stands in: twins must
+//	           agree, which catches nondeterminism and hidden shared state but
+//	           not a subject wrong the same way twice; ref= raises the floor
+//	Sequences: Touch (writer), AgeOf (reader)
+//	Values:    the fixture pair blended with arbitrary draws
+//	Not bound:
+//	           AUTO-WRITE-OBSERVABLE — Read closes over AgeOf, which reads (string → int64) beside pools of (string, string)
+//	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
+
+// mixedModelKeys is the key pool every key slot draws from.
+//
+// Two keys, and deliberately not more: collision density is what makes a
+// read revisit a write and an overwrite land on held state. A wide key
+// pool would pass every comparison over a history that never collides.
+func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
+	// Widened unconditionally: this run emits no config, so there is no
+	// pool a consumer could have narrowed and nothing to gate on. The
+	// provenance argument applies to a pool somebody passed, and nobody
+	// can pass one here.
+	return legs.Blend(true,
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		func(s string) string { return string(s) },
+	)
+}
+
+// mixedModelValues is the value pool every value slot draws from.
+//
+// The fixture pair blended with arbitrary draws: the pair keeps identical
+// rewrites frequent, the wide arm reaches values no fixture spells, and
+// nothing in the claims licenses refusing either.
+func mixedModelValues(fx MixedFixture) *model.Generator[string] {
+	bodies := model.OneOf(
+		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
+		model.Make[string](),
+	)
+	return bodies
+}
+
+// mixedModelActions is the operation vocabulary both legs drive.
+//
+// One constructor per method shape, from the engine's action set rather
+// than hand-written closures: the constructors record inputs and outputs
+// into the trace a law reads, compare the two sides the same way for every
+// action, and shrink a failing sequence to the shortest one that still
+// fails.
+func mixedModelActions(fx MixedFixture) []model.Action[Mixed] {
+	keys := mixedModelKeys(fx)
+	values := mixedModelValues(fx)
+	return []model.Action[Mixed]{
+		action.Writer("Touch", values,
+			func(ctx context.Context, s timeaware.Mixed, v string) error {
+				return s.Touch(ctx, v)
+			}),
+		action.Reader("AgeOf", keys,
+			func(ctx context.Context, s timeaware.Mixed, k string) (int64, error) {
+				return s.AgeOf(ctx, k)
+			}),
+	}
+}
+
+// mixedAssertMovesWithTheClock binds AUTO-TIMEAWARE-MOVES over the shared sequences, on a clock
+// the run controls.
+//
+// The guard is here as well as in the runner because a check that
+// quietly skipped for want of wiring looks exactly like one that passed.
+func mixedAssertMovesWithTheClock(
+	tb testing.TB,
+	sub suite.Subject[Mixed],
+	fx MixedFixture,
+) {
+	tb.Helper()
+
+	if sub.OnClock == nil {
+		tb.Fatalf("this check moves time: subject %q has no OnClock; set it on "+
+			"the harness, or drop the check", sub.Name)
+	}
+	keys := mixedModelKeys(fx)
+
+	// One clock per iteration, from a fixed origin: the factory builds the
+	// subject on it and the law's Advance moves exactly it, so the two
+	// cannot disagree about which clock the subject reads. A wall reading
+	// would make the choice stream unreplayable.
+	var clk *clock.TestClock
+	buildRef, tier := legs.Reference(tb, sub, func() Mixed { return sub.New(tb) })
+	sub.NoteTier(tier)
+	legs.Law(tb, sub,
+		func() Mixed {
+			clk = clock.NewTestClock(time.Unix(0, 0))
+			return sub.OnClock(tb, clk)
+		}, buildRef,
+		mixedModelActions(fx),
+		[]law.Law[Mixed]{
+			timeaware2.MovesWithTheClock[timeaware.Mixed, string]{
+				Read: func(rt *model.T, s timeaware.Mixed, k string) (int64, error) {
+					return s.AgeOf(rt.Context(), k)
+				},
+				Keys:    keys,
+				Advance: func(d time.Duration) { clk.Advance(d) },
+			},
+		})
+}
+
+// PropT is the property state a Prop body receives: the run's
+// draws, and the failure reporting that shrinks a counterexample.
+//
+// An alias, so it is the engine's own type — this is here only so a
+// property you write names PropT rather than obliging your test
+// file to import the engine directly.
+type PropT = model.T
+
 // testkit: end of generated content.
-// testkit:provenance b33f3ccf169be7fc589194e12178499fbe0b5591325c618395bd1af26cfa68a0
+// testkit:provenance bf15c6a5783e1897ff021854ac48373679ef344c4ed413278f3213dde0f5fab5

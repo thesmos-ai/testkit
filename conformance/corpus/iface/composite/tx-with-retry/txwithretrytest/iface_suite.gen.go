@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package txwithretrytest
 
 import (
@@ -23,24 +38,22 @@ import (
 
 // Conformance checks for TxWithRetry, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// TxWithRetry's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunTxWithRetry(t, TxWithRetryHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	TxWithRetryHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	TxWithRetryChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveTxWithRetry
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenTxWithRetry
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	TxWithRetrySuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -57,6 +70,7 @@ import (
 //	Rollback/cancel
 //	Rollback/nilcontext
 //	Rollback/smoke
+//	model/tx-with-retry/AUTO-LIFECYCLE-RESPECTS-CONTEXT
 //
 // Claims this file does NOT make. Each was worked out from your
 // declaration and then declined, because something needed to state it
@@ -625,8 +639,7 @@ type TxWithRetryCheck struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do.
 	Run     func(tb testing.TB, s TxWithRetry, fx TxWithRetryFixture)
 	RunWith func(tb testing.TB, sub TxWithRetrySubject, fx TxWithRetryFixture)
 
@@ -961,6 +974,62 @@ func ProveTxWithRetry(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenTxWithRetry runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenTxWithRetry(t, suite.Subject[TxWithRetry]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveTxWithRetry measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunTxWithRetry, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenTxWithRetry(
+	t *testing.T,
+	control suite.Subject[TxWithRetry],
+	opts ...TxWithRetryRunOpt,
+) {
+	t.Helper()
+	var rc txWithRetryRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := txWithRetryNewFixture()
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenTxWithRetry")
+	s := txWithRetrySuite().With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
 // A second version check, for the leg idioms the rows above ride. The
 // harness's own covers the check format; this one covers what a model row
 // does with it. Regenerate the file to clear a mismatch.
@@ -984,7 +1053,7 @@ func txWithRetryModelRows() []suite.Check[TxWithRetry] {
 				lawid.LifecycleRespectsContext,
 			},
 			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthDifferential,
+			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[TxWithRetry]) {
 				txWithRetryAssertRespectsContext(tb, sub)
 			},
@@ -1076,4 +1145,4 @@ func txWithRetryAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 98fc6caa749ed0ba5a0e7ff671c8e959f7428e644f01ac69d78b1b0e67a17879
+// testkit:provenance 0da00b64cc673bba38fccb895df211572cb8e289ea77f5ec45596855a1254981

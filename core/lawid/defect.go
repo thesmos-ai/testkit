@@ -213,6 +213,7 @@ var defectClasses = map[string][]DefectClass{
 	Roundtrip:                    {ClassIntegrity},
 	SagaFullCompensation:         {ClassAtomicity},
 	ScheduledFiresAfterAdvance:   {ClassLoss},
+	TimeawareMoves:               {ClassLoss},
 	SingleflightCoalesces:        {ClassDuplication},
 	SnapshotIsolationG0:          {ClassIsolation, ClassLoss},
 	SnapshotIsolationG1:          {ClassIsolation},

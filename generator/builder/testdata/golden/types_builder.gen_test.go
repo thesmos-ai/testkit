@@ -248,9 +248,9 @@ func TestItemBuilderBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("returns every field that was configured", func(t *testing.T) {
 		t.Parallel()
-		// Configured, which the name always claimed and the body did not do:
-		// this compared a zero value against itself and passed for any Build
-		// that answered the zero, however much had been set on the way.
+		// Every field set on the way, not a zero compared against itself:
+		// a Build that answered the zero would satisfy the second form
+		// however much had been configured.
 		seed := cfg.NewItem().WithName("test-name").Build()
 		testkit.Equal(t, cfg.NewItemFrom(seed).Build(), seed,
 			"Build returns the value under construction")
@@ -258,4 +258,4 @@ func TestItemBuilderBuild(t *testing.T) {
 }
 
 // eidos: end of generated content.
-// eidos:provenance b34fb78f581e40bbc35d1f4dd763f336316e1304321a04ba2761039dd40b9401
+// eidos:provenance 20229f6ffc02605b0797423c2e058c40020cafd2266a2ccbe84f9c9bc27e60b1

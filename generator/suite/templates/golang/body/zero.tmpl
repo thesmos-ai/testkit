@@ -15,8 +15,12 @@ difference between a check that ran and a check that could not.
 ctx := tb.Context()
 {{ .ZeroBind }} {{ suite_callExpr .Recv .Body.Call }}
 if err == nil {
+{{- if .Pool }}
 	tb.Skipf("{{ .Method }} answered for an input nothing wrote, so this check has no error to "+
 		"inspect; seed a miss through {{ .Pool }}")
+{{- else }}
+	tb.Skipf("{{ .Method }} answered for an input nothing wrote, so this check has no error to inspect")
+{{- end }}
 }
 {{ template "suite.frag.zero-judge" (.ZeroJudge .Body.Because true) }}
 {{- end -}}

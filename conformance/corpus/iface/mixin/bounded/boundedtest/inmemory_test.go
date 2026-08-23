@@ -8,12 +8,14 @@ package boundedtest_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/bounded"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/bounded/boundedtest"
+	"go.thesmos.sh/testkit/engine/suite"
 )
 
 // TestMixedContract runs the generated checks and this package's own.
@@ -112,4 +114,69 @@ func (u *unboundedList) Add(_ context.Context, item string) error {
 // kept and unread, so a run at a different declared bound plants the same one.
 func (u *unboundedList) List(context.Context) ([]string, error) {
 	return slices.Clone(u.items), nil
+}
+
+// --- The negative control -----------------------------------------------------
+
+// TestMixedToleratesADifferentVictim is the specificity half of this
+// package's evidence.
+//
+// Every other test here measures sensitivity: a planted defect must be
+// caught. None of them can tell a check that is too STRONG from one that
+// is right — a check reddening a legal implementation looks exactly like
+// a suite working, until somebody's correct code fails it.
+//
+// The freedom this control exercises is real and the mixin leaves it
+// open. `bounded limit=5` says the reader answers at most five; it says
+// nothing about WHICH five. The subject beside it keeps the oldest, so a
+// check written from that subject could quietly come to require it.
+func TestMixedToleratesADifferentVictim(t *testing.T) {
+	t.Parallel()
+
+	// Through the generated entry point rather than prove.Green directly:
+	// this way the control meets the checks the run does, including the
+	// hand-written ones below, which no caller can bind for themselves.
+	boundedtest.GreenMixed(t, suite.Subject[boundedtest.Mixed]{
+		Name: "a bounded list that keeps the newest",
+		New: func(testing.TB) boundedtest.Mixed {
+			return newestFirst(boundedtest.MixedSuite.DeclaredLimit())
+		},
+	}, mixedChecks)
+}
+
+// newestFirst answers the most recent items rather than the earliest,
+// which the bound permits and this package's own subject does not do.
+type newestFirstList struct {
+	capacity int
+	items    []string
+}
+
+func newestFirst(capacity int) *newestFirstList {
+	return &newestFirstList{capacity: capacity}
+}
+
+func (n *newestFirstList) Add(ctx context.Context, item string) error {
+	if ctx == nil {
+		return errors.New("boundedtest: nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	n.items = append(n.items, item)
+	return nil
+}
+
+// List answers the tail rather than the head. Same count, different
+// survivors — legal, and the whole point of the control.
+func (n *newestFirstList) List(ctx context.Context) ([]string, error) {
+	if ctx == nil {
+		return nil, errors.New("boundedtest: nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(n.items) <= n.capacity {
+		return slices.Clone(n.items), nil
+	}
+	return slices.Clone(n.items[len(n.items)-n.capacity:]), nil
 }

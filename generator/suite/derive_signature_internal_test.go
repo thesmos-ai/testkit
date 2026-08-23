@@ -36,7 +36,7 @@ func TestZeroOnErrorPicksItsErrorSource(t *testing.T) {
 	t.Run("a declared miss draws the alternate member", func(t *testing.T) {
 		t.Parallel()
 
-		iface := zeroIface(zeroReader(true))
+		iface := zeroIface(zeroReader(true), true)
 		plans, _ := Signature{}.Derive(iface)
 		body := zeroBodyOf(t, plans)
 		miss, ok := body.(projection.ZeroOnMiss)
@@ -44,6 +44,20 @@ func TestZeroOnErrorPicksItsErrorSource(t *testing.T) {
 		testkit.Equal(t, miss.Call.Args[1], projection.FixtureCall(projection.ExprFixture, "KeyOther"),
 			"drawn from the alternate member, which nothing wrote")
 		testkit.True(t, miss.Pool != "", "and the skip names the pool that would seed it")
+	})
+
+	// The skip tells a consumer how to make the case reachable, and can
+	// only do that where the surface it names exists. Ungated, it sent
+	// every unpooled package to a MixedConfig.KeyPool no file declared —
+	// an instruction that costs a reader the time to go and look.
+	t.Run("with no config emitted the skip names no field", func(t *testing.T) {
+		t.Parallel()
+
+		plans, _ := Signature{}.Derive(zeroIface(zeroReader(true)))
+		miss, ok := zeroBodyOf(t, plans).(projection.ZeroOnMiss)
+		testkit.True(t, ok, "the miss is still what it inspects")
+		testkit.Equal(t, miss.Pool, "",
+			"no pool is emitted here, so there is no field to send anybody to")
 	})
 
 	t.Run("an undeclared miss cancels a context instead", func(t *testing.T) {
@@ -89,9 +103,10 @@ func zeroReader(declaresMiss bool) subject.Method {
 }
 
 // zeroIface pairs the method with a fixture that can deliver its draw.
-func zeroIface(m subject.Method) Iface {
+func zeroIface(m subject.Method, pooled ...bool) Iface {
 	return Iface{
 		Name: "Store", Token: "store", Qualifier: "store",
+		Pooled:  len(pooled) > 0 && pooled[0],
 		Methods: []subject.Method{m},
 		Fixture: subject.Fixture{Fields: []subject.FixtureField{{
 			Name:   "Key",

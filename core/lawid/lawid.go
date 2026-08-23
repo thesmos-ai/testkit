@@ -114,6 +114,7 @@ const (
 	// the same way, so they are identified here beside the rest.
 	DeadlineRespecting         = "AUTO-DEADLINE-RESPECTING"
 	ScheduledFiresAfterAdvance = "AUTO-SCHEDULED-FIRES-AFTER-ADVANCE"
+	TimeawareMoves             = "AUTO-TIMEAWARE-MOVES"
 	TTLExpiry                  = "AUTO-TTL-EXPIRY"
 
 	// stream.go — laws over a method that yields many values.
@@ -219,6 +220,7 @@ func All() []string {
 		StreamReflectsMutations,
 		StreamStableOrder,
 		TamperEvident,
+		TimeawareMoves,
 		TotalOver,
 		TransactionNoMidTxVisibility,
 		TransactionRollback,

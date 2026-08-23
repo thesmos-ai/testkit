@@ -4,6 +4,7 @@
 package suite
 
 import (
+	"strconv"
 	"strings"
 
 	"go.thesmos.sh/eidos/lang/golang"
@@ -37,6 +38,7 @@ func fixtureOf(
 	}
 	defer func() { bindPools(&f, pools) }()
 	f.Groups = subject.GroupParams(methods)
+	ints := 0
 	for _, g := range f.Groups {
 		// Both derivations run for every field, including a composed one
 		// whose whole-value Sample the template never reaches. Skipping
@@ -46,6 +48,16 @@ func fixtureOf(
 		// time would buy a few microseconds for a seam where the two
 		// values stop being derived together.
 		sample, other := sampleFor(g.Param, ctx.Reader)
+		// Integers are distinguished from each other as well as from
+		// their own alternate. Every one used to derive the same pair, so
+		// a two-integer method got a = 1, b = 1 and any claim about the
+		// two of them together reduced to 1 == 1 — a symmetry check that
+		// ran, passed, and asked nothing. The offset walks integer
+		// groups only, so the numbers stay small and nothing else moves.
+		if golang.IsInteger(g.Param.Source) {
+			sample.Text, other.Text = intPair(ints)
+			ints++
+		}
 		f.Fields = append(f.Fields, subject.FixtureField{
 			Name:      g.Name,
 			Type:      g.Param.Type,
@@ -148,6 +160,19 @@ const (
 	smallIntSample    = "1"
 	smallIntAlternate = "2"
 )
+
+// intPair is the nth integer group's pair: 1 and 2, then 3 and 4, and so
+// on.
+//
+// Small and consecutive, because these are read in failure messages and
+// a reader comparing "got 4, want 3" against the declaration should not
+// have to work out where either came from. What matters is only that two
+// integer parameters of one method are never handed the same value —
+// which is what makes a claim about both of them together say anything.
+func intPair(nth int) (sample, alternate string) {
+	base := 1 + 2*nth
+	return strconv.Itoa(base), strconv.Itoa(base + 1)
+}
 
 // derivedPair is [golang.SampleRefFor] under testkit's integer policy — the
 // one derivation both the parameter and the struct-field paths draw from, so

@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package idempotentclosetest
 
 import (
@@ -290,4 +305,4 @@ func (s *CloserStub) Stats(ctx context.Context) (int, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 5b48d3a65538805428c08b8bec0d8bdf83021a1d4554275d8bcc72865f394ff6
+// testkit:provenance db2a79bc7cd564f82fb1fb77e88ce4a823b1b1c4e231d00b827613b945a21490

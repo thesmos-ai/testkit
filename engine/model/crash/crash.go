@@ -94,6 +94,21 @@ type Schedule[S any, K comparable, V any] struct {
 	// built again over whatever the prior instance left on its medium.
 	Rebuild func(prior S) S
 
+	// Induce puts the world into the state where its writes fail, from
+	// the inside. Nil where the schedule has no failure to induce, which
+	// is the plain crash schedule.
+	//
+	// Inside is the whole point. A double in front of the subject that
+	// answers an error without calling it tests the double: the subject
+	// never receives the write, so it cannot leave anything behind, and
+	// the claim has nothing to be false about. This hands the subject the
+	// write and lets it fail on its own terms — which is where a store
+	// that journals before it commits gets caught.
+	//
+	// Applied again to every incarnation a crash produces, because a
+	// medium that has failed does not recover by being reopened.
+	Induce func(world S)
+
 	// Steps bounds the drawn schedule. Zero takes [DefaultSteps].
 	Steps int
 }
@@ -104,9 +119,10 @@ type oracle[K comparable, V any] map[K]V
 // The verbs a schedule draws, named once so the weighting below and the
 // switch that reads it cannot come to disagree about a spelling.
 const (
-	verbWrite = "write"
-	verbRead  = "read"
-	verbCrash = "crash"
+	verbWrite  = "write"
+	verbRead   = "read"
+	verbCrash  = "crash"
+	verbInduce = "induce"
 )
 
 // verbs is the draw the schedule steps through.
@@ -121,42 +137,58 @@ var verbs = model.SampledFrom([]string{
 	verbWrite, verbWrite, verbRead, verbRead, verbCrash,
 })
 
+// faultingVerbs is [verbs] with the medium failure among them, drawn
+// once and sparsely: after it lands every later write is refused, so a
+// schedule that induced early would spend the rest of its length writing
+// nothing.
+//
+//nolint:gochecknoglobals // a fixed weighting, read-only after init.
+var faultingVerbs = model.SampledFrom([]string{
+	verbWrite, verbWrite, verbWrite, verbRead, verbRead, verbCrash, verbInduce,
+})
+
 // Run drives one drawn schedule against world.
 //
-// wrap dresses each incarnation before the schedule touches it, and runs
-// again after every crash because a fault schedule belongs to the
-// incarnation rather than to the run — a medium that fails is failing
-// for this boot, and a rebuild is a new boot. Pass nil for the plain
-// schedule, where the world is the instance itself.
-func Run[S any, K comparable, V any](
-	rt *model.T, world S, sch Schedule[S, K, V], wrap func(*model.T, S) S,
-) {
-	if wrap == nil {
-		wrap = func(_ *model.T, s S) S { return s }
-	}
+// A schedule that can induce a medium failure draws it among its verbs;
+// one that cannot never sees the case. Either way the oracle is the
+// same, which is the point of inducing rather than intercepting: a
+// refused write is one the subject received and declined, so what it
+// left behind is its own doing and the claim has something to be false
+// about.
+func Run[S any, K comparable, V any](rt *model.T, world S, sch Schedule[S, K, V]) {
 	steps := sch.Steps
 	if steps == 0 {
 		steps = DefaultSteps
 	}
+	draw := verbs
+	if sch.Induce != nil {
+		draw = faultingVerbs
+	}
 
-	sut := world
-	dressed := wrap(rt, sut)
+	sut, failed := world, false
 	acked := oracle[K, V]{}
 
 	for range model.IntRange(1, steps).Draw(rt, "steps") {
-		switch verbs.Draw(rt, "op") {
+		switch draw.Draw(rt, "op") {
 		case verbWrite:
 			v := sch.Values.Draw(rt, "value")
-			if err := sch.Write(rt.Context(), dressed, v); err == nil {
+			if err := sch.Write(rt.Context(), sut, v); err == nil {
 				acked[sch.KeyOf(v)] = v
 			}
 		case verbRead:
 			k := sch.Keys.Draw(rt, "key")
-			got, err := sch.Read(rt.Context(), dressed, k)
+			got, err := sch.Read(rt.Context(), sut, k)
 			verify(rt, sch, acked, k, got, err)
 		case verbCrash:
 			sut = sch.Rebuild(sut)
-			dressed = wrap(rt, sut)
+			// A medium that has failed does not recover by being
+			// reopened, so the state carries across the seam with it.
+			if failed {
+				sch.Induce(sut)
+			}
+		case verbInduce:
+			failed = true
+			sch.Induce(sut)
 		}
 	}
 }

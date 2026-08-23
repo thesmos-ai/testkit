@@ -27,6 +27,15 @@ var ErrNotFound = errors.New("persistertest: no value under that key")
 type InMemory struct {
 	mu     sync.Mutex
 	values map[string]persister.Value
+
+	// gone marks the medium as failed: writes are refused from here on,
+	// and nothing is recorded for a rebuild to find.
+	//
+	// The correct behaviour, and the one the crash schedule's fault row
+	// holds a store to. A store that wrote the value down and only then
+	// discovered it could not commit would leave a row nothing
+	// acknowledged, which is the defect that row exists to catch.
+	gone bool
 }
 
 var _ persister.Contract = (*InMemory)(nil)
@@ -34,15 +43,33 @@ var _ persister.Contract = (*InMemory)(nil)
 // NewInMemory returns an empty store.
 func NewInMemory() *InMemory { return &InMemory{values: map[string]persister.Value{}} }
 
-// Put stores a value under its key.
+// Put stores a value under its key, or refuses it once the medium has
+// gone — recording nothing in that case, which is the whole claim.
 func (s *InMemory) Put(ctx context.Context, v persister.Value) error {
 	if err := contextErr(ctx); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.gone {
+		return persister.ErrMediumGone
+	}
 	s.values[v.Key] = v
 	return nil
+}
+
+// LoseTheMedium puts the store into the state Put reports
+// persister.ErrMediumGone from.
+//
+// The trigger the harness hands the runner for that sentinel. It has to
+// reach the store itself rather than wrap it: a double answering the
+// error in front would leave the store ignorant of the write, and a
+// claim about what the store wrote down before refusing would have
+// nothing to be false about.
+func (s *InMemory) LoseTheMedium() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gone = true
 }
 
 // Get returns the zero value alongside every error it reports, so a caller who
@@ -84,6 +111,9 @@ func contextErr(ctx context.Context) error {
 // A fresh mutex over a shared map, because the lock belongs to the
 // process and the map does not. Only one incarnation is live at a time,
 // so the two never contend.
+// The failed medium is NOT carried across: the state belongs to the
+// process, and the schedule re-induces every incarnation a crash
+// produces, so carrying it here would apply the trigger twice.
 func Reopen(prior *InMemory) *InMemory {
 	return &InMemory{values: prior.values}
 }

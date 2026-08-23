@@ -307,14 +307,29 @@ func ({{ suite_veneerName .Token }}) DefaultConfig() {{ suite_configName .IfaceN
 	return {{ suite_defaultConfigName .Token }}()
 }
 
+// Fixture is the sample inputs a config produces — the same values the
+// generated checks are handed.
+//
+// DefaultConfig's sibling: that one says what this file worked out, and
+// this says what a run makes of it. Reach for it when you want the
+// suite's own inputs somewhere the suite is not driving — a benchmark, a
+// fuzz seed, a check of your own that has to draw what the generated
+// ones draw.
+func ({{ suite_veneerName .Token }}) Fixture(cfg {{ suite_configName .IfaceName }}) {{ $.Fixture.TypeName }} {
+	return {{ suite_newFixtureName .Token }}(cfg)
+}
+{{- end }}
 {{- if .Limit }}
 
 // DeclaredLimit is the capacity your declaration gave.
 //
 // Read it from here rather than writing the number again: two copies of
-// a limit drift apart, and the checks use this one.
+// a limit drift apart, and the checks use this one. A bound and a config
+// are separate facts — an interface can declare a capacity and stamp no
+// roles at all, which is where this used to go missing.
 func ({{ suite_veneerName .Token }}) DeclaredLimit() int { return {{ suite_limitConst .Token }} }
 {{- end }}
+{{- if .Pools }}
 
 // TrySuite is Suite for a config you built yourself, returning an error
 // instead of panicking if it is unusable.

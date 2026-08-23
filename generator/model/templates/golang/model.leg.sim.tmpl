@@ -15,6 +15,23 @@ a map from the key to the record, and Go infers neither from a closure —
 so the schedule names the subject, the key and the value, in that order.
 */ -}}
 {{- define "model.leg.sim" -}}
+{{ if .Fault -}}
+// {{ .Assert }} drives the same schedule with the medium free to fail:
+// partway through, the subject is put into the state where its writes
+// report {{ renderExpr .Fault }}, and every later write is refused by
+// the subject itself.
+//
+// The other half of the crash claim. Its sibling asks what an
+// acknowledged write survives; this asks what a REFUSED one left behind,
+// and nothing else in the run ever refuses one.
+//
+// Induced rather than intercepted, which is what makes it falsifiable. A
+// double answering the error in front of the subject never delivers the
+// write, so the subject cannot have written anything down and the claim
+// has nothing to be false about. This hands it the write and lets it
+// fail on its own terms — which is where a store that records before it
+// commits is caught.
+{{- else -}}
 // {{ .Assert }} drives a drawn schedule of writes, reads and crashes,
 // and asks whether the medium still owes what the writes promised.
 //
@@ -25,6 +42,7 @@ so the schedule names the subject, the key and the value, in that order.
 //
 // The engine owns the interleaving, the shrinking and the oracle. This
 // supplies the verbs and the two pools they draw from.
+{{- end }}
 func {{ .Assert }}(
 	tb {{ renderExpr (external "testing" "TB") }},
 	sub {{ renderExpr (external .Vocab "Subject") }}[{{ .Subject }}],
@@ -33,7 +51,7 @@ func {{ .Assert }}(
 {{- end }}
 ) {
 	tb.Helper()
-	{{ renderExpr (external .LegsPkg "Recover") }}[{{ .Subject }}, {{ renderType .Key }}, {{ renderType .Value }}](tb, sub,
+	{{ if .Fault }}{{ renderExpr (external .LegsPkg "RecoverFaulting") }}{{ else }}{{ renderExpr (external .LegsPkg "Recover") }}{{ end }}[{{ .Subject }}, {{ renderType .Key }}, {{ renderType .Value }}](tb, sub,
 		{{ renderExpr (external .CrashPkg "Schedule") }}[{{ .Subject }}, {{ renderType .Key }}, {{ renderType .Value }}]{
 			Values: {{ .ValuesFunc }}({{ template "model.leg.args" . }}),
 			Keys:   {{ .KeysFunc }}({{ template "model.leg.args" . }}),
@@ -46,7 +64,7 @@ func {{ .Assert }}(
 			},
 			Equal:  func(a, b {{ renderType .Value }}) bool { return a == b },
 			Absent: {{ template "model.leg.sim.absent" . }},
-		}, nil)
+		}{{ if .Fault }}, {{ renderExpr .Fault }}{{ end }})
 }
 {{- end -}}
 

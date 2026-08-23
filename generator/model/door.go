@@ -23,16 +23,18 @@ import (
 // and both need a line in Subject. A structure describing "a field"
 // could express none of it, which is how the clock first went in as a
 // bare value nothing read.
-// Two capabilities, because two are what this tier's checks ask for. A
-// clocked law moves time, and a crash schedule needs the process to be
-// built again over the medium the prior one left. Every other leg
-// provokes what it needs through methods the interface already declares —
-// the poison law calls the failing method, the lifecycle law calls
-// Close — and a field for a state the checks reach without it is a field
-// a consumer fills for nothing.
+// Three capabilities, because three are what this tier's checks ask for.
+// A clocked law moves time; a crash schedule needs the process built
+// again over the medium the prior one left, and needs the medium itself
+// able to fail. Every other leg provokes what it needs through methods
+// the interface already declares — the poison law calls the failing
+// method, the lifecycle law calls Close — and a field for a state the
+// checks reach without it is a field a consumer fills for nothing.
 const (
 	KindClockDoor       sdk.Kind = "model.door.clock"
 	KindClockLowering   sdk.Kind = "model.lowering.clock"
+	KindInduceDoor      sdk.Kind = "model.door.induce"
+	KindInduceLowering  sdk.Kind = "model.lowering.induce"
 	KindRecoverDoor     sdk.Kind = "model.door.recover"
 	KindRecoverLowering sdk.Kind = "model.lowering.recover"
 )
@@ -74,6 +76,20 @@ type ClockLowering struct{ door }
 // Kind returns the template this contribution renders through.
 func (*ClockLowering) Kind() sdk.Kind { return KindClockLowering }
 
+// InduceDoor is the trigger table a check needs when it asks for a
+// subject in a named failure state. InduceLowering carries it onto the
+// runtime.
+type InduceDoor struct{ door }
+
+// Kind returns the template this contribution renders through.
+func (*InduceDoor) Kind() sdk.Kind { return KindInduceDoor }
+
+// InduceLowering is [InduceDoor]'s other half.
+type InduceLowering struct{ door }
+
+// Kind returns the template this contribution renders through.
+func (*InduceLowering) Kind() sdk.Kind { return KindInduceLowering }
+
 // RecoverDoor is the constructor pair a crash schedule needs a consumer
 // to supply: the process built again over the medium the prior instance
 // left. RecoverLowering carries whichever is set onto the runtime.
@@ -107,6 +123,10 @@ func doorsFor(b *Bindings, subject string) (fields, lowerings []sdk.EmitNode) {
 	if anyRowNeeds(b, vocab.CapClock) {
 		fields = append(fields, &ClockDoor{door: d})
 		lowerings = append(lowerings, &ClockLowering{door: d})
+	}
+	if anyRowNeeds(b, vocab.CapInduce) {
+		fields = append(fields, &InduceDoor{door: d})
+		lowerings = append(lowerings, &InduceLowering{door: d})
 	}
 	if anyRowNeeds(b, vocab.CapRecover) {
 		fields = append(fields, &RecoverDoor{door: d})

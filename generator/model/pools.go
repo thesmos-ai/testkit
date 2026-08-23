@@ -106,18 +106,31 @@ func poolFields(ctx *sdk.GeneratorContext, b *Bindings, pools []projection.PoolP
 		switch {
 		case p.Role == projection.RolePayload && b.Values.Type != nil:
 			b.Values.PoolField = p.Field
-			b.Values.Hostile = stringUnder(ctx, b.Values.Q)
 		case p.Role == projection.RoleKey && b.Keys.Type != nil:
 			b.Keys.PoolField = p.Field
-			b.Keys.Hostile = stringUnder(ctx, b.Keys.Q)
 		}
 	}
+	// The hostile arm asks about the TYPE, not about the config. A
+	// declaration that stamped no role still draws strings, and the
+	// adversarial half of the string space is exactly as relevant to it —
+	// it simply has no pool for a consumer to narrow, so there is nothing
+	// to gate the widening on. Reading the two questions as one is what
+	// kept the corpus's most valuable code path down to a single witness.
+	b.Values.Hostile = b.Values.Type != nil && stringUnder(ctx, b.Values.Q)
+	b.Keys.Hostile = b.Keys.Type != nil && stringUnder(ctx, b.Keys.Q)
 }
 
 // stringUnder reports whether the named type is a string under its own
 // name — the one shape a hostile string converts into without a
 // constructor this generator would have to invent.
 func stringUnder(ctx *sdk.GeneratorContext, typeQ string) bool {
+	// A bare string is the identity case, and refusing it was an
+	// accident of looking only at named types: the conversion this
+	// guards against inventing is the one from a hostile string INTO
+	// the drawn type, and for string that conversion is nothing at all.
+	if typeQ == builtinString {
+		return true
+	}
 	for cand := range ctx.Reader.Aliases().All() {
 		if cand.Package+"."+cand.Name != typeQ {
 			continue

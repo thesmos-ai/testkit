@@ -458,6 +458,10 @@ func worded() map[string]law {
 			"an operation given a deadline returns once that deadline fires",
 			"Deadline", "DeadlineRespecting",
 		},
+		TimeawareMoves: {
+			"what {subject} reports for a key changes when the clock does",
+			"MovesWithTheClock", "TimeawareMoves",
+		},
 		ScheduledFiresAfterAdvance: {
 			// At least, not exactly: the law shares its subject with an
 			// action stream scheduling work of its own, and whatever of

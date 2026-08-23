@@ -92,8 +92,8 @@ type {{ suite_rowName .IfaceName }}{{ renderTypeParams .TypeParams }} struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do{{ if $.Pools }} — override an input and
+	// your check sees the override too{{ end }}.
 	Run     func(tb {{ renderExpr (external "testing" "TB") }}, s {{ suite_subjectType $c }}, {{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }})
 	RunWith func(tb {{ renderExpr (external "testing" "TB") }}, sub {{ .IfaceName }}Subject{{ .TypeArgs }}, {{ suite_fixtureIdent }} {{ .Fixture.TypeName }}{{ .TypeArgs }})
 

@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package multireturntest
 
 import (
@@ -391,4 +406,4 @@ func (s *WideStub) NoError(ctx context.Context, id string) (string, int) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 86e34233db3efcc7d790909f2fd8316a3bd43c306fb5a43d3948fb391b234ff9
+// testkit:provenance 32c7caf949168982f03ee622efa0e0d4b3db4b5c2884c5f98ea6ca06481108a9

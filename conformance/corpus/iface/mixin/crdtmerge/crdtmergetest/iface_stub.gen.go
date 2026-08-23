@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package crdtmergetest
 
 import (
@@ -565,4 +580,4 @@ func (s *MixedStub) Items(ctx context.Context) ([]string, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 3b41fa29d420967645ea20001ab14e5be3ac8c8ebcc07c96a6192c8c7a017574
+// testkit:provenance 392d987229d5ad9c8f67892edc2c6dcb3bd9aa7df51cd2056775694f0153ce50

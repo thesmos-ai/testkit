@@ -1,0 +1,27 @@
+{{- /*
+model.door.induce — the failure states a check can ask a subject for, as
+the harness carries them.
+
+Rendered into the harness generator's fields region. Keyed by the error
+the subject reports in that state, because that is what a check names: it
+asks for the state ErrMediumGone comes from, and the runner matches the
+identity rather than a word somebody typed twice.
+
+The trigger takes the instance and nothing else. It has to REACH the
+subject rather than wrap it — a double answering the error in front would
+leave the subject ignorant of the call, and a claim about what the
+subject did before reporting the error would have nothing to be false
+about.
+*/ -}}
+{{- define "model.door.induce" -}}
+	// Induce maps an error to the trigger that puts an instance into the
+	// state it is reported from. Checks that need a subject in a failure
+	// state name the error, and fail naming it when this has no entry.
+	//
+	// The trigger acts on the instance itself: it makes the real
+	// implementation start failing, rather than standing something in
+	// front of it that answers without asking. A check about what your
+	// implementation did before it reported the error can only be
+	// answered by your implementation.
+	Induce map[error]func(s T)
+{{- end -}}

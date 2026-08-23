@@ -47,6 +47,10 @@ func TestMixedChecksCanFail(t *testing.T) {
 func inMemory(name string) timeawaretest.MixedHarness[*timeawaretest.InMemory] {
 	return timeawaretest.MixedHarness[*timeawaretest.InMemory]{
 		Name: name, New: timeawaretest.NewInMemory,
+		// The clock door. The one claim this mixin states on its own is
+		// that the reading moves when the run moves time, and a subject
+		// built on its own clock could never be asked.
+		OnClock: timeawaretest.NewInMemoryOn,
 	}
 }
 

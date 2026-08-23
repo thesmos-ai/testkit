@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package receivercollisiontest
 
 import (
@@ -358,4 +373,4 @@ func (s2 *StoreStub) Touch(ctx context.Context, s receivercollision.Session) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 049ad4e6f0884cef6c3dec066ebbd5e91211dcc81f26070e9e6fb1b240c33671
+// testkit:provenance 6dcf27e34c5a785193eb5ed9f62b746d8274cdcf4b7ae2fa34e8b5f52c6f48e2

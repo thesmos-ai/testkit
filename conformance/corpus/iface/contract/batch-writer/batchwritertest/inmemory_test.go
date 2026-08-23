@@ -19,7 +19,7 @@ import (
 func TestContractContract(t *testing.T) {
 	t.Parallel()
 
-	batchwritertest.RunContract(t, inMemory("in-memory"), contractChecks)
+	batchwritertest.RunContract(t, inMemory("in-memory"), contractChecks, keyedPool())
 }
 
 // TestContractContractWithoutSmoke drops a check through the typed index rather
@@ -31,6 +31,7 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 	batchwritertest.RunContract(t,
 		inMemory("in-memory"),
 		batchwritertest.ContractSuite.Without(batchwritertest.ContractSuite.Checks.Put.Smoke()),
+		keyedPool(),
 	)
 }
 
@@ -38,7 +39,22 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 func TestContractChecksCanFail(t *testing.T) {
 	t.Parallel()
 
-	batchwritertest.ProveContract(t, inMemory("in-memory"), contractChecks)
+	batchwritertest.ProveContract(t, inMemory("in-memory"), contractChecks, keyedPool())
+}
+
+// keyedPool states what this subject accepts.
+//
+// It refuses a value with an empty key, which is deliberate — that
+// refusal is what gives `mode=atomic` a failure to be about. The
+// adversarial arm draws the empty string among others, so without this
+// the run would red a subject for declining an input its own author
+// ruled out. A pool passed here is that ruling, written down: every tier
+// draws it verbatim and the widening is dropped.
+func keyedPool() batchwritertest.ContractConfig {
+	return batchwritertest.ContractConfig{
+		KeyPool:  []string{"test-key", "other-key"},
+		BodyPool: []string{"test-body", "other-body"},
+	}
 }
 
 // --- Harnesses ---------------------------------------------------------------

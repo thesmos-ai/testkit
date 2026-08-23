@@ -60,12 +60,32 @@ func ClaimFills(token string, carriers []Method) []string {
 			set(lawid.PlaceClose, v)
 		}
 		if slices.Contains(m.Contracts, contractCursor) {
-			set(lawid.PlaceClose, m.ContractPartner(contractCursor, contractCursorClose))
-			set(lawid.PlaceNext, m.ContractPartner(contractCursor, contractCursorNext))
+			set(lawid.PlaceClose, roleOf(m, contractCursorClose))
+			set(lawid.PlaceNext, roleOf(m, contractCursorNext))
 			set(lawid.PlaceProduced, contractCursor)
 		}
 	}
 	return pairs
+}
+
+// roleOf is the method that fills one role of the cursor contract: the
+// partner where this method named one, and this method itself where it
+// IS the role.
+//
+// Both, because a contract's roles are stamped from whichever member
+// hosts the directive and that member does not name itself. The cursor
+// fixture stamps `role=next close=Close` on Next, so the close partner
+// resolves and the next one has nothing to resolve against — which left
+// {next} unfilled and declined a law the declaration had fully
+// described.
+func roleOf(m Method, role string) string {
+	if partner := m.ContractPartner(contractCursor, role); partner != "" {
+		return partner
+	}
+	if m.ContractRoles[contractCursor] == role {
+		return m.Name
+	}
+	return ""
 }
 
 // bareName is a stamped reference as a reader would say it: the last

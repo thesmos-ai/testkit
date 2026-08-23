@@ -40,6 +40,8 @@ func renderFuncs() template.FuncMap {
 		"newFixtureName":    projection.NewFixtureName,
 		"corpusName":        projection.CorpusName,
 		"invariantsName":    projection.InvariantsTestName,
+		"provenanceName":    projection.ProvenanceTestName,
+		"greenName":         projection.GreenName,
 		"lockPath":          projection.LockPath,
 		"limitConst":        projection.LimitConst,
 		"missKeyName":       projection.MissKeyName,

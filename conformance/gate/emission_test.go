@@ -145,7 +145,7 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 		"bounded rides the twin floor — the audit's break experiment, kept measurable")
 }
 
-// twinCeiling is the corpus's twin count, ratcheted: 58 references ride the
+// twinCeiling is the corpus's twin count, ratcheted: 59 references ride the
 // twin floor today, and the number only sinks — an oracle upgrade
 // lowers it, and a derived fixture regressing to the twin raises it past the
 // ceiling and reddens this build by name. Lower the constant with every
@@ -188,7 +188,13 @@ func TestEmissionSeesTheTwinFloor(t *testing.T) {
 // no twin, and the ratchet sat un-turnable while real oracle upgrades
 // landed unrecorded. 58 is the first honest reading since; the two
 // isolation fixtures joining the floor in the same step are counted in it.
-const twinCeiling = 58
+//
+// 58 became 59 when timeaware gained a model tier. It rides the floor for
+// a reason of its own: its reader answers how long ago a key was seen,
+// which is a fact about the clock rather than about anything stored, and
+// no value-storing oracle models it. The twin ages under the same clock,
+// which is what makes it able to answer at all.
+const twinCeiling = 59
 
 // TestTwinFloorOnlySinks is the twin-count ratchet the audit's second item
 // commissioned: the twin is the honest floor, not the resting state, and a

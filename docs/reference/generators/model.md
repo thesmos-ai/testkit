@@ -76,6 +76,12 @@ parameter with no hint is a diagnostic at the parameter.
 - **An action set** — one `engine/model/action` constructor call per
   method, matching its detector or contract; partner-role methods are
   excluded (the suite tier owns their checks).
+- **Legs, one per claim shape** — the differential over random sequences,
+  a law leg per bundled law, a row of its own for every law the catalogue
+  words, the linearizability leg for whichever of five concurrency
+  families the shape selects, and the crash schedule where an
+  acknowledged write means "this key holds this record until something
+  else writes it". Each states one sentence and reports under its own ID.
 - **Generators, derived once** — keys from a small sampled set, values
   blending the fixture pair with arbitrary `model.Make` draws, the value
   type's key field pinned to the key pool, shared by every path.
@@ -292,12 +298,33 @@ the shape, and `<Iface>Without("model")` declines the tier. `<Iface>ModelFuzz(f,
 is the one-line fuzz wiring: the fuzzer's bytes replay as rapid's choice
 stream over the subject's own branches.
 
+Beyond the options, this tier puts two surfaces on the harness a consumer
+does write against. `Prop` and `Prop<Method>` are drawn-input check bodies
+— the argument arrives from the same pool the generated checks draw from,
+and a failure reported through the `PropT` shrinks. And the doors: a
+clocked claim asks for `OnClock`, a poison claim for `Induce`, and the
+crash schedule for `Recover`. A door appears only where some check needs
+it, so a field you are given is a field something reads.
+
 ## Layout conventions
 
-| Tag | Suffix | Contents |
-|---|---|---|
-| *(primary)* | `_model.gen.go` | Report header, generators, adapter, law registry, action set, concurrent config, options, extension registration. |
-| `test` | `_model.gen_test.go` | `Fuzz<Iface>Model`; the self-conformance and mutation tests where a reference is derivable. |
+This tier emits no file of its own. It contributes into the regions the
+harness generator hands out, so everything below lands in
+`<source>_suite.gen.go` beside the checks it belongs with:
+
+| Region | Contents |
+|---|---|
+| `suite.checks` | one expression per contributed row, appended to the run's check list |
+| `suite.decls` | the rows function, the generators, the derived reference, the action set, the leg bodies, and the `PropT` alias |
+| `harness.fields` | the doors a contributed row needs — `OnClock`, `Induce`, `Recover` |
+| `harness.lowering` | the line carrying each door onto the runtime subject |
+| `check.fields` | `Prop` and `Prop<Method>` on the row type |
+| `check.bodies` | the dispatch turning one of those into a body the runner calls |
+
+One file rather than two, and the reason is the manifest: a package with
+a model tier used to carry two check sets that had to be kept in step by
+hand. A row is a row wherever it was derived, and a consumer reading the
+report cannot tell which generator wrote which.
 
 ## See also
 

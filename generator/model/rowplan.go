@@ -17,24 +17,17 @@ import (
 // it holds over sequences nobody wrote. A per-law claim comes from
 // lawid's table instead, where the law's own wording lives.
 const (
-	lawsClaim = "every bound law holds over random operation sequences"
-	refClaim  = "every operation sequence leaves the subject agreeing with the reference"
-	concClaim = "concurrent operation histories are linearizable"
-	simClaim  = "every acknowledged write is still readable after the process is rebuilt over its medium"
+	lawsClaim  = "every bound law holds over random operation sequences"
+	refClaim   = "every operation sequence leaves the subject agreeing with the reference"
+	concClaim  = "concurrent operation histories are linearizable"
+	simClaim   = "every acknowledged write is still readable after the process is rebuilt over its medium"
+	faultClaim = "a write the medium refused leaves nothing behind for a rebuild to find"
 )
 
-// unproven is why neither row claims to have been shown able to fail.
-//
-// Argued rather than Proven, and not a formality: the parity gate refuses
-// the Proven stamp without a planted defect beside it, and the defects
-// this package plants break one method of a stub at a time. A sequence
-// claim needs a subject that is wrong over a history — the saturation
-// prover's job, which runs against a surface this tier does not emit yet.
-// Claiming proof without the evidence is refused in both directions, so
-// the honest record is the argument.
-const unproven = "no mechanical rule plants a defect for this claim; the ones that " +
-	"would are domain composites, which no rule reaches from shape and stamps alone"
-
+// Argued rather than Proven is not a formality: the parity gate refuses
+// the Proven stamp without a planted defect beside it, so a row that
+// carries no evidence has to state its case. The reasons live in
+// defect.go, told apart because they are fixed in different places.
 // unspellable is the other refusal: a rule reached the row and this run
 // could not write the defect out.
 //
@@ -103,6 +96,7 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 	if why := simLegReason(b); b.Sim() && why != "" {
 		b.Unbound = append(b.Unbound, Skip{Method: "crash recovery", Reason: why})
 	} else if b.Sim() {
+		fresh, freshOK := freshMedium(b)
 		// Under the sim family rather than the model one. Every other row
 		// here judges the subject against something that models it; this
 		// judges it against its own acknowledgements across a seam nothing
@@ -116,7 +110,32 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Claim: simClaim,
 			Needs: []projection.NeedPlan{{Capability: vocab.CapRecover}},
 			Body:  projection.SimLeg{Kind: projection.SimRecovery},
-		}, b, nil, nil, false))
+		}, b, fresh, nil, freshOK))
+
+		// The same schedule with the medium free to fail, and its own row
+		// because the claim is the other half. Recovery asks what an
+		// acknowledged write survives; this asks what a REFUSED one left
+		// behind, and nothing else in the run ever refuses one.
+		//
+		// The failure is induced in the subject rather than answered in
+		// front of it. A double that reports the error without calling
+		// the subject leaves it ignorant of the write, so it cannot have
+		// written anything down and the claim has nothing to be false
+		// about — which is a green row that says nothing.
+		if b.Faulted() {
+			out = append(out, proveOrArgue(projection.CheckPlan{
+				ID: projection.IDPlan{
+					Family: vocab.FamilySim, Qualifier: b.qualifier(), Seg: vocab.SegFault,
+				},
+				Class: vocab.ClassSimFault,
+				Claim: faultClaim,
+				Needs: []projection.NeedPlan{
+					{Capability: vocab.CapRecover},
+					{Capability: vocab.CapInduce, Sym: b.FaultSym},
+				},
+				Body: projection.SimLeg{Kind: projection.SimFault},
+			}, b, nil, nil, false))
+		}
 	}
 	return append(out, ownLegRows(b)...)
 }
@@ -133,12 +152,38 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 //
 // The overriding method rides along on the binding, because a defect is
 // planted THROUGH one and the plan alone does not say which.
+// freshMedium is the crash claim's defect: the reference, rebuilt onto
+// nothing.
+//
+// Correct while it runs and amnesiac across the seam, which is the whole
+// of what recovery claims. It needs a working implementation to be right
+// about everything else — a bare stub stores nothing, so the schedule
+// would red on the first read rather than the first read after a crash —
+// and the derived reference is one. A run on the twin floor has none,
+// and says so.
+// No method comes back, and that is the shape rather than an omission:
+// this defect overrides nothing, it answers the crash seam differently.
+// The plant threads a nil method through for it.
+func freshMedium(b *Bindings) (projection.Defect, bool) {
+	if !b.Reference.Derived() {
+		return nil, false
+	}
+	return projection.FreshMedium{
+		Clause: projection.Clause{Text: "rebuild finds an empty medium"},
+		Ref:    projection.Expr(b.Reference.CtorName),
+	}, true
+}
+
 func proveOrArgue(
 	plan projection.CheckPlan, b *Bindings,
-	defect projection.Defect, over *subject.Method, proven bool,
+	defect projection.Defect, over *subject.Method, proven bool, why ...string,
 ) projection.CheckPlan {
 	if !proven {
-		plan.Falsifiable = vocab.Argued(unproven)
+		reason := NoRule
+		if len(why) > 0 && why[0] != "" {
+			reason = why[0]
+		}
+		plan.Falsifiable = vocab.Argued(reason)
 		return plan
 	}
 	plan.Falsifiable = vocab.Proven()
@@ -176,7 +221,7 @@ func ownLegRows(b *Bindings) []projection.CheckPlan {
 			continue
 		}
 		bind := []projection.Bind{{Law: l.ID}}
-		defect, over, proven := defectFor(b, l)
+		defect, over, proven, why := defectFor(b, l)
 		out = append(out, proveOrArgue(projection.CheckPlan{
 			ID: projection.IDPlan{
 				Family: vocab.FamilyModel, Qualifier: b.qualifier(), Seg: l.ID,
@@ -186,7 +231,7 @@ func ownLegRows(b *Bindings) []projection.CheckPlan {
 			Needs: needsFor(l),
 			Body:  projection.LawLeg{Laws: bind},
 			Binds: bind,
-		}, b, defect, over, proven))
+		}, b, defect, over, proven, why))
 	}
 	return out
 }

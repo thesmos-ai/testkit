@@ -5,6 +5,7 @@ package model
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"go.thesmos.sh/eidos/lang/golang"
@@ -13,6 +14,7 @@ import (
 
 	"go.thesmos.sh/testkit/core/lawid"
 	"go.thesmos.sh/testkit/generator/core/tiers"
+	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 )
 
@@ -58,7 +60,8 @@ func valueOpField(
 // constFieldOf fills a stamped constant: a qualified sentinel, a numeric
 // literal, or the workflow's transition list.
 func constFieldOf(
-	harness *subject.Projection, r tiers.Rule, f tiers.Field, field *LawField, m *subject.Method,
+	b *Bindings, harness *subject.Projection,
+	r tiers.Rule, f tiers.Field, field *LawField, m *subject.Method,
 ) (*LawField, string) {
 	value, ok := stampValue(harness, m, f.From)
 	if !ok {
@@ -98,19 +101,76 @@ func constFieldOf(
 		return field, ""
 	}
 	if _, err := strconv.ParseFloat(value, 64); err == nil {
+		// The declared bound reaches three places — the harness
+		// constructors take it, this law enforces it, and a consumer's
+		// own policy check needs the same number — so it is emitted once
+		// as a constant and named here. See [projection.LimitConst],
+		// whose docblock says exactly this and which the law site was
+		// not honouring: the file declared mixedCapacity = 5 and then
+		// wrote Max: 5 beside it.
 		field.Lit = value
+		if f.From == tiers.ParamBoundedLimit {
+			field.Lit = projection.LimitConst(projection.Token(b.IfaceName))
+		}
 		field.KindName = sdk.Kind(LawFieldKindPrefix + "ConstLit")
 		return field, ""
 	}
+	if count, unit, ok := durationParts(value); ok {
+		// The count and the unit the stamp spelled, not the nanoseconds
+		// they multiply out to. Both compile to the same value and only
+		// one of them can be read against the declaration: `timeout=100ms`
+		// and `Timeout: 100000000` agree, and nothing shows that they do.
+		field.Lit = count
+		field.Const = sdk.NewExternal("time", unit)
+		field.KindName = sdk.Kind(LawFieldKindPrefix + "ConstDur")
+		return field, ""
+	}
 	if d, err := time.ParseDuration(value); err == nil {
-		// The duration as untyped nanoseconds: assignable to time.Duration,
-		// and free of any import the literal spelling would drag in.
+		// A compound like "1h30m" has no single symbol to multiply, so it
+		// keeps the nanosecond spelling: exact, if not readable against
+		// the stamp.
 		field.Lit = strconv.FormatInt(d.Nanoseconds(), 10)
 		field.KindName = sdk.Kind(LawFieldKindPrefix + "ConstLit")
 		return field, ""
 	}
 	return nil, f.Name + "'s stamp names " + value +
 		", which is neither a qualified symbol nor a number"
+}
+
+// durationUnits are the stamp suffixes this spells back as a symbol,
+// longest first so "ms" is not read as "s".
+//
+//nolint:gochecknoglobals // a vocabulary table, read-only after init.
+var durationUnits = []struct{ suffix, name string }{
+	{"ns", "Nanosecond"},
+	{"us", "Microsecond"},
+	{"ms", "Millisecond"},
+	{"s", "Second"},
+	{"m", "Minute"},
+	{"h", "Hour"},
+}
+
+// durationParts splits a stamped duration into the count and the time
+// package's name for its unit.
+//
+// Only the single-unit form, which is what a stamp writes: "100ms",
+// "1h". A compound like "1h30m" has no one symbol to multiply, and
+// falls back to the nanosecond literal rather than being spelled wrong.
+func durationParts(value string) (count, unit string, ok bool) {
+	if _, err := time.ParseDuration(value); err != nil {
+		return "", "", false
+	}
+	for _, u := range durationUnits {
+		digits, found := strings.CutSuffix(value, u.suffix)
+		if !found || digits == "" {
+			continue
+		}
+		if _, err := strconv.ParseInt(digits, 10, 64); err != nil {
+			return "", "", false
+		}
+		return digits, u.name, true
+	}
+	return "", "", false
 }
 
 // generatorFieldOf fills a pool field: the run's shared pools, or a

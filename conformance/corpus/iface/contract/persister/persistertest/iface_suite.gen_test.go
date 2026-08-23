@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/contract/persister/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/...
+// Command:   testkit run ./corpus/iface/contract/persister/...
 
 package persistertest_test
 
@@ -44,6 +44,8 @@ import (
 //
 //	Model.Agrees — a Contract whose Put reports success and keeps nothing
 //
+//	Sim.Recovery — a Contract whose rebuild finds an empty medium
+//
 //	Model.WriteObservable — a Contract whose Put reports success and keeps nothing
 //
 //	Model.PersisterRetrievable — a Contract whose Put reports success and keeps nothing
@@ -75,5 +77,50 @@ func TestContractInvariants(t *testing.T) {
 	suite.VerifyDistinctIDs(t, s.IDs())
 }
 
+// TestContractPoolProvenance holds the pools to their provenance in
+// both directions.
+//
+// The failure it exists for is silent. A pool you did not narrow keeps
+// the adversarial arm, and one you did reaches every tier exactly as you
+// wrote it — but nothing about a run shows which happened. The same
+// values are drawn either way, the same rows report, and only the
+// strength of the checks moves.
+//
+// The near miss was reading provenance off nil-ness: start from
+// DefaultConfig(), change one unrelated field, and every pool
+// arrives non-nil and equal to the derived one. Read as a restriction,
+// the wide arm goes and the report line is identical.
+func TestContractPoolProvenance(t *testing.T) {
+	t.Parallel()
+
+	for name, cfg := range map[string]persistertest.ContractConfig{
+		"a config nobody filled in":       {},
+		"the derived config, passed back": persistertest.ContractSuite.DefaultConfig(),
+	} {
+		fx := persistertest.ContractSuite.Fixture(cfg)
+		if !fx.KeyPoolDerived() {
+			t.Errorf("%s: KeyPool equals the derived pool, so it narrows nothing and "+
+				"must keep its adversarial arm", name)
+		}
+		if !fx.BodyPoolDerived() {
+			t.Errorf("%s: BodyPool equals the derived pool, so it narrows nothing and "+
+				"must keep its adversarial arm", name)
+		}
+	}
+
+	narrowed := persistertest.ContractSuite.Fixture(persistertest.ContractConfig{
+		KeyPool:  []string{"test-key", "other-key"},
+		BodyPool: []string{"test-body", "other-body"},
+	})
+	if narrowed.KeyPoolDerived() {
+		t.Error("a key pool the consumer narrowed must be recorded as narrowed, " +
+			"so no tier widens past what they allowed")
+	}
+	if narrowed.BodyPoolDerived() {
+		t.Error("a payload pool the consumer narrowed must be recorded as narrowed, " +
+			"so no tier widens past what they allowed")
+	}
+}
+
 // testkit: end of generated content.
-// testkit:provenance 27606384e795a2e53cf22a6a15f2e2f0c571926b453fdbdf2a39f73d5e065920
+// testkit:provenance cae7522d3a71be6251f89bc93934941068294f37ca62ebda7fb3f09d938ea553

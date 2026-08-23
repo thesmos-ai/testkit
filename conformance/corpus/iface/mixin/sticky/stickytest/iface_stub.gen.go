@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package stickytest
 
 import (
@@ -292,4 +307,4 @@ func (s *MixedStub) Get(ctx context.Context, key string) (sticky.Value, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance efd501f63371e4d77eadb6d550494ee013d9a09e777a771d4cef2dd9a643bf73
+// testkit:provenance c173dd46ddc3d517a440e882e72f5e3bb9f0e3c8eb061726df1bda84586fa283

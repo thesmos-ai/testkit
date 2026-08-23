@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package associativetest
 
 import (
@@ -291,4 +306,4 @@ func (s *MixedStub) Total(ctx context.Context) (int, error) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a588cf3ee32f895c28ebe240a55eadf551158cab1c2a26a5c06083aa23006839
+// testkit:provenance 2bea02e7b677de90d3d0ca9771be64cccfc71bb9efdfd11a48e22340595a5c7c

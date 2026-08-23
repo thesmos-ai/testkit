@@ -82,7 +82,7 @@ func rowDeclFor(
 		Vocab:      VocabPkg,
 		LawIDs:     suite.LawIDs,
 		IndexVar:   projection.IndexVar(projection.Token(b.IfaceName)),
-		Rows:       CheckRows(projection.Token(b.IfaceName), b.Rows),
+		Rows:       checkRows(projection.Token(b.IfaceName), b.Rows, b.Reference.Twin()),
 		TypeParams: harness.TypeParams,
 	}
 	if drawsFixture(b, harness) {

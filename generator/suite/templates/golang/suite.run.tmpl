@@ -149,4 +149,64 @@ func {{ suite_proveName .IfaceName }}{{ renderTypeParams .TypeParams }}(
 	}
 	{{ renderExpr (external $.Prove "All") }}(t, s.Checks, defects.Answering(doors))
 }
+
+// {{ suite_greenName .IfaceName }} runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		{{ suite_greenName .IfaceName }}(t, {{ renderExpr (external $.Vocab "Subject") }}[{{ suite_subjectType $c }}]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// {{ suite_proveName .IfaceName }} measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as {{ suite_runName .IfaceName }}, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func {{ suite_greenName .IfaceName }}{{ renderTypeParams .TypeParams }}(
+	t *{{ renderExpr (external "testing" "T") }},
+	control {{ renderExpr (external $.Vocab "Subject") }}[{{ suite_subjectType $c }}],
+	opts ...{{ suite_runOptName .IfaceName }}{{ .TypeArgs }},
+) {
+	t.Helper()
+	var rc {{ suite_runConfigName .Token }}{{ .TypeArgs }}
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	{{ suite_fixtureIdent }} := {{ suite_newFixtureName .Token }}{{ .TypeArgs }}({{ if .Pools }}rc.cfg{{ end }})
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind({{ suite_fixtureIdent }}))
+	}
+	rc.Fail(t, "{{ suite_greenName .IfaceName }}")
+	s := {{ suite_suiteName .Token }}{{ .TypeArgs }}(
+		{{- if .DrawsFixture }}{{ suite_fixtureIdent }}{{ end }}
+		{{- if and .DrawsFixture .SeedsCorpus }}, {{ end }}
+		{{- if .SeedsCorpus }}{{ suite_corpusName .Token }}({{ if .Pools }}rc.cfg{{ end }}){{ end -}}
+	).With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range {{ renderExpr (external $.Vocab "Doors") }}(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[{{ renderExpr (external $.Vocab "Capability") }}]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	{{ renderExpr (external $.Prove "Green") }}(t, s.Checks, control)
+}
 {{- end -}}

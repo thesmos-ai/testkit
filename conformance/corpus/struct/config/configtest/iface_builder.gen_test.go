@@ -290,9 +290,9 @@ func TestConfigBuilderBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("returns every field that was configured", func(t *testing.T) {
 		t.Parallel()
-		// Configured, which the name always claimed and the body did not do:
-		// this compared a zero value against itself and passed for any Build
-		// that answered the zero, however much had been set on the way.
+		// Every field set on the way, not a zero compared against itself:
+		// a Build that answered the zero would satisfy the second form
+		// however much had been configured.
 		seed := configtest.NewConfig().WithHost("test-host").WithPort(42).WithVerbose(true).WithRatio(3.14).WithRetries(42).WithUndirected("test-undirected").Build()
 		testkit.Equal(t, configtest.NewConfigFrom(seed).Build(), seed,
 			"Build returns the value under construction")
@@ -300,4 +300,4 @@ func TestConfigBuilderBuild(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 24ddad00b736af9826198c6190b3050c71b7a0219349191979511769a927c388
+// testkit:provenance 95e13e94d4a2d91aa5931ab4b67c2527c942b30a72924c94621a807d0325d992

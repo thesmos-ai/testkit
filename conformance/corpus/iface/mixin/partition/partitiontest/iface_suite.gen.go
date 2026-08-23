@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package partitiontest
 
 import (
@@ -19,24 +34,22 @@ import (
 
 // Conformance checks for Mixed, worked out from its declaration.
 //
-// One call runs all of them against one implementation. Describe the
-// implementation in a literal and hand it over:
+// The package comment above says what these are and how to start. This is
+// Mixed's half of it — the names to use:
 //
 //	func TestMine(t *testing.T) {
 //		RunMixed(t, MixedHarness[*Mine]{Name: "mine", New: NewMine})
 //	}
 //
-// Nothing else is required to start. The rest is here when you need it:
-//
 //	MixedHarness
-//	    one implementation under test. Add a field only when a check
-//	    fails asking for it — the failure names the field to fill in.
+//	    one implementation under test.
 //	MixedChecks
-//	    checks you write yourself, for the claims only you can make.
-//	    They run beside the generated ones and are the same kind of value.
+//	    checks you write yourself, run beside the generated ones.
 //	ProveMixed
-//	    runs each of your checks against the broken implementation it
-//	    names, and fails if the check does not catch it.
+//	    drives each of yours against the broken implementation it names.
+//	GreenMixed
+//	    drives them all against one that is correct but different, and
+//	    fails if a check rejects it.
 //	MixedSuite.Checks.<Method>.<Check>()
 //	    names one check, so you can drop it. Written this way it stops
 //	    compiling if a later regeneration no longer emits that check,
@@ -679,8 +692,7 @@ type MixedCheck struct {
 	// move the clock forward, put one into a failure state.
 	//
 	// Both are also handed the sample inputs, so a check you write draws
-	// from the same values the generated ones do — override an input and
-	// your check sees the override too.
+	// from the same values the generated ones do.
 	Run     func(tb testing.TB, s Mixed, fx MixedFixture)
 	RunWith func(tb testing.TB, sub MixedSubject, fx MixedFixture)
 
@@ -999,5 +1011,72 @@ func ProveMixed(
 	prove.All(t, s.Checks, defects.Answering(doors))
 }
 
+// GreenMixed runs every check — the generated ones and any you
+// wrote — against an implementation that is CORRECT but different, and
+// fails if a check rejects it.
+//
+//	func TestAnotherPolicyIsAllowed(t *testing.T) {
+//		GreenMixed(t, suite.Subject[Mixed]{
+//			Name: "evicts the newest", New: newNewestFirst,
+//		})
+//	}
+//
+// ProveMixed measures whether these checks can fire. This measures
+// whether they fire SELECTIVELY. Nothing else here can tell a check that
+// is right from one that is too strong: a check forbidding something the
+// declaration permits looks exactly like a suite working, until somebody
+// writes a legal implementation and it fails.
+//
+// The control is a real alternative, not a broken one — a different
+// eviction victim, a delivery that duplicates where the contract allows
+// it, a lazier evaluation behind the same boundary. Where a check
+// genuinely cannot apply to your control, put its ID in the subject's
+// Excused map: an excused check is skipped by name, because it yields no
+// evidence either way.
+//
+// Same arguments as RunMixed, so the control meets the checks
+// the run does — including the ones you wrote, which no caller can bind
+// for themselves.
+func GreenMixed(
+	t *testing.T,
+	control suite.Subject[Mixed],
+	opts ...MixedRunOpt,
+) {
+	t.Helper()
+	var rc mixedRunConfig
+	for _, o := range opts {
+		o.applyTo(&rc)
+	}
+	fx := mixedNewFixture()
+	for _, row := range rc.rows {
+		rc.AddCheck(row.bind(fx))
+	}
+	rc.Fail(t, "GreenMixed")
+	s := mixedSuite(fx).With(rc.Extra...).Without(rc.Drops...)
+	// The doors the run answers, so a control is refused for being wrong
+	// rather than for being unwired — a wiring red recorded as "the suite
+	// rejected correct code" would poison the measurement it exists for.
+	for door, answer := range suite.Doors(rc.Subjects...) {
+		if control.Provides == nil {
+			control.Provides = map[suite.Capability]any{}
+		}
+		if _, answered := control.Provides[door]; !answered {
+			control.Provides[door] = answer
+		}
+	}
+	prove.Green(t, s.Checks, control)
+}
+
+// --- Mixed's model tier: not emitted ----------------------------------
+//
+// Mixed carries //testkit:model, and no rows above come from it:
+// no claim this tier knows how to state reached this interface,
+// so it contributes no checks. Each reason below is one it tried:
+//   AUTO-WRITE-OBSERVABLE — instantiates at a value type no method here draws
+//
+// Nothing to do about it here. The claims that needed sequences are the
+// ones this package does not check, and this says so rather than letting
+// the run surface read as complete.
+
 // testkit: end of generated content.
-// testkit:provenance 60c1b46646e8f46937192ac7bd3e734288d494668ea5bfa0b36749be8af382ec
+// testkit:provenance 01a36455a14d850c8c375472b6a30af32fe4fc485bae0dc5064dce1ef806ae91

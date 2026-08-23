@@ -4,6 +4,21 @@
 // Plugins:   golang 1.0.0, stub 1.4.0, backend.golang 1.0.0
 // Command:   testkit run ./corpus/...
 
+// Conformance checks worked out from the interfaces this package doubles.
+//
+// One call runs every check for an interface against one implementation.
+// Describe the implementation in a literal and hand it over — each
+// interface's own Run function is documented beside it, with the names
+// to use.
+//
+// Nothing else is required to start. The rest is there when you need it:
+// a harness field to add only when a check fails asking for it, checks of
+// your own that run beside the generated ones, a Prove entry that drives
+// each of yours against the broken implementation it names, and a typed
+// index for dropping a check by identity rather than by string.
+//
+// Nothing here is written by hand. Regenerate rather than edit: an edit
+// survives until the next run and no longer.
 package streamreflectsmutationstest
 
 import (
@@ -412,4 +427,4 @@ func (s *MixedStub) Remove(ctx context.Context, item string) error {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 40df9dac15f65c836f6fa5c8534ccc78fd4cd3ea7e157cde5410ac6dedb2ca77
+// testkit:provenance c1e755ed57abff62e68e64cf1963839fa15f40842ca37a844d7848c63f6e2c16

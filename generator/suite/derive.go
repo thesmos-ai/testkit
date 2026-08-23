@@ -263,6 +263,17 @@ type Iface struct {
 	// a method's derived families into one refusal.
 	Fixture subject.Fixture
 
+	// Pooled reports that this run emits a config type, which is the
+	// same fact as some role having opened a pool.
+	//
+	// A body that tells a consumer how to make its case reachable has to
+	// know whether the surface it names exists: the miss check skips when
+	// the subject answers for an input nothing wrote, and its skip said
+	// "seed a miss through MixedConfig.KeyPool" in packages emitting no
+	// MixedConfig. An instruction naming nothing is worse than none,
+	// because a reader spends the time looking.
+	Pooled bool
+
 	// Corpus reports that this run seeds every subject from a derived
 	// corpus, which changes what a miss draws.
 	//
