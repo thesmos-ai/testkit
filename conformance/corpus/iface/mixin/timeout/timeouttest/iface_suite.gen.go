@@ -798,9 +798,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.DeadlineRespecting,
 			},
-			Needs: suite.Caps{
-				suite.CapClock: nil,
-			},
+			Needs:       suite.NeedsClock(),
 			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
@@ -909,4 +907,4 @@ func mixedAssertDeadline(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 1e22ca1892f5a2b5a024ab8bfb7e0347c651286062d6d9b1670863aa3d987945
+// testkit:provenance 41ec12b9fef44b147f2b4464fd03cd6031e4e186c53aac4ad540503dc6341640

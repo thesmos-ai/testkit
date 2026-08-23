@@ -1140,12 +1140,10 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			},
 		},
 		{
-			ID:    mixedCheckIndex.Sim.Recovery(),
-			Class: suite.ClassSimRecovery,
-			Claim: "every acknowledged write is still readable after the process is rebuilt over its medium",
-			Needs: suite.Caps{
-				suite.CapRecover: nil,
-			},
+			ID:          mixedCheckIndex.Sim.Recovery(),
+			Class:       suite.ClassSimRecovery,
+			Claim:       "every acknowledged write is still readable after the process is rebuilt over its medium",
+			Needs:       suite.NeedsRecover(),
 			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
@@ -1442,4 +1440,4 @@ func mixedAssertDefaultOnError(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 37f74271006b380b5d761116458c9f635064a0607138e24b2581857c9ef4744a
+// testkit:provenance 4c7cf57addb8c93273931d0966c79628b18ec0943574544fc9b89ed0b6b33f63

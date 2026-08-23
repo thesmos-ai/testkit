@@ -2,7 +2,7 @@
 //
 // Source:    corpus/iface/mixin/deleteremoves/iface.go
 // Plugins:   golang 1.0.0, suite 1.24.0, backend.golang 1.0.0
-// Command:   testkit run ./corpus/...
+// Command:   testkit run ./corpus/iface/mixin/deleteremoves/...
 
 // Conformance checks worked out from the interfaces this package doubles.
 //

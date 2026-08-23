@@ -30,11 +30,15 @@ func {{ .Func }}{{ renderTypeParams .TypeParams }}({{ if .FixtureParam }}{{ .Fix
 			},
 {{- end }}
 {{- if .Needs }}
+{{- if .Shorthand }}
+			Needs: {{ renderExpr (external $.Vocab .Shorthand) }}({{ with (index .Needs 0).Sym }}{{ renderExpr . }}{{ end }}),
+{{- else }}
 			Needs: {{ renderExpr (external $.Vocab "Caps") }}{
 {{- range .Needs }}
 				{{ if .Const }}{{ renderExpr (external $.Vocab .Const) }}{{ else }}{{ printf "%q" .Name }}{{ end }}: {{ if .Sym }}{{ renderExpr .Sym }}{{ else }}nil{{ end }},
 {{- end }}
 			},
+{{- end }}
 {{- end }}
 			Falsifiable: {{ if .Proven }}{{ renderExpr (external $.Vocab "Proven") }}(){{ else }}{{ renderExpr (external $.Vocab "Argued") }}({{ printf "%q" .Argument }}){{ end }},
 			Strength:    {{ renderExpr (external $.Vocab .StrengthConst) }},

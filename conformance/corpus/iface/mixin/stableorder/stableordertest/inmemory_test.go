@@ -8,12 +8,18 @@ package stableordertest_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
 	"go.thesmos.sh/testkit"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/stableorder"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/stableorder/stableordertest"
+	"go.thesmos.sh/testkit/engine/legs"
+	"go.thesmos.sh/testkit/engine/model"
+	"go.thesmos.sh/testkit/engine/model/action"
+	"go.thesmos.sh/testkit/engine/model/law"
 	"go.thesmos.sh/testkit/engine/suite"
 )
 
@@ -69,6 +75,15 @@ var mixedChecks = stableordertest.MixedChecks{
 		),
 		ProvenReason: "ordered rather than arbitrary",
 	},
+	{
+		Name:    "every-add-is-observable",
+		Claim:   "after every Add, Items answers at least what the run has put in",
+		RunWith: everyAddIsObservable,
+		ProvenBy: stableordertest.BrokenMixed(
+			"a collection that accepts an append and keeps nothing", newDropsEveryAdd,
+		),
+		ProvenReason: "answered nothing after an Add it accepted",
+	},
 }
 
 // --- Bodies -------------------------------------------------------------------
@@ -89,6 +104,51 @@ func drainsInKeyOrder(
 	testkit.NoError(tb, err, "the drain succeeds")
 	testkit.Equal(tb, len(got), 2, "each append is one element")
 	testkit.Equal(tb, got[0].Key, earlyKey, "and the drain is ordered rather than arbitrary")
+}
+
+// everyAddIsObservable states a claim over a SEQUENCE rather than a fixed
+// pair of calls, which is what law.AfterEvery is for: the predicate runs
+// after each occurrence of the named action, however many the run draws
+// and whatever it interleaves between them.
+//
+// Written by hand because the combinator is a consumer's to reach for. It
+// carries no law identifier — its ID is composed from the action it
+// watches — so no selection rule can name it and no census over
+// identifiers sees it. This is what exercises it.
+//
+// The predicate asks the weakest thing that a dropped append breaks: an
+// append the subject ACCEPTED must leave the drain non-empty. Comparing
+// counts against the reference would be the differential's claim, which
+// the row above already carries.
+func everyAddIsObservable(
+	tb testing.TB, sub stableordertest.MixedSubject, fx stableordertest.MixedFixture,
+) {
+	tb.Helper()
+	legs.Law(tb, sub,
+		func() stableorder.Mixed { return sub.New(tb) },
+		stableordertest.NewMixedModelReference,
+		[]model.Action[stableorder.Mixed]{
+			action.Writer("Add",
+				model.SampledFrom([]stableorder.Value{fx.Value(), fx.ValueOther()}),
+				func(ctx context.Context, s stableorder.Mixed, v stableorder.Value) error {
+					return s.Add(ctx, v)
+				}),
+		},
+		[]law.Law[stableorder.Mixed]{
+			&law.AfterEvery[stableorder.Mixed]{
+				ActionName: "Add",
+				Predicate: func(rt *model.T, sut, _ stableorder.Mixed) error {
+					items, err := sut.Items(rt.Context())
+					if err != nil {
+						return fmt.Errorf("the drain refused after an accepted Add: %w", err)
+					}
+					if len(items) == 0 {
+						return errors.New("the drain answered nothing after an Add it accepted")
+					}
+					return nil
+				},
+			},
+		})
 }
 
 // --- Planted defects ----------------------------------------------------------
@@ -115,3 +175,15 @@ func (k *keepsArrivalOrder) Add(_ context.Context, v stableorder.Value) error {
 func (k *keepsArrivalOrder) Items(context.Context) ([]stableorder.Value, error) {
 	return slices.Clone(k.items), nil
 }
+
+// dropsEveryAdd accepts every append and keeps none, which is invisible to
+// a check that adds and drains in one breath only because that check adds
+// first — this one is caught by the predicate that runs after each append
+// the run draws.
+type dropsEveryAdd struct{}
+
+func newDropsEveryAdd() *dropsEveryAdd { return &dropsEveryAdd{} }
+
+func (*dropsEveryAdd) Add(context.Context, stableorder.Value) error { return nil }
+
+func (*dropsEveryAdd) Items(context.Context) ([]stableorder.Value, error) { return nil, nil }

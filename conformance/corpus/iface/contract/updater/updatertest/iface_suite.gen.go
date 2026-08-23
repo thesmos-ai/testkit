@@ -1124,12 +1124,10 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			},
 		},
 		{
-			ID:    contractCheckIndex.Sim.Recovery(),
-			Class: suite.ClassSimRecovery,
-			Claim: "every acknowledged write is still readable after the process is rebuilt over its medium",
-			Needs: suite.Caps{
-				suite.CapRecover: nil,
-			},
+			ID:          contractCheckIndex.Sim.Recovery(),
+			Class:       suite.ClassSimRecovery,
+			Claim:       "every acknowledged write is still readable after the process is rebuilt over its medium",
+			Needs:       suite.NeedsRecover(),
 			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
@@ -1430,4 +1428,4 @@ func contractAssertUpdaterReplaces(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance abcb7c18161ce062e55ceb898105db3410c539388aac49fdabe0747b511f3490
+// testkit:provenance f36eaaa248c200584210f67919a17d1c22e0986493b8d101c1d22f474acf6225

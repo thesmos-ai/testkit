@@ -1050,9 +1050,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.Windowed,
 			},
-			Needs: suite.Caps{
-				suite.CapClock: nil,
-			},
+			Needs:       suite.NeedsClock(),
 			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
@@ -1185,4 +1183,4 @@ func mixedAssertWindowed(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 41b3245edf3a064dd474cc12095db51fdedadda831a3ae305635760193f0af53
+// testkit:provenance 8fc8b07c95019fdabaed8d7b8efe6e44b1be26869ffeb7c0ed1349e8d047127f

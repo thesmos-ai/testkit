@@ -144,6 +144,33 @@ func needsCaps(needs []projection.NeedPlan) []NeedCap {
 	return out
 }
 
+// Shorthand names the vocabulary's own constructor for a row demanding
+// exactly one of the doors that has one, empty otherwise.
+//
+// suite.Needs and its three shorthands exist so a capability is spelled
+// one way. The rows spelled the map literal instead, which is a second
+// home for the same fact: rewording the vocabulary would leave every
+// generated file stating the old one, and nothing would notice.
+//
+// One door only. Two make the literal the clearer form, and a
+// constructor per combination would be a vocabulary that grows with the
+// product of its own members.
+func (r CheckRow) Shorthand() string {
+	if len(r.Needs) != 1 {
+		return ""
+	}
+	return capShorthands[r.Needs[0].Const]
+}
+
+// capShorthands is the constructor each door is declared through.
+//
+//nolint:gochecknoglobals // a vocabulary table, read-only after init.
+var capShorthands = map[string]string{
+	"CapClock":   "NeedsClock",
+	"CapInduce":  "NeedsInduce",
+	"CapRecover": "NeedsRecover",
+}
+
 // capConsts is the runtime's identifier for each door it names.
 //
 // The doors with a dedicated Subject field, which is the same thing: a

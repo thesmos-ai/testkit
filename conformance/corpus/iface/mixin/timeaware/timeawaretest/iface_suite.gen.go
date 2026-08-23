@@ -1060,9 +1060,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.TimeawareMoves,
 			},
-			Needs: suite.Caps{
-				suite.CapClock: nil,
-			},
+			Needs:       suite.NeedsClock(),
 			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
@@ -1191,4 +1189,4 @@ func mixedAssertMovesWithTheClock(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 09b6ddedf0087a0b9af8f2f2ff467a6a375533594b8379cd867fcffc4fd53301
+// testkit:provenance 90fdd1ccc600a7dcc84c8e8e4ce15e96df45fe1e09edef1a586d0707bab1e1b9

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -55,14 +56,27 @@ func (s Shipped) Key() string { return s.Pkg + "." + s.Name }
 // for it would report every one of them as alive.
 func ShippedConstructors(engineRoot, corpusRoot string) ([]Shipped, error) {
 	repoRoot := filepath.Dir(engineRoot)
+	const mod = "go.thesmos.sh/testkit/engine"
 	pkgs := []struct {
-		local, dir, callers string
-		types               bool
+		local, path, dir, callers string
+		types                     bool
 	}{
-		{local: "action", dir: filepath.Join(engineRoot, "model", "action"), callers: corpusRoot},
-		{local: "ref", dir: filepath.Join(engineRoot, "model", "ref"), callers: corpusRoot},
-		{local: "suite", dir: filepath.Join(engineRoot, "suite"), callers: repoRoot},
-		{local: "legs", dir: filepath.Join(engineRoot, "legs"), callers: repoRoot},
+		{
+			local: "action", path: mod + "/model/action",
+			dir: filepath.Join(engineRoot, "model", "action"), callers: corpusRoot,
+		},
+		{
+			local: "ref", path: mod + "/model/ref",
+			dir: filepath.Join(engineRoot, "model", "ref"), callers: corpusRoot,
+		},
+		{
+			local: "suite", path: mod + "/suite",
+			dir: filepath.Join(engineRoot, "suite"), callers: repoRoot,
+		},
+		{
+			local: "legs", path: mod + "/legs",
+			dir: filepath.Join(engineRoot, "legs"), callers: repoRoot,
+		},
 
 		// The law packages are censused by TYPE, because a law has no
 		// constructor: a binding writes the struct literal. Every other
@@ -70,12 +84,18 @@ func ShippedConstructors(engineRoot, corpusRoot string) ([]Shipped, error) {
 		// identifier is one nothing looks at — which is how three
 		// temporal combinators came to ship with no corpus exercise and
 		// nothing proving they can go red.
-		{local: "law", dir: filepath.Join(engineRoot, "model", "law"), callers: corpusRoot, types: true},
 		{
-			local: "timeaware", dir: filepath.Join(engineRoot, "model", "timeaware"),
-			callers: corpusRoot, types: true,
+			local: "law", path: mod + "/model/law",
+			dir: filepath.Join(engineRoot, "model", "law"), callers: corpusRoot, types: true,
 		},
-		{local: "crash", dir: filepath.Join(engineRoot, "model", "crash"), callers: corpusRoot, types: true},
+		{
+			local: "timeaware", path: mod + "/model/timeaware",
+			dir: filepath.Join(engineRoot, "model", "timeaware"), callers: corpusRoot, types: true,
+		},
+		{
+			local: "crash", path: mod + "/model/crash",
+			dir: filepath.Join(engineRoot, "model", "crash"), callers: corpusRoot, types: true,
+		},
 	}
 
 	var out []Shipped
@@ -84,7 +104,7 @@ func ShippedConstructors(engineRoot, corpusRoot string) ([]Shipped, error) {
 		if err != nil {
 			return nil, err
 		}
-		called, err := calledNames(p.callers, p.local, p.dir)
+		called, err := calledNames(p.callers, p.local, p.path, p.dir)
 		if err != nil {
 			return nil, err
 		}
@@ -187,14 +207,21 @@ func exportedGenericTypes(gen *ast.GenDecl) []string {
 // Any reference, not only a call: a generic instantiation, a type alias,
 // a value handed somewhere else. All of them are somebody depending on
 // the name, which is what this asks.
-func calledNames(root, local, own string) (map[string]bool, error) {
+//
+// The local name is resolved per file from that file's imports, not
+// assumed. A corpus fixture package named after the engine package it
+// drives forces the import to an alias — `timeaware2` beside a fixture
+// called timeaware — and a scan keyed on the bare name reported every
+// law in that package as unreached while one of them was bound right
+// there.
+func calledNames(root, local, path, own string) (map[string]bool, error) {
 	ownAbs, err := filepath.Abs(own)
 	if err != nil {
 		return nil, fmt.Errorf("gate: resolve %s: %w", own, err)
 	}
 	fset := token.NewFileSet()
 	out := map[string]bool{}
-	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(root, func(file string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -204,26 +231,30 @@ func calledNames(root, local, own string) (map[string]bool, error) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") {
+		if !strings.HasSuffix(file, ".go") {
 			return nil
 		}
 		// The package's own directory and no further. Its SUBpackages are
 		// callers like any other — suite/prove states rows in the same
 		// vocabulary a consumer does — and skipping the subtree reported
 		// seventeen live helpers as dead.
-		if abs, absErr := filepath.Abs(filepath.Dir(path)); absErr == nil && abs == ownAbs {
+		if abs, absErr := filepath.Abs(filepath.Dir(file)); absErr == nil && abs == ownAbs {
 			return nil
 		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		parsed, parseErr := parser.ParseFile(fset, file, nil, parser.SkipObjectResolution)
 		if parseErr != nil {
-			return fmt.Errorf("gate: parse %s for %s callers: %w", path, local, parseErr)
+			return fmt.Errorf("gate: parse %s for %s callers: %w", file, local, parseErr)
 		}
-		ast.Inspect(file, func(n ast.Node) bool {
+		bound, imported := localNameFor(parsed, path)
+		if !imported {
+			return nil
+		}
+		ast.Inspect(parsed, func(n ast.Node) bool {
 			sel, isSel := n.(*ast.SelectorExpr)
 			if !isSel {
 				return true
 			}
-			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && pkg.Name == local {
+			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && pkg.Name == bound {
 				out[local+"."+sel.Sel.Name] = true
 			}
 			return true
@@ -234,6 +265,27 @@ func calledNames(root, local, own string) (map[string]bool, error) {
 		return nil, fmt.Errorf("gate: walk %s for %s callers: %w", root, local, err)
 	}
 	return out, nil
+}
+
+// localNameFor is the identifier this file refers to the imported path
+// by, and whether it imports it at all.
+//
+// An explicit alias wins; otherwise the last path element, which is the
+// package name for every package this censuses. A file that does not
+// import the path cannot refer to it, and reading its selectors would
+// count some other package's identically-named one.
+func localNameFor(file *ast.File, path string) (string, bool) {
+	quoted := strconv.Quote(path)
+	for _, imp := range file.Imports {
+		if imp.Path == nil || imp.Path.Value != quoted {
+			continue
+		}
+		if imp.Name != nil {
+			return imp.Name.Name, true
+		}
+		return path[strings.LastIndex(path, "/")+1:], true
+	}
+	return "", false
 }
 
 // notACaller are directories whose contents do not count as calling
@@ -359,12 +411,9 @@ var UnemittedConstructors = map[string]string{
 	"suite.Falsify":         "superseded by suite.Row: the row carries Proven and Argued as fields, and the binding settles the falsifiability from them rather than from a call a consumer makes",
 	"suite.OneBody":         "superseded by suite.Row: exactly one body is a shape the struct can state, and a row with two of them no longer type-checks",
 
-	"suite.Needs":        "OPEN: the generated rows spell the capability as a suite.Caps literal — `suite.Caps{suite.CapRecover: nil}` — where this and its three shorthands exist to keep one spelling; emitting the constructor would close it",
-	"suite.NeedsInduce":  "OPEN: the shorthand for an induced sentinel, unreached for the reason suite.Needs is — the generator writes the map literal instead",
-	"suite.NeedsRecover": "OPEN: the shorthand for the recovery door, unreached for the reason suite.Needs is; the generator writes the map literal instead",
+	"suite.Needs":       "the general form behind the three shorthands, which are what the rows emit; a row naming two doors at once keeps the map literal, and a constructor per combination would grow with the product of the vocabulary",
+	"suite.NeedsInduce": "the shorthand for an induced sentinel; the one row demanding that door demands the recovery door beside it, and a two-door row keeps the map literal — a fixture inducing without recovering would reach this",
 
-	"suite.ClassConst":  "OPEN: the Go spelling of a class constant, for a generator rendering one — this generator renders classes through its own vocab package, and which of the two owns the spelling is unsettled",
-	"suite.RedConst":    "OPEN: the Go spelling of a red segment, unreached for the reason suite.ClassConst is",
 	"suite.FamilyNames": "OPEN: the family vocabulary as a sorted list, for a consumer enumerating them; nothing in the corpus enumerates families, and whether anything should is unsettled",
 	"suite.IsFamily":    "OPEN: the family membership test, unreached for the reason suite.FamilyNames is",
 	"suite.DiffLock":    "OPEN: the lock-file diff a stale checks.lock reports; the corpus's Invariants test renders its own diff, and the two have never been reconciled",
@@ -373,12 +422,10 @@ var UnemittedConstructors = map[string]string{
 	// engine/model/law and its neighbours, censused by type. Every other
 	// gate over these keys on lawid, so a law type carrying no identifier
 	// is one nothing looks at.
-	"law.AfterEvery":      "OPEN: a temporal combinator a consumer writes by hand — after every X, Y must hold. No lawid, so no rule selects it and no census over lawid sees it; no corpus fixture states one, and nothing proves it can go red",
-	"law.EventuallyAfter": "OPEN: the temporal combinator beside law.AfterEvery, unreached for the same reason and settled by the same decision",
-	"law.Never":           "OPEN: the temporal combinator beside law.AfterEvery, unreached for the same reason and settled by the same decision",
+	"law.EventuallyAfter": "OPEN: the combinator beside law.AfterEvery, which stableorder now exercises \u2014 so the trace binding is proven and this shape is not. Its own docblock states the boundary: the runner draws actions at random, so a response-within-N claim is only meaningful over a small action set with a generous budget, and no corpus fixture is written that way yet",
+	"law.Never":           "OPEN: the combinator beside law.AfterEvery, which stableorder now exercises. This one needs a fixture declaring an action that must never occur, and no corpus interface states such a claim \u2014 whether one should is unsettled",
 
 	"law.HashChainIntegrityViaErr": "registered as unreachable in gate.UnreachableLaws: selecting it needs a stored-error accessor sitting on a chain interface, which is a fact about the interface where the selector reads one method's stamps",
-	"timeaware.MovesWithTheClock":  "OPEN: a rule DOES select this one and no corpus fixture reaches it, which nothing gates — no census asks whether a rule ever fires on a fixture",
 
 	"law.ClientClassifier": "a function type the session laws take, supplied as a generated closure rather than named — the binding spells the signature, not the type",
 	"law.ClientEvent":      "the trace element the session laws read, built by the runner and never spelled by a binding",

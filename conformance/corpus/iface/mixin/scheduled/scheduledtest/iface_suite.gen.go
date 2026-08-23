@@ -987,9 +987,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			Binds: []string{
 				lawid.ScheduledFiresAfterAdvance,
 			},
-			Needs: suite.Caps{
-				suite.CapClock: nil,
-			},
+			Needs:       suite.NeedsClock(),
 			Falsifiable: suite.Argued("no rule in this generator plants a defect for this claim — either nothing reaches it from shape and stamps alone, or nobody has written the rule; the defect is yours to write and this row claims no proof"),
 			Strength:    suite.StrengthObserved,
 			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
@@ -1110,4 +1108,4 @@ func mixedAssertScheduled(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 365524f439b59c203c147bc66ecfadb8ccde7aa4cc5e7f8391d7a66f75111d92
+// testkit:provenance a2e49f753d285eca2b8a7dffd97215f167929d1f174e24a71bcc6fc2d3eb28ff
