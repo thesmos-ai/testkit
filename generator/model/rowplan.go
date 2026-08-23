@@ -121,6 +121,12 @@ func PlanRows(b *Bindings) []projection.CheckPlan {
 			Body:  projection.ConcurrentLeg{},
 		}, b, nil, nil, false))
 	}
+	if !b.Sim() && b.SimUnpaired != "" && b.KeysReachAWrite() {
+		// Stated only where the interface writes. One that never writes
+		// had no crash claim to make, and a line saying so on every
+		// read-only fixture is noise a reader learns to skip past.
+		b.Unbound = append(b.Unbound, Skip{Method: "crash recovery", Reason: b.SimUnpaired})
+	}
 	if why := simLegReason(b); b.Sim() && why != "" {
 		b.Unbound = append(b.Unbound, Skip{Method: "crash recovery", Reason: why})
 	} else if b.Sim() {

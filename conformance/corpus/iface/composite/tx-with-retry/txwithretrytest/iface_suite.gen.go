@@ -78,9 +78,10 @@ import (
 var _ = suite.CompatV2
 
 // TxWithRetryFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type TxWithRetryFixture struct {
 }
 
@@ -999,16 +1000,19 @@ func txWithRetryAssertRespectsContext(
 				Op: func(ctx context.Context, s txwithretry.TxWithRetry) error {
 					return s.Begin(ctx)
 				},
+				Name: "Begin",
 			},
 			law.LifecycleRespectsContext[txwithretry.TxWithRetry]{
 				Op: func(ctx context.Context, s txwithretry.TxWithRetry) error {
 					return s.Commit(ctx)
 				},
+				Name: "Commit",
 			},
 			law.LifecycleRespectsContext[txwithretry.TxWithRetry]{
 				Op: func(ctx context.Context, s txwithretry.TxWithRetry) error {
 					return s.Rollback(ctx)
 				},
+				Name: "Rollback",
 			},
 		})
 }
@@ -1022,4 +1026,4 @@ func txWithRetryAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 667d3a4dac15e07cb122bf7516324ee212355048d1b53a01a021440b0d429f6e
+// testkit:provenance ed3cde1b4b0dfecd88e06e6c6efb60df5b33e825e63c8c7524bb3705cc22a36e

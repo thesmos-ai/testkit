@@ -14,14 +14,18 @@ import (
 )
 
 // fixedKeyProjection is the key projection for a law whose write takes the
-// key beside the value: every drawn value goes to the fixture's own key,
-// so the projection answers that key whatever it is handed.
+// key beside the value: it answers which of the key pool's keys a given
+// value is written under.
 //
 // No key rides inside such a value — the writer takes it as an argument —
-// so a value-to-key projection cannot be derived from the type, and the
-// map oracle's KeyField is empty. The law does not need one derived: it
-// writes and reads the same key, and what it compares is the value that
-// came back.
+// so a value-to-key projection cannot be READ off the type. It can still
+// be chosen, and choosing one is what makes the law's claim answerable.
+// The projection that answers the fixture's one key for every value does
+// not: with the whole history on a single slot, a subject that ignores
+// its key argument entirely reads back correctly every time, and
+// [legs.SpreadKey] plus the engine's own test for it is where that was
+// settled. The pool's keys, picked by the value, put two values on two
+// keys instead.
 //
 // The same restriction [valueOpField] puts on the write, and the two have
 // to agree. That arm anchors a composite write on the fixture key for
@@ -36,17 +40,8 @@ func fixedKeyProjection(
 	if b.Keys.Field == "" || b.Keys.Type == nil {
 		return nil, underivable
 	}
-	if !b.Reference.Derived() {
-		// The twin floor is where a declared claim defeated store
-		// modelling, and "what went in comes back out" IS the store model.
-		// The corpus taught this the first time this arm ran: it bound the
-		// law on the accumulates fixture, whose whole claim is that a
-		// repeated write COMPOUNDS — so the read answers a running total,
-		// the law compared it against the last value written, and a correct
-		// subject failed at step one.
-		return nil, f.Name + " would project every value onto the fixture key, " +
-			"and the reference here is the subject's own factory — so a claim on " +
-			"this interface has already defeated the store model this law is"
+	if why := spreadDecline(b); why != "" {
+		return nil, f.Name + " " + why
 	}
 	role, reason := ruleFieldRole(b, harness, r, fWrite, m, keyed)
 	if reason != "" {
@@ -57,9 +52,54 @@ func fixedKeyProjection(
 	}
 	field.Key = b.Keys.Type
 	field.KeyField = b.Keys.Field
-	field.KindName = sdk.Kind(LawFieldKindPrefix + "KeyOfFixed")
+	field.KeyOtherField = b.Keys.OtherField
+	field.KeyPoolField = b.Keys.PoolField
+	field.KindName = sdk.Kind(LawFieldKindPrefix + "KeyOfSpread")
 	b.LawsUseFixture = true
 	return field, ""
+}
+
+// spreadDecline is why this run cannot pick a law's write key from the
+// pool by the value, empty where it can.
+//
+// Asked by both halves of the binding, which is the point. The write and
+// the projection have to name the same key — a write anchored on one key
+// under a projection that answers another reads a key nothing was
+// written to, and calls a correct subject wrong — so neither arm decides
+// on its own.
+func spreadDecline(b *Bindings) string {
+	if b.Keys.OtherField == "" && b.Keys.PoolField == "" {
+		// One key is the collapsed case: every value goes to it, so the
+		// law never places two values apart, and a subject that ignores
+		// its key argument entirely reads back correctly every time. See
+		// [legs.SpreadKey], and the engine's own test for the shape.
+		return "would answer the fixture's one key for every value, and this " +
+			"claim is that a value is readable under the key it went to — with " +
+			"one key there is no other key it could have gone to"
+	}
+	if m := methodNamed(b, b.EvictingRead); b.EvictingRead != "" && m != nil {
+		// Spreading the writes over the pool is what makes the claim
+		// answerable, and on a store that evicts it is also what makes the
+		// law wrong: the second write can drop the first, and a read that
+		// then misses is the store keeping its own promise rather than a
+		// value going to the wrong key.
+		return "spreads the writes across the key pool so the key half of this " +
+			"claim is reachable, and " + m.Name + " may evict what an earlier write " +
+			"left — the read that then misses is the store's own rule, not a divergence"
+	}
+	if !b.Reference.Derived() {
+		// The twin floor is where a declared claim defeated store
+		// modelling, and "what went in comes back out" IS the store model.
+		// The corpus taught this the first time this arm ran: it bound the
+		// law on the accumulates fixture, whose whole claim is that a
+		// repeated write COMPOUNDS — so the read answers a running total,
+		// the law compared it against the last value written, and a correct
+		// subject failed at step one.
+		return "would place the run's values across the key pool, and the " +
+			"reference here is the subject's own factory — so a claim on this " +
+			"interface has already defeated the store model this law is"
+	}
+	return ""
 }
 
 // handleFieldOf fills a handle the generated file constructs and shares.

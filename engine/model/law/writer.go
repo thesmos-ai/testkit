@@ -80,6 +80,20 @@ func (l IdempotentWrite[T, V, Obs]) Check(rt *rapid.T, sut, ref T) error {
 // KeyOf extracts the lookup key from the written value; Read fetches
 // it back. A write that is silently dropped, or a read that returns
 // a divergent value, fails the law.
+//
+// Two values per check, and the second one is what makes the key half
+// of the claim answerable. A single write read straight back is
+// satisfied by a subject that ignores its key argument and keeps one
+// slot: the value it just stored is the value it hands back, whatever
+// it was asked for. Writing twice before reading either separates the
+// two, so a one-slot subject has overwritten the first value by the
+// time it is asked for it.
+//
+// Where KeyOf answers the same key for both, the second write did
+// overwrite the first and only the second is asked about. A projection
+// that collides for EVERY pair therefore checks nothing about keys,
+// which is a fact about the binding rather than about the subject —
+// the generator declines to bind one.
 type WriteObservable[T any, V any, K comparable] struct {
 	Write  func(*rapid.T, T, V) error
 	Read   func(*rapid.T, T, K) (V, error)
@@ -93,10 +107,14 @@ func (WriteObservable[T, V, K]) ID() string { return lawid.WriteObservable }
 // REQID returns an empty string (auto-derived laws have no REQ tag).
 func (WriteObservable[T, V, K]) REQID() string { return "" }
 
-// Check writes a value and verifies the paired reader returns it
-// under the value's key.
+// Check writes two values and verifies the paired reader returns each
+// under its own key.
 //
-// The write lands on both sides. The runner interleaves laws with a
+// Both writes land before either read, for the reason the type's
+// docblock gives: read immediately, a write is observable on a subject
+// that never looked at the key.
+//
+// Both land on both sides too. The runner interleaves laws with a
 // differential action stream over one shared (sut, ref) pair, so a
 // write that reached only the subject would surface as the next
 // action's false divergence — a failure naming the subject for a
@@ -104,13 +122,41 @@ func (WriteObservable[T, V, K]) REQID() string { return "" }
 // the interleaved run must preserve: both sides have seen the same
 // call sequence.
 func (l WriteObservable[T, V, K]) Check(rt *rapid.T, sut, ref T) error {
-	v := l.Values.Draw(rt, "WriteObservable_value")
+	first := l.Values.Draw(rt, "WriteObservable_value")
+	second := l.Values.Draw(rt, "WriteObservable_second")
+
+	if err := l.land(rt, sut, ref, first); err != nil {
+		return err
+	}
+	if err := l.land(rt, sut, ref, second); err != nil {
+		return err
+	}
+	if err := l.observable(rt, sut, second); err != nil {
+		return err
+	}
+	if l.KeyOf(first) == l.KeyOf(second) {
+		// One key took both, so the first value is gone by the rules of
+		// the store rather than by any fault of the subject.
+		return nil
+	}
+	return l.observable(rt, sut, first)
+}
+
+// land writes one value to the subject and mirrors it to the reference.
+//
+// A subject that refuses makes the whole check vacuous rather than
+// failed: the value was this run's own precondition, and a refusal is
+// the subject declining to be asked.
+func (l WriteObservable[T, V, K]) land(rt *rapid.T, sut, ref T, v V) error {
 	if err := l.Write(rt, sut, v); err != nil {
 		return Vacuous // a precondition this run supplies was refused
 	}
-	if err := mirror("WriteObservable", func() error { return l.Write(rt, ref, v) }); err != nil {
-		return err
-	}
+	return mirror("WriteObservable", func() error { return l.Write(rt, ref, v) })
+}
+
+// observable reads one value back under its own key and holds the answer
+// to it.
+func (l WriteObservable[T, V, K]) observable(rt *rapid.T, sut T, v V) error {
 	got, err := l.Read(rt, sut, l.KeyOf(v))
 	if err != nil {
 		return fmt.Errorf("WriteObservable: value %v: not observable via read: %v", v, err)

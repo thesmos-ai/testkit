@@ -72,9 +72,10 @@ import (
 var _ = suite.CompatV2
 
 // LeasedWriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type LeasedWriterFixture struct {
 	key      string
 	keyOther string
@@ -886,10 +887,11 @@ func GreenLeasedWriter(
 //   AUTO-LEASE-DOUBLE-ACQUIRE-BLOCKS — instantiates at a key type no method here draws
 //   AUTO-LEASE-RELEASED-ON-CANCEL — instantiates at a key type no method here draws
 //   leased-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance f2910ebf8a4e3b4b23f694a0a5f783125fae8989fec96fd7351f82f38b136d4d
+// testkit:provenance effcd626f341e458ada953941f8472e238404d1117b56ec98bc496ea3f47886c

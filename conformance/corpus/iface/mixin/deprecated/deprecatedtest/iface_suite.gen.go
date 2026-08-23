@@ -80,9 +80,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	key      string
 	keyOther string
@@ -1043,19 +1044,19 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Old (reader), New (reader)
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1107,4 +1108,4 @@ func mixedAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance d9ed623c0a0b72ae58453a002e87f5bef372ac5b548800ff66ea672792e30aa3
+// testkit:provenance 307ef9fab4a8b657f8a4fe59d4060fad091b6730fb2f4ed23ce5c7b82f7d4c10

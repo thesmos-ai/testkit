@@ -5,7 +5,7 @@ an observation, and a pair that stores alike must answer alike.
 */ -}}
 {{- define "model.action.answeringwriter" -}}
 {{ renderExpr .Ctor }}({{ printf "%q" .Method }}, {{ .Pool }},
-				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) ({{ renderType .Value }}, error) {
-					return s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}v)
+				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, {{ .Drawn }} {{ renderType .Value }}) ({{ renderType .Value }}, error) {
+					return s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}{{ .Drawn }})
 				})
 {{- end -}}

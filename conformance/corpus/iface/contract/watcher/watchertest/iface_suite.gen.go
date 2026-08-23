@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	key        string
 	keyOther   string
@@ -464,7 +465,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertTriggerHonoursDeadline(tb, c, fx)
 			}).At(suite.StrengthErrorOnly),
 		argued(ix.Watch.Miss(), suite.ClassReader,
-			"Watch reports zero for a key nothing has written",
+			"Watch answers no value for a key nothing has written",
 			"the answers-with-value defect has to answer a live value and no sample of this method's result could be derived, so this run plants no evidence for the claim",
 			func(tb testing.TB, c Contract) {
 				contractAssertWatchMiss(tb, c, fx)
@@ -592,13 +593,19 @@ func contractAssertTriggerHonoursDeadline(
 	})
 }
 
-// contractAssertWatchMiss asserts Watch reports zero for a key nothing has written.
+// contractAssertWatchMiss asserts Watch answers no value for a key nothing has written.
 func contractAssertWatchMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Watch answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.Watch(ctx, fx.KeyOther())
@@ -1023,20 +1030,20 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read closes over Watch, which reads (string → go.thesmos.sh/testkit/conformance/corpus/iface/contract/watcher.Subscription) beside pools of (string, go.thesmos.sh/testkit/conformance/corpus/iface/contract/watcher.Value)
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule holds an acknowledged write to a later read, and this interface presents no keyed write to acknowledge one
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1119,4 +1126,4 @@ func contractAssertWatcherReturnsOnChange(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 406d034f22a3452f0c2584dcf54a5b237e7b28b4fa7c80e7633ab434d9d6a0fd
+// testkit:provenance cbc70e1d1eca8fa18a17e022c1a52540ac346ade6306422469f0e517285f4ec4

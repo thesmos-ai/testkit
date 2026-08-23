@@ -69,9 +69,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 }
 
@@ -924,11 +925,13 @@ func contractAssertRespectsContext(
 				Op: func(ctx context.Context, s leaderelection.Contract) error {
 					return s.Campaign(ctx)
 				},
+				Name: "Campaign",
 			},
 			law.LifecycleRespectsContext[leaderelection.Contract]{
 				Op: func(ctx context.Context, s leaderelection.Contract) error {
 					return s.Resign(ctx)
 				},
+				Name: "Resign",
 			},
 		})
 }
@@ -942,4 +945,4 @@ func contractAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 2b4a88c6a1ebdb4a5bf938b1cf572dd6f96bed6578e9fcbc46b52398664a33cc
+// testkit:provenance 151ff6d1d1d7404e8a56421ffdc0f7b47e20cfdca64e898579edcf1bd3b1e2f6

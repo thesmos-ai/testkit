@@ -60,9 +60,10 @@ import (
 var _ = suite.CompatV2
 
 // CompositeWriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type CompositeWriterFixture struct {
 	key        string
 	keyOther   string
@@ -702,10 +703,11 @@ func GreenCompositeWriter(
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
 //   composite-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule writes a record and reads it back after a rebuild, and this interface presents neither a keyed read nor a keyed write
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 5f96eeac14d1731365b880d2eccee777b330cd5999a20a0278496d4e2af6904b
+// testkit:provenance f41e765cf8bdf8415ddcf0f615f48801d34ee05b6bd897e29895129f76130e84

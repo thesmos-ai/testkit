@@ -12,6 +12,7 @@ import (
 	sdkgolang "go.thesmos.sh/eidos/sdk/golang"
 
 	"go.thesmos.sh/testkit/core/lawid"
+	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
@@ -189,6 +190,9 @@ const (
 	shapeWriter          = "writer"
 	shapeAnsweringWriter = "answeringwriter"
 	shapeAggregator      = "aggregator"
+	shapeMultiAggregator = "multiaggregator"
+	shapeMultiArgWriter  = "multiargwriter"
+	shapeMutator         = "mutator"
 	shapeMultiReader     = "multireader"
 	shapeBatchReader     = "batchreader"
 	shapeReaderWithBool  = "readerwithbool"
@@ -447,6 +451,11 @@ type Bindings struct {
 	// shape can carry either claim without the other, and reading one off
 	// the other would tie both to whichever refused first.
 	SimReader, SimWriter *Action
+
+	// SimUnpaired is why no pair was found, empty where one was. The
+	// header states it for an interface that writes, because a claim
+	// declined in silence reads exactly like one nobody considered.
+	SimUnpaired string
 
 	// FaultSym is the sentinel the crash schedule induces the writer to
 	// fail with, nil where the declaration names none — see [faultSymOf].
@@ -852,6 +861,27 @@ func (b *Bindings) ActionsUseKeys() bool {
 		}
 	}
 	return false
+}
+
+// KeysReachAWrite reports that something drawing from the keys pool goes
+// on to write, which is what the pool's own docblock turns on: with a
+// writer in the run, two keys are what make a read revisit a write and an
+// overwrite land on held state. With none, that sentence describes a
+// history the interface cannot have — the detector fixtures whose only
+// method is a lookup were carrying it.
+func (b *Bindings) KeysReachAWrite() bool {
+	for _, a := range b.Actions {
+		switch a.Shape {
+		case shapeWriter, shapeAnsweringWriter, shapeCompositeWriter,
+			shapeMultiArgWriter, shapeMutator:
+			return true
+		}
+		contract, role, split := strings.Cut(a.Shape, ".")
+		if split && tiers.ContractRoleWrites(contract, role) {
+			return true
+		}
+	}
+	return b.Delivery != nil
 }
 
 // NeedsKeysPool and NeedsValuesPool report whether the pool's constructor

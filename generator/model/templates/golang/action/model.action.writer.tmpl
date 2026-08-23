@@ -9,7 +9,7 @@ membership check is indifferent to and a count is not.
 */ -}}
 {{- define "model.action.writer" -}}
 {{ renderExpr .Ctor }}({{ printf "%q" .Method }}, {{ .Pool }},{{ if .Records }} appendHist,{{ if .Partitioned }} func({{ renderType .Value }}) string { return "" },{{ end }}{{ end }}
-				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) error {
-					return s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}v)
+				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, {{ .Drawn }} {{ renderType .Value }}) error {
+					return s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}{{ .Drawn }})
 				})
 {{- end -}}

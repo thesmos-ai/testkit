@@ -1,0 +1,10 @@
+{{- /*
+The name of the method a sibling role field calls, as a literal.
+
+For a law an interface registers once per method under one row: the
+identifier and the claim belong to the law, so the method is the only
+thing left that can tell one probe from another in a failure.
+*/ -}}
+{{- define "model.lawfield.MethodName" -}}
+{{ .Name }}: {{ printf "%q" .Method }}
+{{- end -}}

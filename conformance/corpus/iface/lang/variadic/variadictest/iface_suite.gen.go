@@ -74,9 +74,10 @@ import (
 var _ = suite.CompatV2
 
 // FinderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type FinderFixture struct {
 	keys       string
 	keysOther  string
@@ -946,4 +947,4 @@ func GreenFinder(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 48a93ef03b6e5739257a3c97a58cb0e30776d6e173fa707bda2985ed50a60591
+// testkit:provenance 2ff11900d355ffc01b488cbed0f4deddb59f9e0e952c61f94975091fdd252377

@@ -20,26 +20,38 @@ generated file per interface.
 
 {{- if .NeedsKeysPool }}
 
-// {{ .KeysFuncName }} is the key pool every key slot draws from.
+// {{ .KeysFuncName }} is the pool every key slot draws from.
+{{- if .KeysReachAWrite }}
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
+{{- else }}
+//
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
+{{- end }}
 func {{ .KeysFuncName }}(fx {{ .FixtureTypeName }}) *{{ renderExpr (external .ModelPkg "Generator") }}[{{ renderType .Keys.Type }}] {
 {{- if and .Keys.Hostile .Keys.PoolField }}
-	return {{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Keys.PoolField }}Derived(),
+	return {{ if .Keys.Identity }}{{ renderExpr (external .LegsPkg "BlendStrings") }}(fx.{{ .Keys.PoolField }}Derived(),
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}()),
-		{{ if .Keys.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) }{{ end }},
-	)
+	){{ else }}{{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Keys.PoolField }}Derived(),
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}()),
+		func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) },
+	){{ end }}
 {{- else if .Keys.Hostile }}
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return {{ renderExpr (external .LegsPkg "Blend") }}(true,
+	return {{ if .Keys.Identity }}{{ renderExpr (external .LegsPkg "BlendStrings") }}(true,
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{ {{ .Keys.Read }}, {{ .Keys.OtherRead }} }),
-		{{ if .Keys.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) }{{ end }},
-	)
+	){{ else }}{{ renderExpr (external .LegsPkg "Blend") }}(true,
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Keys.Type }}{ {{ .Keys.Read }}, {{ .Keys.OtherRead }} }),
+		func(s string) {{ renderType .Keys.Type }} { return {{ renderType .Keys.Type }}(s) },
+	){{ end }}
 {{- else if .Keys.PoolField }}
 	return {{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Keys.PoolField }}())
 {{- else }}
@@ -366,14 +378,18 @@ model.bodies spells the value pool's unpinned generator.
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
 		{{ renderExpr (external .ModelPkg "Make") }}[{{ renderType .Values.Type }}](),
 	)
-{{- else if and .Values.Hostile .Values.PoolField }}{{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Values.PoolField }}Derived(),
+{{- else if and .Values.Hostile .Values.PoolField }}{{ if .Values.Identity }}{{ renderExpr (external .LegsPkg "BlendStrings") }}(fx.{{ .Values.PoolField }}Derived(),
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}()),
-		{{ if .Values.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) }{{ end }},
-	)
-{{- else if .Values.Hostile }}{{ renderExpr (external .LegsPkg "Blend") }}(true,
+	){{ else }}{{ renderExpr (external .LegsPkg "Blend") }}(fx.{{ .Values.PoolField }}Derived(),
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}()),
+		func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) },
+	){{ end }}
+{{- else if .Values.Hostile }}{{ if .Values.Identity }}{{ renderExpr (external .LegsPkg "BlendStrings") }}(true,
 		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
-		{{ if .Values.Identity }}func(s string) string { return s }{{ else }}func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) }{{ end }},
-	)
+	){{ else }}{{ renderExpr (external .LegsPkg "Blend") }}(true,
+		{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} }),
+		func(s string) {{ renderType .Values.Type }} { return {{ renderType .Values.Type }}(s) },
+	){{ end }}
 {{- else if .Values.PoolField }}{{ renderExpr (external .ModelPkg "SampledFrom") }}(fx.{{ .Values.PoolField }}())
 {{- else }}{{ renderExpr (external .ModelPkg "SampledFrom") }}([]{{ renderType .Values.Type }}{ {{ .Values.Read }}, {{ .Values.OtherRead }} })
 {{- end -}}

@@ -136,6 +136,39 @@ var contractOptionalRoles = map[string]bool{
 	contractPublisher + "." + roleRedeliver: true,
 }
 
+// ContractRoleWrites reports a role whose call puts state in — the roles
+// a run's history is made of, as opposed to the ones that observe it.
+//
+// A separate question from whether the role is spelled "writer", which is
+// why a table rather than a suffix: a transaction's begin opens the write
+// its terminal pair commits, and a pool's get takes a value out that its
+// partner puts back.
+//
+// Two callers ask, and they ask for different reasons. The pool docblocks
+// need to know whether the run writes at all, because the sentence about
+// collision density describes a history an interface with no writer
+// cannot have. The differential's defect rule needs somewhere to plant a
+// dropped write, and additionally requires the contract to carry a store
+// row — a reference that models nothing has nothing to still be holding.
+//
+// A publisher's publish is absent on purpose. It is driven by the
+// delivery set rather than by an action of its own, and [writerCarrier]
+// finds it through that.
+func ContractRoleWrites(contract, role string) bool {
+	return contractWritingRoles[contract+"."+role]
+}
+
+//nolint:gochecknoglobals // a lookup table, read-only after init.
+var contractWritingRoles = map[string]bool{
+	contractCAS + "." + roleWriter:      true,
+	contractChain + "." + roleAppend:    true,
+	contractLease + "." + roleAcquire:   true,
+	contractUpserter + "." + roleWriter: true,
+	contractUpdater + "." + roleWriter:  true,
+	contractTx + "." + roleBegin:        true,
+	contractPool + "." + roleGet:        true,
+}
+
 // ContractsWithStores returns every contract carrying a store row, sorted,
 // for the censuses.
 func ContractsWithStores() []string {
@@ -230,9 +263,14 @@ var (
 			// the laws that read it are its own.
 		},
 		contractCAS: {
-			Store:        "VersionedCell",
-			TypeArgRole:  roleWriter,
-			VersionParam: "version",
+			Store:       "VersionedCell",
+			TypeArgRole: roleWriter,
+			// A cell holds one value and is keyed by nothing, so the
+			// writer's argument is the payload. Drawn as a key it reached
+			// the right slot anyway, and every sentence the run wrote about
+			// that pool then called a cas.Value a key.
+			TypeArgIsValue: true,
+			VersionParam:   "version",
 			Errs: []ContractErr{
 				{
 					Suffix: "Mismatch", Msg: "the write's version is stale",

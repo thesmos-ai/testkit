@@ -60,9 +60,10 @@ import (
 var _ = suite.CompatV2
 
 // BaseFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type BaseFixture struct {
 }
 
@@ -663,9 +664,10 @@ func GreenBase(
 var _ = suite.CompatV2
 
 // CloserFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type CloserFixture struct {
 }
 
@@ -1281,9 +1283,10 @@ func GreenCloser(
 var _ = suite.CompatV2
 
 // ComposedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ComposedFixture struct {
 	key      string
 	keyOther string
@@ -2161,4 +2164,4 @@ func GreenComposed(
 }
 
 // testkit: end of generated content.
-// testkit:provenance b549991b618ee566928d13180cee670178e7df15b2337d21f1f810ddff211102
+// testkit:provenance 5e3a832e89b208f38fbf3003f8d10157b757c527e94d8e2ab7635851e13413b3

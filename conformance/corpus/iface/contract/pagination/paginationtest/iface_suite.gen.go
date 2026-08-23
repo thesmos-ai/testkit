@@ -74,9 +74,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	cursor      pagination.Cursor
 	cursorOther pagination.Cursor
@@ -469,7 +470,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertPutHonoursDeadline(tb, c, fx)
 			}).At(suite.StrengthErrorOnly),
 		sig(ix.Page.Miss(), suite.ClassReader,
-			"Page reports zero for a cursor nothing has written",
+			"Page answers no value for a cursor nothing has written",
 			func(tb testing.TB, c Contract) {
 				contractAssertPageMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
@@ -604,13 +605,19 @@ func contractAssertPutHonoursDeadline(
 	})
 }
 
-// contractAssertPageMiss asserts Page reports zero for a cursor nothing has written.
+// contractAssertPageMiss asserts Page answers no value for a cursor nothing has written.
 func contractAssertPageMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Page answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, got2, got3, err := c.Page(ctx, fx.CursorOther())
@@ -1072,6 +1079,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // contractModelValues is the value pool every value slot draws from.
 //
@@ -1172,4 +1180,4 @@ func contractAssertPaginatorResumable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 71f4f2055bb74976d0d724a33250bee9cef8e2a2d79defe72f90f62ed5f77d4e
+// testkit:provenance 9f2090f1841a4cb9604d8b5458f56296b373ba2e285ea2307c93e576a8e67531

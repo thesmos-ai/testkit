@@ -1,7 +1,7 @@
 testkit-checks v2
 Match/cancel	signature/cancel	Match reports a cancelled context as cancelled	
 Match/deadline	signature/deadline	Match reports an expired deadline as exceeded	
-Match/miss	mixin/reader	Match reports zero for a value nothing has written	
+Match/miss	mixin/reader	Match answers no value for a value nothing has written	
 Match/nilcontext	signature/nilcontext	Match returns an error rather than panicking on a nil context	
 Match/smoke	signature/smoke	Match survives a call with a derived value	
 Match/zero-on-error	signature/zero-on-error	Match returns zero alongside any error	

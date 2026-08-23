@@ -192,6 +192,18 @@ const (
 	// regardless; without it the law does not bind until a consumer supplies
 	// one, and reports as a skip naming the option rather than as silence.
 	KindSupplied FieldKind = "supplied"
+
+	// KindMethodName is the name of the method a sibling role field calls,
+	// rendered as a string literal. From names that sibling.
+	//
+	// For a law an interface registers once per method under one row: the
+	// identifier and the claim are the law's, so a failure that did not
+	// carry the method could not say which of them broke. A kind rather
+	// than a second struct field smuggled out of the role's own template,
+	// which is what this was first — and which the manifest census caught,
+	// correctly: a field the manifest does not name is one nothing can
+	// account for.
+	KindMethodName FieldKind = "method-name"
 )
 
 // Select returns every law the given classifications and parameters earn.

@@ -81,9 +81,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	in      string
 	inOther string
@@ -844,19 +845,19 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           AUTO-PURE-DETERMINISTIC — Call closes over Normalize, which is not a bare pure call
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.In(), fx.InOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -925,4 +926,4 @@ func mixedAssertTotalOver(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 5f4cb9f28f09027ffcf67062ddb2f2a26ff6263a680551cd2ffafa2a85085e72
+// testkit:provenance ad9e8bcafffd73649a56814b003189bade3929bea4cc0fe798e8f2b0cddfc05e

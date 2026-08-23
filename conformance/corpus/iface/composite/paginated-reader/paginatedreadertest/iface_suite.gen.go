@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // PaginatedReaderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type PaginatedReaderFixture struct {
 	cursor      int
 	cursorOther int
@@ -840,11 +841,12 @@ func paginatedReaderModelRows(fx PaginatedReaderFixture) []suite.Check[Paginated
 //	           AUTO-PAGINATOR-NO-DUPLICATES — Page closes over Page, which answers no page — no cursor to resume from
 //	           AUTO-PAGINATOR-RESUMABLE — Page closes over Page, which answers no page — no cursor to resume from
 
-// paginatedReaderModelKeys is the key pool every key slot draws from.
+// paginatedReaderModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
 func paginatedReaderModelKeys(fx PaginatedReaderFixture) *model.Generator[int] {
 	return model.SampledFrom([]int{fx.Cursor(), fx.CursorOther()})
 }
@@ -893,4 +895,4 @@ func paginatedReaderAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance afc6e6266d28109595f17856808fb3ff8dc80edb14a5917258c1173f6b493fe2
+// testkit:provenance 8303c528e5d5c2370177848f1535388494024f7af121789336f3b6b5cb823880

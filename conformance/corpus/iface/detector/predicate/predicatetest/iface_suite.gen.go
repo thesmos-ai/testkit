@@ -63,9 +63,10 @@ import (
 var _ = suite.CompatV2
 
 // PredicateFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type PredicateFixture struct {
 }
 
@@ -704,4 +705,4 @@ func predicateAssertPredicateConsistent(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 46ff16bf0a1be39b4504172bbd2f9d4206c1e15ea7340248247fd715d2c43927
+// testkit:provenance d6c9f48cfe3baacc0473a06af4108cde03c531d83c3b802c8e841bfb6df36412

@@ -22,6 +22,7 @@ import (
 // input, or a composite write anchored on the fixture key.
 func valueOpField(
 	b *Bindings,
+	r tiers.Rule,
 	f tiers.Field,
 	field *LawField,
 	role *subject.Method,
@@ -35,9 +36,12 @@ func valueOpField(
 		}
 		return field, ""
 	case len(args) == 2 && b.UsesKeys() && b.Keys.Field != "":
-		// A composite write anchored on the fixture key: the law repeats one
-		// (key, value) pair, which is its claim restricted to a key every
-		// other draw revisits.
+		// A composite write whose key this run chooses, because the value
+		// does not carry one. Which key depends on what the law is for: a
+		// rule projecting a value back to its key needs the two to agree,
+		// so both ask [spreadDecline]. Everything else anchors on the
+		// fixture key, which is the claim restricted to a key every other
+		// draw revisits.
 		q, _ := b.keyQOf(role)
 		if q != "" && b.Keys.Q != "" && q != b.Keys.Q {
 			return nil, f.Name + " closes over " + role.Name +
@@ -49,12 +53,29 @@ func valueOpField(
 		field.In = args[1].Type
 		field.KeyField = b.Keys.Field
 		field.KindName = sdk.Kind(LawFieldKindPrefix + "WriteFixedKey")
+		if projectsKeys(r) && spreadDecline(b) == "" {
+			field.KeyOtherField = b.Keys.OtherField
+			field.KeyPoolField = b.Keys.PoolField
+			field.KindName = sdk.Kind(LawFieldKindPrefix + "WriteSpreadKey")
+		}
 		b.LawsUseFixture = true
 		return field, ""
 	default:
 		return nil, f.Name + " closes over " + role.Name +
 			", which takes several inputs no single-value closure composes"
 	}
+}
+
+// projectsKeys reports that the rule carries a value-to-key projection,
+// which is what makes the key a write lands on answerable at all. Only
+// those rules spread; the rest have no second field to disagree with.
+func projectsKeys(r tiers.Rule) bool {
+	for _, f := range r.Fields {
+		if f.Kind == tiers.KindHandle && f.From == handleKeyProjection {
+			return true
+		}
+	}
+	return false
 }
 
 // constFieldOf fills a stamped constant: a qualified sentinel, a numeric

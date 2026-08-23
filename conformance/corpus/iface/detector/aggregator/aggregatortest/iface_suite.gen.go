@@ -68,9 +68,10 @@ import (
 var _ = suite.CompatV2
 
 // AggregatorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type AggregatorFixture struct {
 }
 
@@ -852,4 +853,4 @@ func aggregatorAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 7c3876418bfc9a66ea3ae6abe4b27a102e60cf7c07052fcc7a60cee2b1045f53
+// testkit:provenance b62cde8dcc288e5eb1c8f75b062898923af5ddd15bc4ad3c4216d13501eb6085

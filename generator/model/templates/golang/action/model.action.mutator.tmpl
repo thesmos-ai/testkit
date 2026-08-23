@@ -4,7 +4,7 @@ it may cause is what the reads and laws that follow are for.
 */ -}}
 {{- define "model.action.mutator" -}}
 {{ renderExpr .Ctor }}({{ printf "%q" .Method }}, {{ .Pool }},
-				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, v {{ renderType .Value }}) {
-					s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}v)
+				func({{ if .TakesCtx }}ctx{{ else }}_{{ end }} {{ renderExpr (external "context" "Context") }}, s {{ renderType .Iface }}, {{ .Drawn }} {{ renderType .Value }}) {
+					s.{{ .Method }}({{ if .TakesCtx }}ctx, {{ end }}{{ .Drawn }})
 				})
 {{- end -}}

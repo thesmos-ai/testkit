@@ -78,9 +78,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      saga.Value
 	valueOther saga.Value
@@ -1135,6 +1136,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // contractModelValues is the value pool every value slot draws from.
 //
@@ -1230,4 +1232,4 @@ func contractAssertSagaFullCompensation(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance cffbd5994a89b544d4b3baebf3a0c0e8d0edbb4715a36c4c54e70873b44864ff
+// testkit:provenance 90b8ff89de91faf00d7a689026fa2ca938a598653ef38769e374e822cc7aac1a

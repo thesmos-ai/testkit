@@ -65,7 +65,6 @@ import (
 //	Put/nilcontext
 //	Put/smoke
 //	model/contract/AUTO-CAS-ATOMIC-ONE-WINNER
-//	model/contract/AUTO-COUNT-EQUALS-REFERENCE
 //	model/contract/AUTO-LINEARIZABLE
 //	model/contract/differential
 //
@@ -77,9 +76,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      cas.Value
 	valueOther cas.Value
@@ -270,7 +270,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Model.Agrees():             "ContractSuite.Checks.Model.Agrees()",
 	contractCheckIndex.Model.Linearizable():       "ContractSuite.Checks.Model.Linearizable()",
 	contractCheckIndex.Model.CASAtomicOneWinner(): "ContractSuite.Checks.Model.CASAtomicOneWinner()",
-	contractCheckIndex.Model.Counts():             "ContractSuite.Checks.Model.Counts()",
 }
 
 var contractDropHint = suite.DropHinter(
@@ -383,16 +382,11 @@ func (contractModelChecks) CASAtomicOneWinner() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CASAtomicOneWinner)
 }
 
-func (contractModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CountEqualsReference)
-}
-
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
 		contractModelChecks{}.Agrees(),
 		contractModelChecks{}.Linearizable(),
 		contractModelChecks{}.CASAtomicOneWinner(),
-		contractModelChecks{}.Counts(),
 	}
 }
 
@@ -651,6 +645,12 @@ type ContractCheck struct {
 	//
 	// Requires Method, like Run.
 	Prop func(rt *PropT, s Contract, fx ContractFixture)
+
+	// PropPut is Prop with Put's own argument already drawn
+	// from the pool the generated checks draw it from — so an override you
+	// set on the run reaches your property too. Fixes the check's scope to
+	// Put, so leave Method empty.
+	PropPut func(rt *PropT, s Contract, value cas.Value)
 }
 
 // contractMethods is the interface's method names — see
@@ -669,13 +669,21 @@ func (c ContractCheck) bind(
 		Class: c.Class, Needs: c.Needs,
 		Proven: c.ProvenBy != nil, ProvenReason: c.ProvenReason, Argued: c.Argued,
 	}, fx, contractMethods)
-	b.Offers("Prop")
+	b.Offers("Prop, PropPut")
 	if fn := c.Prop; fn != nil {
 		b.ScopedWith("Prop", c.Method, func(tb testing.TB, sub suite.Subject[Contract]) {
 			model.Check(tb, func(rt *PropT) {
 				fn(rt, sub.New(tb), fx)
 			})
 		})
+	}
+	if fn := c.PropPut; fn != nil {
+		b.Fixed(suite.MethodID(contractPut, c.Name),
+			func(tb testing.TB, sub suite.Subject[Contract]) {
+				model.Check(tb, func(rt *PropT) {
+					fn(rt, sub.New(tb), contractModelValues(fx).Draw(rt, "value"))
+				})
+			})
 	}
 	return b.Seal(c.Method)
 }
@@ -822,10 +830,10 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}),
-		ix.Model.Counts(): prove.One("a Contract whose Get answers zero whatever is held",
+		ix.Model.Agrees(): prove.One("a Contract whose Put reports success and keeps nothing",
 			func(tb testing.TB) Contract {
-				return NewContractStub(tb, WithContractGet(
-					func(_ context.Context) (r0 cas.Value, err error) {
+				return NewContractStub(tb, WithContractPut(
+					func(_ context.Context, _ cas.Value) (err error) {
 						// The call arrives and nothing is done with it; the bare
 						// return answers every slot's zero, which for the error
 						// slot is the nil this claim forbids.
@@ -966,7 +974,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			ID:          contractCheckIndex.Model.Agrees(),
 			Class:       suite.ClassDifferential,
 			Claim:       "every operation sequence leaves the subject agreeing with the reference",
-			Falsifiable: suite.Argued("a rule for this claim exists and this declaration does not supply what it needs: the method it plants through, the stamp it reads, or a derived reference for the defect to be right about everything else"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertAgrees(tb, sub, fx)
@@ -995,19 +1003,6 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertCASAtomicOneWinner(tb, sub, fx)
 			},
 		},
-		{
-			ID:    contractCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthDifferential,
-			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
-				contractAssertCounts(tb, sub, fx)
-			},
-		},
 	}
 }
 
@@ -1020,16 +1015,23 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Reference: derived — the VersionedCell oracle, which is the
 //	           cas contract's own semantics; NewContractModelReference replaces it
 //	Sequences: Put (cas.writer), Get (aggregator)
+//	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
+//	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
+//	           AUTO-COUNT-EQUALS-REFERENCE — this counts, and Get answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelValues is the value pool every value slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
-func contractModelKeys(fx ContractFixture) *model.Generator[cas.Value] {
-	return model.SampledFrom([]cas.Value{fx.Value(), fx.ValueOther()})
+// The fixture pair blended with arbitrary draws: the pair keeps identical
+// rewrites frequent, the wide arm reaches values no fixture spells, and
+// nothing in the claims licenses refusing either.
+func contractModelValues(fx ContractFixture) *model.Generator[cas.Value] {
+	bodies := model.OneOf(
+		model.SampledFrom([]cas.Value{fx.Value(), fx.ValueOther()}),
+		model.Make[cas.Value](),
+	)
+	return bodies
 }
 
 // contractModelVersionOf projects a value's version — the one
@@ -1077,9 +1079,9 @@ func (r *contractModelReference) Get(ctx context.Context) (cas.Value, error) {
 // action, and shrink a failing sequence to the shortest one that still
 // fails.
 func contractModelActions(fx ContractFixture) []model.Action[Contract] {
-	keys := contractModelKeys(fx)
+	values := contractModelValues(fx)
 	out := []model.Action[Contract]{
-		action.CompareAndSwap("Put", keys,
+		action.CompareAndSwap("Put", values,
 			func(ctx context.Context, s cas.Contract, v cas.Value) error {
 				return s.Put(ctx, v)
 			}),
@@ -1124,7 +1126,7 @@ func contractAssertLinearizable(
 	fx ContractFixture,
 ) {
 	tb.Helper()
-	keys := contractModelKeys(fx)
+	values := contractModelValues(fx)
 	legs.Concurrent(tb, sub,
 		NewContractModelReference,
 		model.ConcurrentConfig[Contract]{
@@ -1138,7 +1140,7 @@ func contractAssertLinearizable(
 					func(ctx context.Context, s cas.Contract) (cas.Value, error) {
 						return s.Get(ctx)
 					}),
-				linearize.ConcurrentCAS(linearize.OpCAS, keys,
+				linearize.ConcurrentCAS(linearize.OpCAS, values,
 					func(ctx context.Context, s cas.Contract, v cas.Value) error {
 						return s.Put(ctx, v)
 					}),
@@ -1188,31 +1190,6 @@ func contractAssertCASAtomicOneWinner(
 		})
 }
 
-// contractAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle — see [legs.Law]
-// for why the differential is off on every law leg.
-func contractAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Contract],
-	fx ContractFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Contract { return sub.New(tb) }, buildRef,
-		contractModelActions(fx),
-		[]law.Law[Contract]{
-			law.CountEqualsReference[cas.Contract, cas.Value]{
-				Count: func(rt *model.T, s cas.Contract) (cas.Value, error) {
-					return s.Get(rt.Context())
-				},
-			},
-		})
-}
-
 // PropT is the property state a Prop body receives: the run's
 // draws, and the failure reporting that shrinks a counterexample.
 //
@@ -1222,4 +1199,4 @@ func contractAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance ec7717adb06d4c949db0551c2e5e4e14bbb936164248f0c24ce3c30f1ac92b23
+// testkit:provenance 9d51a53a82f368cba7f6a080d27f52a4a9ac4ef1577b933998c345a0146974df

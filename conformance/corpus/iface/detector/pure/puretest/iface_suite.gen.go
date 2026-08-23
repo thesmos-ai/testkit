@@ -63,9 +63,10 @@ import (
 var _ = suite.CompatV2
 
 // PureFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type PureFixture struct {
 }
 
@@ -704,4 +705,4 @@ func pureAssertPureDeterministic(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 741d18aeedf2f815b24ae729c816ab0467a8c5635a242ec76b26f20bb87a1f8b
+// testkit:provenance 7d3af478ad2ef22b11ad584407f40d03152af38784e855a35912b36040229d90

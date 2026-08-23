@@ -46,8 +46,6 @@ import (
 //	Get.Miss — a Mixed whose Get answers for an input nothing wrote
 //
 //	Model.Agrees — a Mixed whose Get answers for a key nothing wrote
-//
-//	Model.WriteObservable — a Mixed whose Put reports success and keeps nothing
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -122,4 +120,4 @@ func TestMixedPoolProvenance(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9f5141a955c45d85fbb55c0cf451a5ede30b28f0e93da8f59ed8584ce9954ec1
+// testkit:provenance 2f1112b8b1e70a16666c8fab268a6c6882da3a267b084216b505426b89872ce4

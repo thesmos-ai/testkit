@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // LifecycleFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type LifecycleFixture struct {
 }
 
@@ -816,6 +817,7 @@ func lifecycleAssertRespectsContext(
 				Op: func(ctx context.Context, s lifecycle.Lifecycle) error {
 					return s.Close(ctx)
 				},
+				Name: "Close",
 			},
 		})
 }
@@ -829,4 +831,4 @@ func lifecycleAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance fbe4e0cb4733994667a1465ba0e86e890c34b6453483b360aac3f602219556b0
+// testkit:provenance cb04aa956cd554a6e80bb676db1e39b201fb9d20232eaa6ff5d53175fac02dab

@@ -81,9 +81,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	payload      validates.Payload
 	payloadOther validates.Payload
@@ -559,7 +560,7 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertStoreValidates(tb, m, fx)
 			}).At(suite.StrengthErrorOnly),
 		sig(ix.Read.Miss(), suite.ClassReader,
-			"Read reports zero for a key nothing has written",
+			"Read answers no value for a key nothing has written",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertReadMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
@@ -715,13 +716,19 @@ func mixedAssertStoreValidates(
 	}
 }
 
-// mixedAssertReadMiss asserts Read reports zero for a key nothing has written.
+// mixedAssertReadMiss asserts Read answers no value for a key nothing has written.
 func mixedAssertReadMiss(
 	tb testing.TB,
 	m Mixed,
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Read answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := m.Read(ctx, fx.KeyOther())
@@ -1240,19 +1247,18 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Not driven:
 //	           Validate — the validates.fn partner — a validator, whose call proves nothing its smoke check does not
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1454,4 +1460,4 @@ func mixedAssertWriteObservable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 1f3f0f6c1b223576b07e264092e7730b12e3812195d8cac0380a5414a933c6ef
+// testkit:provenance aad88eff4ae0c40bad08fd5ff1a3ab77789d7929f26e3b80cac4555c6f2dc0dc

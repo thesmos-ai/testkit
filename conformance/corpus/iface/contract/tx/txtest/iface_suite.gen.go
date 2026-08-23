@@ -76,7 +76,6 @@ import (
 //	Rollback/deadline
 //	Rollback/nilcontext
 //	Rollback/smoke
-//	model/contract/AUTO-COUNT-EQUALS-REFERENCE
 //	model/contract/AUTO-TRANSACTION-NO-MID-TX-VISIBILITY
 //	model/contract/AUTO-TWO-PHASE-MUTEX
 //	model/contract/AUTO-TWO-PHASE-ROLLBACK-AFTER-COMMIT
@@ -89,9 +88,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	tx         tx.Tx
 	txOther    tx.Tx
@@ -317,7 +317,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Get.Deadline():                       "ContractSuite.Checks.Get.Deadline()",
 	contractCheckIndex.Get.ZeroOnError():                    "ContractSuite.Checks.Get.ZeroOnError()",
 	contractCheckIndex.Get.Miss():                           "ContractSuite.Checks.Get.Miss()",
-	contractCheckIndex.Model.Counts():                       "ContractSuite.Checks.Model.Counts()",
 	contractCheckIndex.Model.TransactionNoMidTxVisibility(): "ContractSuite.Checks.Model.TransactionNoMidTxVisibility()",
 	contractCheckIndex.Model.TwoPhaseMutex():                "ContractSuite.Checks.Model.TwoPhaseMutex()",
 	contractCheckIndex.Model.TwoPhaseRollbackAfterCommit():  "ContractSuite.Checks.Model.TwoPhaseRollbackAfterCommit()",
@@ -524,10 +523,6 @@ func (contractGetChecks) All() []suite.ID {
 
 type contractModelChecks struct{}
 
-func (contractModelChecks) Counts() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.CountEqualsReference)
-}
-
 func (contractModelChecks) TransactionNoMidTxVisibility() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.TransactionNoMidTxVisibility)
 }
@@ -542,7 +537,6 @@ func (contractModelChecks) TwoPhaseRollbackAfterCommit() suite.ID {
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
-		contractModelChecks{}.Counts(),
 		contractModelChecks{}.TransactionNoMidTxVisibility(),
 		contractModelChecks{}.TwoPhaseMutex(),
 		contractModelChecks{}.TwoPhaseRollbackAfterCommit(),
@@ -684,7 +678,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertGetZeroOnError(tb, c, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a key nothing has written",
+			"Get answers no value for a key nothing has written",
 			func(tb testing.TB, c Contract) {
 				contractAssertGetMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
@@ -974,13 +968,19 @@ func contractAssertGetZeroOnError(
 	}
 }
 
-// contractAssertGetMiss asserts Get reports zero for a key nothing has written.
+// contractAssertGetMiss asserts Get answers no value for a key nothing has written.
 func contractAssertGetMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.Get(ctx, fx.KeyOther())
@@ -1509,19 +1509,6 @@ var _ = legs.CompatV1
 func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 	return []suite.Check[Contract]{
 		{
-			ID:    contractCheckIndex.Model.Counts(),
-			Class: suite.ClassLaws,
-			Claim: "the subject counts what the reference counts",
-			Binds: []string{
-				lawid.CountEqualsReference,
-			},
-			Falsifiable: suite.Argued("this claim compares the subject's count against the reference's, and the reference here is the subject's own factory — so a planted miscount lands on both sides and the two agree; it needs a derived reference to be wrong against"),
-			Strength:    suite.StrengthObserved,
-			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
-				contractAssertCounts(tb, sub, fx)
-			},
-		},
-		{
 			ID:    contractCheckIndex.Model.TransactionNoMidTxVisibility(),
 			Class: suite.ClassLaws,
 			Claim: "a write inside an open transaction is invisible until it commits",
@@ -1578,23 +1565,24 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	           Commit — driven through the Begin composite — a standalone terminal would operate on handles no begin minted
 //	           Rollback — driven through the Begin composite — a standalone terminal would operate on handles no begin minted
 //	Not bound:
+//	           AUTO-COUNT-EQUALS-REFERENCE — this counts, and Begin answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
 //	           AUTO-WRITE-OBSERVABLE — Read closes over Get, which reads (string → go.thesmos.sh/testkit/conformance/corpus/iface/contract/tx.Value) beside pools of (string, go.thesmos.sh/testkit/conformance/corpus/iface/contract/tx.Tx)
 //	           AUTO-WRITE-OBSERVABLE — Write closes over Put, which takes several inputs no single-value closure composes
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and the pair this interface would use is not both driven by the sequences
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1635,31 +1623,6 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 			}),
 	}
 	return out
-}
-
-// contractAssertCounts binds AUTO-COUNT-EQUALS-REFERENCE over the shared sequences.
-//
-// One law, and the run's only oracle — see [legs.Law]
-// for why the differential is off on every law leg.
-func contractAssertCounts(
-	tb testing.TB,
-	sub suite.Subject[Contract],
-	fx ContractFixture,
-) {
-	tb.Helper()
-
-	buildRef, tier := legs.Reference(tb, sub, func() Contract { return sub.New(tb) })
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Contract { return sub.New(tb) }, buildRef,
-		contractModelActions(fx),
-		[]law.Law[Contract]{
-			law.CountEqualsReference[tx.Contract, tx.Tx]{
-				Count: func(rt *model.T, s tx.Contract) (tx.Tx, error) {
-					return s.Begin(rt.Context())
-				},
-			},
-		})
 }
 
 // contractAssertTransactionNoMidTxVisibility binds AUTO-TRANSACTION-NO-MID-TX-VISIBILITY over the shared sequences.
@@ -1775,4 +1738,4 @@ func contractAssertTwoPhaseRollbackAfterCommit(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance d47e047443b13aa41ba92c84cf13108b1b54545c00aeb1c0ba9444b11573b329
+// testkit:provenance 7dc7c6b95e40cf176be6c8f8ee0603fb2617c89eac15af652d839372947c5c10

@@ -6,7 +6,7 @@ Add/smoke	signature/smoke	Add survives a call with a derived value
 At/bound	mixin/bound	At reports no element at the size Len reports	
 At/cancel	signature/cancel	At reports a cancelled context as cancelled	
 At/deadline	signature/deadline	At reports an expired deadline as exceeded	
-At/miss	mixin/reader	At reports zero for a i nothing has written	
+At/miss	mixin/reader	At answers no value for a i nothing has written	
 At/nilcontext	signature/nilcontext	At returns an error rather than panicking on a nil context	
 At/smoke	signature/smoke	At survives a call with a derived i	
 At/zero-on-error	signature/zero-on-error	At returns the zero Value alongside any error	

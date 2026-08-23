@@ -66,9 +66,10 @@ import (
 var _ = suite.CompatV2
 
 // MultiAggregatorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MultiAggregatorFixture struct {
 }
 
@@ -800,7 +801,7 @@ func multiAggregatorModelRows() []suite.Check[MultiAggregator] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Stats (multiaggregator)
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — observes through Stats, which answers several results no single-valued closure returns
+//	           AUTO-COUNT-EQUALS-REFERENCE — this counts, and Stats answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
 //
 // multiAggregatorModelActions is the operation vocabulary both legs drive.
 //
@@ -844,4 +845,4 @@ func multiAggregatorAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 1f9d5420a1e778a9e44b3ed514169d239a1451328a575e412a2bc8b0b22f7ae0
+// testkit:provenance 214a0fb8933f5290e3815c5d8820c6432f06c3c7811920fd95a24c9a8b0d4336

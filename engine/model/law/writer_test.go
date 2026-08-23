@@ -288,6 +288,10 @@ func (s *wstore) read(k string) (string, error) {
 	return v, nil
 }
 
+// wslot keeps one value and ignores the key it was handed — the subject
+// [law.WriteObservable]'s claim is about.
+type wslot struct{ held string }
+
 func TestWriteObservable(t *testing.T) {
 	t.Parallel()
 
@@ -345,6 +349,55 @@ func TestWriteObservable(t *testing.T) {
 				if _, err := ref.read(k); err != nil {
 					rt.Fatalf("the reference never saw %q: the pair has diverged", k)
 				}
+			}
+		})
+	})
+
+	t.Run("a subject that ignores its key is caught", func(t *testing.T) {
+		t.Parallel()
+		// The claim names the key, so this is the subject it is really
+		// about: one that takes the key, throws it away, and answers
+		// whatever it last stored. It passes a check that reads back
+		// immediately, because the value it just kept IS the value asked
+		// for. Two writes before either read is what separates them.
+		l := law.WriteObservable[*wslot, string, string]{
+			Write:  func(_ *rapid.T, s *wslot, v string) error { s.held = v; return nil },
+			Read:   func(_ *rapid.T, s *wslot, _ string) (string, error) { return s.held, nil },
+			Values: rapid.SampledFrom([]string{"a", "b", "c"}),
+			KeyOf:  func(v string) string { return v },
+		}
+		caught := false
+		rapid.Check(t, func(rt *rapid.T) {
+			s := &wslot{}
+			if err := l.Check(rt, s, s); err != nil {
+				caught = true
+			}
+		})
+		if !caught {
+			t.Fatal("a one-slot store passed a law whose claim names the key")
+		}
+	})
+
+	t.Run("a projection answering one key checks nothing about keys", func(t *testing.T) {
+		t.Parallel()
+		// The same subject, under a projection that answers the same key
+		// for every value. Both writes go to one key, so the first is gone
+		// by the store's own rules and the law asks only about the second
+		// — which a one-slot store answers correctly.
+		//
+		// This is the shape the generator refuses to bind, and this is why:
+		// the row would claim the key half of the claim over a binding that
+		// structurally cannot reach it.
+		l := law.WriteObservable[*wslot, string, string]{
+			Write:  func(_ *rapid.T, s *wslot, v string) error { s.held = v; return nil },
+			Read:   func(_ *rapid.T, s *wslot, _ string) (string, error) { return s.held, nil },
+			Values: rapid.SampledFrom([]string{"a", "b", "c"}),
+			KeyOf:  func(string) string { return "the one key" },
+		}
+		rapid.Check(t, func(rt *rapid.T) {
+			s := &wslot{}
+			if err := l.Check(rt, s, s); err != nil {
+				rt.Fatalf("a collapsed projection has no key claim to fail: %v", err)
 			}
 		})
 	})

@@ -81,9 +81,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	value      stableorder.Value
 	valueOther stableorder.Value
@@ -1037,12 +1038,13 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           from the pool
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	return model.SampledFrom([]string{fx.Value().Key, fx.ValueOther().Key})
 }
@@ -1206,4 +1208,4 @@ func mixedAssertStreamStableOrder(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 374b6e71cb04f48c1765f944065efbce0f08d928126a24f7b874f799db70ce6f
+// testkit:provenance 57da242936fbffb87d81d7d87b8cb230ac2e8b19c631dc45a0b30d5b774dd6af

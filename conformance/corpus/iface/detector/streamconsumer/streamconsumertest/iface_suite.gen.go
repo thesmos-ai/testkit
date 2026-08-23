@@ -66,9 +66,10 @@ import (
 var _ = suite.CompatV2
 
 // SourceFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type SourceFixture struct {
 }
 
@@ -800,7 +801,7 @@ func sourceModelRows() []suite.Check[Source] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Next (multiaggregator)
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — observes through Next, which answers several results no single-valued closure returns
+//	           AUTO-COUNT-EQUALS-REFERENCE — this counts, and Next answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
 //
 // sourceModelActions is the operation vocabulary both legs drive.
 //
@@ -878,9 +879,10 @@ type PropT = model.T
 var _ = suite.CompatV2
 
 // StreamConsumerFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StreamConsumerFixture struct {
 	source      streamconsumer.Source
 	sourceOther streamconsumer.Source
@@ -1415,4 +1417,4 @@ func GreenStreamConsumer(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 52166b6fc4cde42719a63f6e1fec507d88cb17e88463094b0aa81612e99e8bca
+// testkit:provenance 7bd9d575d12bb68b18365e2d14a046c5f63187a8544487c81a650f5c34c27ca7

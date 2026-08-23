@@ -80,9 +80,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	item      string
 	itemOther string
@@ -1041,6 +1042,7 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           mixed differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // mixedModelValues is the value pool every value slot draws from.
 //
@@ -1202,4 +1204,4 @@ func mixedAssertStreamReflectsMutations(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 97cb7f39eeafe218e5af4f25564d4d0c52c486133f962369a44b371a85a9820e
+// testkit:provenance fef56b7a2f51ef8d074c73bfe67714b0fbaebab6cb549848db565b37e135aca0

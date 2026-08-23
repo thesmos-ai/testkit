@@ -52,9 +52,10 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StoreFixture struct {
 	account      validated.Account
 	accountOther validated.Account
@@ -421,7 +422,7 @@ func storeSignatureChecks(fx StoreFixture) []suite.Check[Store] {
 				storeAssertGetZeroOnError(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a id nothing has written",
+			"Get answers no value for a id nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertGetMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
@@ -548,13 +549,19 @@ func storeAssertGetZeroOnError(
 	}
 }
 
-// storeAssertGetMiss asserts Get reports zero for a id nothing has written.
+// storeAssertGetMiss asserts Get answers no value for a id nothing has written.
 func storeAssertGetMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.Get(ctx, fx.IDOther())
@@ -914,4 +921,4 @@ func GreenStore(
 }
 
 // testkit: end of generated content.
-// testkit:provenance f724449596ceea27d95ccd1a4b947aa17d54826e0043ca0370bd03b8c60450b4
+// testkit:provenance a1c95c621168bc3bb54d96989d580ac2c026b257b9deb4767104796c4c03473f

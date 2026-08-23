@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	key      string
 	keyOther string
@@ -450,7 +451,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertStateZeroOnError(tb, c, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.State.Miss(), suite.ClassReader,
-			"State reports zero for a key nothing has written",
+			"State answers no value for a key nothing has written",
 			func(tb testing.TB, c Contract) {
 				contractAssertStateMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
@@ -577,13 +578,19 @@ func contractAssertStateZeroOnError(
 	}
 }
 
-// contractAssertStateMiss asserts State reports zero for a key nothing has written.
+// contractAssertStateMiss asserts State answers no value for a key nothing has written.
 func contractAssertStateMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// State answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.State(ctx, fx.KeyOther())
@@ -1030,23 +1037,22 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Sequences: Run (writer), State (reader)
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//	           AUTO-WRITE-OBSERVABLE — KeyOf would place the run's values across the key pool, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1134,4 +1140,4 @@ func contractAssertValidTransition(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 355e527aa488edbc0aa8e6fce3091673c35fdd3ac4ed874235008727e1204586
+// testkit:provenance b797a7608336c14f23a3ed23696bf66537d2ad455ca4fb3e5444972df4765510

@@ -60,9 +60,10 @@ import (
 var _ = suite.CompatV2
 
 // WriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type WriterFixture struct {
 	value      writer.Value
 	valueOther writer.Value
@@ -690,10 +691,11 @@ func GreenWriter(
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //   writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance e8de75c3e0ca4758f9936a9dc9c52b2559d1d7e7509200000786d3bf33b02ab1
+// testkit:provenance c6e528675474cd604e2764f636cedb8e749af2dd8fa97c51b8792b0aba650d13

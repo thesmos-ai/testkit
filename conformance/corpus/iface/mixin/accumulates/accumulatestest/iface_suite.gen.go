@@ -72,9 +72,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	key         string
 	keyOther    string
@@ -472,7 +473,7 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertAddAccumulates(tb, m, fx)
 			}).At(suite.StrengthErrorOnly),
 		sig(ix.Total.Miss(), suite.ClassReader,
-			"Total reports zero for a key nothing has written",
+			"Total answers no value for a key nothing has written",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertTotalMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
@@ -616,13 +617,19 @@ func mixedAssertAddAccumulates(
 	}
 }
 
-// mixedAssertTotalMiss asserts Total reports zero for a key nothing has written.
+// mixedAssertTotalMiss asserts Total answers no value for a key nothing has written.
 func mixedAssertTotalMiss(
 	tb testing.TB,
 	m Mixed,
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Total answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := m.Total(ctx, fx.KeyOther())
@@ -1079,21 +1086,21 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Sequences: Add (compositewriter), Total (reader)
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//	           AUTO-WRITE-OBSERVABLE — KeyOf would place the run's values across the key pool, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//	           crash recovery — the crash schedule holds an acknowledged write to a later read, and this interface presents no keyed write to acknowledge one
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1159,4 +1166,4 @@ func mixedAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 33efd9331cf72b1e41ed01262fb8c148499eee628b53999fa162b957d6c718d5
+// testkit:provenance be7de32af0fc0e59f90d010636aa13a616de4fd219f7913e6b3b4048ef466424

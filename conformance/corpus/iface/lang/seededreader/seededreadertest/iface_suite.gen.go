@@ -71,9 +71,10 @@ import (
 var _ = suite.CompatV2
 
 // CatalogFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type CatalogFixture struct {
 	key      seededreader.Key
 	keyOther seededreader.Key
@@ -723,7 +724,7 @@ func catalogSignatureChecks(fx CatalogFixture, docs CatalogCorpus) []suite.Check
 				catalogAssertLenZeroOnError(tb, c)
 			}).At(suite.StrengthObserved),
 		sig(ix.Lookup.Miss(), suite.ClassReader,
-			"Lookup reports zero for a key nothing has seeded",
+			"Lookup answers no value for a key nothing has seeded",
 			func(tb testing.TB, c Catalog) {
 				catalogAssertLookupMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
@@ -879,13 +880,19 @@ func catalogAssertLenZeroOnError(
 	}
 }
 
-// catalogAssertLookupMiss asserts Lookup reports zero for a key nothing has seeded.
+// catalogAssertLookupMiss asserts Lookup answers no value for a key nothing has seeded.
 func catalogAssertLookupMiss(
 	tb testing.TB,
 	c Catalog,
 	fx CatalogFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Lookup answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.Lookup(ctx, catalogMissKey())
@@ -1320,4 +1327,4 @@ func GreenCatalog(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 82881c79e9e0c263c4d44d95cc8aff9878b838674febbb2f05f51a2ca79c782b
+// testkit:provenance 0b4ec2171cc782c4ae1afacd416152451c86ebfc401b9459866ec578af6c8768

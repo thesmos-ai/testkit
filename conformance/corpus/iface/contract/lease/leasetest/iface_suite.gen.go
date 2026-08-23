@@ -75,9 +75,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	key      string
 	keyOther string
@@ -955,12 +956,13 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
 //	           contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
 	return model.SampledFrom([]string{fx.Key(), fx.KeyOther()})
 }
@@ -1001,12 +1003,12 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	keys := contractModelKeys(fx)
 	out := []model.Action[Contract]{
 		action.Writer("Acquire", keys,
-			func(ctx context.Context, s lease.Contract, v string) error {
-				return s.Acquire(ctx, v)
+			func(ctx context.Context, s lease.Contract, k string) error {
+				return s.Acquire(ctx, k)
 			}),
 		action.Writer("Release", keys,
-			func(ctx context.Context, s lease.Contract, v string) error {
-				return s.Release(ctx, v)
+			func(ctx context.Context, s lease.Contract, k string) error {
+				return s.Release(ctx, k)
 			}),
 	}
 	return out
@@ -1115,4 +1117,4 @@ func contractAssertReleasedOnCancel(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 7daa098b4ef26596dca9cedc2ed216338e0f55c4844ec4031c6e2c678310cd10
+// testkit:provenance ac538005d4f4c29e188f894d80465e16907d0af198c19006c1950718cb862b23

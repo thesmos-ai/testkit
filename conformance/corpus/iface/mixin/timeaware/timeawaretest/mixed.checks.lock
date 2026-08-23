@@ -1,7 +1,7 @@
 testkit-checks v2
 AgeOf/cancel	signature/cancel	AgeOf reports a cancelled context as cancelled	
 AgeOf/deadline	signature/deadline	AgeOf reports an expired deadline as exceeded	
-AgeOf/miss	mixin/reader	AgeOf reports zero for a key nothing has written	
+AgeOf/miss	mixin/reader	AgeOf answers no value for a key nothing has written	
 AgeOf/nilcontext	signature/nilcontext	AgeOf returns an error rather than panicking on a nil context	
 AgeOf/smoke	signature/smoke	AgeOf survives a call with a derived key	
 AgeOf/zero-on-error	signature/zero-on-error	AgeOf returns zero alongside any error	

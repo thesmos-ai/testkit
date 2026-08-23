@@ -62,9 +62,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      ifabsent.Value
 	valueOther ifabsent.Value
@@ -731,10 +732,11 @@ func GreenContract(
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //   contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance a25c5e5cfbae0b4815d3e5859d3adece2723ca5c797fca44003f3958e0c40f55
+// testkit:provenance 93ff3759ebb25c9022509227228d6aed6fe1d3c8520100df2c9e33d72d48b51e

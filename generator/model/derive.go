@@ -599,6 +599,7 @@ func bindingsOf(
 // legs cannot disagree about what a key is or what a write installs.
 func simOf(b *Bindings, keyed, valued *subject.Method) {
 	if keyed == nil || valued == nil {
+		b.SimUnpaired = unpairedSim(keyed, valued)
 		return
 	}
 	for _, a := range b.Actions {
@@ -614,6 +615,30 @@ func simOf(b *Bindings, keyed, valued *subject.Method) {
 		// debt nothing can collect, and a read with no write collects one
 		// nothing incurred.
 		b.SimReader, b.SimWriter = nil, nil
+		b.SimUnpaired = "the crash schedule reads back what a write acknowledged, and " +
+			"the pair this interface would use is not both driven by the sequences"
+	}
+}
+
+// unpairedSim is why no crash claim was stated, for an interface that
+// writes and therefore had one to state.
+//
+// [simOf] declines in silence otherwise, which is the one outcome its own
+// docblock rules out: a shape is classified there, and whether a leg can
+// be written over it is a second question the header's reader is owed in
+// words. A transaction whose writer takes a handle got no line at all, so
+// nothing said whether the claim had been considered.
+func unpairedSim(keyed, valued *subject.Method) string {
+	switch {
+	case keyed == nil && valued == nil:
+		return "the crash schedule writes a record and reads it back after a rebuild, " +
+			"and this interface presents neither a keyed read nor a keyed write"
+	case keyed == nil:
+		return "the crash schedule reads back what a write acknowledged, and this " +
+			"interface presents no keyed read to collect the debt with"
+	default:
+		return "the crash schedule holds an acknowledged write to a later read, and " +
+			"this interface presents no keyed write to acknowledge one"
 	}
 }
 

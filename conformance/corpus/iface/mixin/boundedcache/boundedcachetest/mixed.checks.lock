@@ -1,5 +1,5 @@
 testkit-checks v2
-Get/miss	mixin/reader	Get reports zero for a key nothing has written	
+Get/miss	mixin/reader	Get answers no value for a key nothing has written	
 Get/smoke	signature/smoke	Get survives a call with a derived key	
 Len/cancel	signature/cancel	Len reports a cancelled context as cancelled	
 Len/deadline	signature/deadline	Len reports an expired deadline as exceeded	
@@ -12,5 +12,4 @@ Put/nilcontext	signature/nilcontext	Put returns an error rather than panicking o
 Put/smoke	signature/smoke	Put survives a call with derived inputs	
 model/mixed/AUTO-AGGREGATOR-BOUNDED	model/laws	the count stays inside the declared bound	AUTO-AGGREGATOR-BOUNDED
 model/mixed/AUTO-CACHEABLE	model/laws	repeated reads of one key answer the same value	AUTO-CACHEABLE
-model/mixed/AUTO-WRITE-OBSERVABLE	model/laws	a written value is readable under the key it was written with	AUTO-WRITE-OBSERVABLE
 model/mixed/differential	model/differential	every operation sequence leaves the subject agreeing with the reference	

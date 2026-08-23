@@ -99,6 +99,21 @@ type Action struct {
 	PartnerCtx bool
 }
 
+// Drawn is the closure parameter's name: the drawn member is a key
+// where the action draws from the keys pool and a value where it does
+// not.
+//
+// One letter, and worth deriving rather than fixing at "v". A delete
+// takes a key, draws from the keys pool, and is shaped as a writer — so
+// the fixed spelling gave `func(ctx, s, v string) { return s.Delete(ctx,
+// v) }`, which reads as a store deleting by value.
+func (a *Action) Drawn() string {
+	if a.Pool == poolKeys {
+		return "k"
+	}
+	return "v"
+}
+
 // ActionPkg is the engine constructors' import path, for the option a
 // template appends beside the closure.
 func (*Action) ActionPkg() string { return actionPkg }

@@ -69,9 +69,10 @@ import (
 var _ = suite.CompatV2
 
 // StreamReaderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StreamReaderFixture struct {
 	value      streamreader.Value
 	valueOther streamreader.Value
@@ -847,6 +848,7 @@ func streamReaderModelRows(fx StreamReaderFixture) []suite.Check[StreamReader] {
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
 //	           stream-reader differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // streamReaderModelValues is the value pool every value slot draws from.
 //
@@ -963,4 +965,4 @@ func streamReaderAssertStreamReentrant(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 93e3725e9b62070bf4d8513b15aab8aa8d6ce6cab6803f3183232695ccac6e5f
+// testkit:provenance c897272540650423391f25025d58efb1da1d9573a2835fd1bd92e4e01452b661

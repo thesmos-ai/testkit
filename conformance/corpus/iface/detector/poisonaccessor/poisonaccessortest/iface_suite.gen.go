@@ -57,9 +57,10 @@ import (
 var _ = suite.CompatV2
 
 // PoisonAccessorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type PoisonAccessorFixture struct {
 }
 
@@ -579,4 +580,4 @@ func GreenPoisonAccessor(
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 1ee04490b407afa10272344b23792d846607938acbf6dd62f8f9e6ddfd4e10dd
+// testkit:provenance c45575aa95a7fd915accc4e793717011a6fed6825d3bd649fca37f33f039560a

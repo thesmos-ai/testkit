@@ -4,11 +4,14 @@
 package model
 
 import (
+	"strings"
+
 	"go.thesmos.sh/eidos/lang/golang"
 	"go.thesmos.sh/eidos/plugins/annotator/shape/mixins/lifecycleafterclose"
 	"go.thesmos.sh/eidos/plugins/annotator/shape/mixins/ttl"
 
 	"go.thesmos.sh/testkit/core/lawid"
+	"go.thesmos.sh/testkit/generator/core/tiers"
 	"go.thesmos.sh/testkit/generator/internal/projection"
 	"go.thesmos.sh/testkit/generator/internal/subject"
 	"go.thesmos.sh/testkit/generator/suite"
@@ -452,6 +455,25 @@ func writerCarrier(b *Bindings) *subject.Method {
 	for _, a := range b.Actions {
 		switch a.Shape {
 		case shapeWriter, shapeAnsweringWriter, shapeCompositeWriter:
+			return methodNamed(b, a.Method)
+		}
+	}
+	for _, a := range b.Actions {
+		// A contract role's action is shaped `<contract>.<role>`, not by
+		// the writer family, so the pass above cannot see it — which left
+		// every store-backed contract reporting that this declaration
+		// supplied no method to plant through, on declarations that supply
+		// one. The table says which roles write; see [tiers.ContractRoleWrites].
+		//
+		// And the contract has to carry a store row. The defect this rule
+		// plants reddens because the reference kept what the subject threw
+		// away, so a family riding the twin floor has nothing to notice it:
+		// both sides drop the write together.
+		contract, role, split := strings.Cut(a.Shape, ".")
+		if !split || !tiers.ContractRoleWrites(contract, role) {
+			continue
+		}
+		if _, shipped := tiers.ContractStore(contract); shipped {
 			return methodNamed(b, a.Method)
 		}
 	}

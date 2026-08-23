@@ -60,7 +60,7 @@ func roleFieldOf(
 		return field, ""
 
 	case shapeValueOp:
-		return valueOpField(b, f, field, role)
+		return valueOpField(b, r, f, field, role)
 
 	case shapeDrainSlice:
 		elem, why := drainedElem(b, role)

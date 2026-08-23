@@ -1,0 +1,14 @@
+{{- /*
+The key projection for a write that takes its key as an argument.
+
+No key rides inside such a value, so this is chosen rather than read.
+What it must not choose is one key for everything: the law's claim is
+that a value is readable under the key it went to, and a history on a
+single slot has no other key it could have gone to. legs.SpreadKey
+picks from the pool by the value, so two values land apart.
+*/ -}}
+{{- define "model.lawfield.KeyOfSpread" -}}
+{{ .Name }}: func(v {{ renderType .Value }}) {{ renderType .Key }} {
+	return {{ renderExpr (external .LegsPkg "SpreadKey") }}(v, {{ if .KeyPoolField }}fx.{{ .KeyPoolField }}(){{ else }}[]{{ renderType .Key }}{ fx.{{ .KeyField }}(), fx.{{ .KeyOtherField }}() }{{ end }})
+}
+{{- end -}}

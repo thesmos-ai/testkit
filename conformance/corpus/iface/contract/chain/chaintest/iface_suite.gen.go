@@ -84,9 +84,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	entry      chain.Entry
 	entryOther chain.Entry
@@ -949,6 +950,16 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}).Reasoned(suite.RedNilContext),
+		ix.Model.Agrees(): prove.One("a Contract whose Append reports success and keeps nothing",
+			func(tb testing.TB) Contract {
+				return NewContractStub(tb, WithContractAppend(
+					func(_ context.Context, _ chain.Entry) (err error) {
+						// The call arrives and nothing is done with it; the bare
+						// return answers every slot's zero, which for the error
+						// slot is the nil this claim forbids.
+						return
+					}))
+			}),
 		ix.Model.Counts(): prove.One("a Contract whose Replay answers zero whatever is held",
 			func(tb testing.TB) Contract {
 				return NewContractStub(tb, WithContractReplay(
@@ -1103,7 +1114,7 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 			ID:          contractCheckIndex.Model.Agrees(),
 			Class:       suite.ClassDifferential,
 			Claim:       "every operation sequence leaves the subject agreeing with the reference",
-			Falsifiable: suite.Argued("a rule for this claim exists and this declaration does not supply what it needs: the method it plants through, the stamp it reads, or a derived reference for the defect to be right about everything else"),
+			Falsifiable: suite.Proven(),
 			Strength:    suite.StrengthDifferential,
 			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
 				contractAssertAgrees(tb, sub, fx)
@@ -1201,12 +1212,13 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Sequences: Append (chain.append), Replay (collector), Verify (lifecycle)
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — Read names the reader family, and the interface has no keyed reader
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[chain.Entry] {
 	return model.SampledFrom([]chain.Entry{fx.Entry(), fx.EntryOther()})
 }
@@ -1259,8 +1271,8 @@ func contractModelActions(fx ContractFixture, appendHist *history.History[string
 	keys := contractModelKeys(fx)
 	out := []model.Action[Contract]{
 		action.ChainAppendRecording("Append", keys, appendHist, func(chain.Entry) string { return "" },
-			func(ctx context.Context, s chain.Contract, v chain.Entry) error {
-				return s.Append(ctx, v)
+			func(ctx context.Context, s chain.Contract, k chain.Entry) error {
+				return s.Append(ctx, k)
 			}),
 		action.Stream("Replay",
 			func(ctx context.Context, s chain.Contract) ([]chain.Entry, error) {
@@ -1481,6 +1493,7 @@ func contractAssertRespectsContext(
 				Op: func(ctx context.Context, s chain.Contract) error {
 					return s.Verify(ctx)
 				},
+				Name: "Verify",
 			},
 		},
 		model.WithHistoryReset[Contract](appendHist.Reset))
@@ -1525,4 +1538,4 @@ func contractAssertHashChainIntegrityVerify(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance d13d43a4fc5fed11bd1524c32533834d1ebb8581c32ec6c6123d4311e906e795
+// testkit:provenance 75686d41f0fc9433b89c5122690a58a619cfc210769d5bf9d1dfd3e61212b0b3

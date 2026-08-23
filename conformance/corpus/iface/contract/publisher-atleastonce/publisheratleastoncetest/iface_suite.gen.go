@@ -75,9 +75,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      publisheratleastonce.Value
 	valueOther publisheratleastonce.Value
@@ -1041,7 +1042,8 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	           Subscribe — answers a live handle only identity could compare
 //	Not bound:
 //	           AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//	           AUTO-COUNT-EQUALS-REFERENCE — Count observes Subscribe's result, a live handle only identity could compare
+//	           AUTO-COUNT-EQUALS-REFERENCE — this counts, and Subscribe answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // contractModelValues is the value pool every value slot draws from.
 //
@@ -1213,4 +1215,4 @@ func contractAssertAtLeastOnce(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 21f5e91c5effb8e7bc8a2bfbaf7f924b822c1ea564e4f3e3aa19f3ae8a34dad2
+// testkit:provenance d6d42449280ec247afa9bf4e8589c8d4757a1d40ab57248a5d837ba484987ee7

@@ -155,6 +155,22 @@ func lawsOf(b *Bindings, harness *subject.Projection, partners map[string]string
 	b.Unbound = kept
 }
 
+// countsANumber reports that the count field this rule fills will answer
+// a quantity.
+//
+// Two ways to be one, and the difference is where the number comes from.
+// An aggregator answers it directly, so the method's own result type is
+// the question. A collector answers a slice and the binding takes its
+// length, which is a count whatever the elements are — asking after the
+// element type there would refuse every one of them.
+//
+// Read off the carrier rather than off the rule's Needs, because a
+// collector satisfies the aggregator rule: the pseudo-shape is what the
+// field derivation looks at, so it is what this has to look at too.
+func countsANumber(m *subject.Method) bool {
+	return returnsSlice(m) || numericScalar(m)
+}
+
 // lawOf fills one rule, false where [Bindings.Unbound] records why not.
 func lawOf(
 	b *Bindings,
@@ -187,6 +203,27 @@ func lawOf(
 			Reason: "the reference is the subject's own factory, so this compares a " +
 				"count against itself; the law legs' actions already do that, and " +
 				"alone it catches nondeterminism and nothing else",
+		})
+		return nil, false
+	}
+	if r.Law == lawid.CountEqualsReference && !countsANumber(m) {
+		// The law is instantiated at whatever its carrier answers, and
+		// `comparable` lets that be a payload or a handle. Neither is a
+		// count, and a row claiming the two sides count alike over one is
+		// wrong twice: it names something the check does not do, and it
+		// compares values whose agreement is nobody's promise.
+		//
+		// The corpus is what settled the wording. Bound over a transaction
+		// contract, this called Begin on both sides and compared the
+		// handles — green only because the two subjects mint sequential
+		// identifiers in lockstep, red for any correct implementation that
+		// mints them any other way, and opening a transaction per check as
+		// it went.
+		b.Unbound = append(b.Unbound, Skip{
+			Method: r.Law,
+			Reason: "this counts, and " + m.Name + " answers something that is not a " +
+				"number; comparing what it hands back is a claim about the value " +
+				"rather than about how many, and the reference makes no such promise",
 		})
 		return nil, false
 	}

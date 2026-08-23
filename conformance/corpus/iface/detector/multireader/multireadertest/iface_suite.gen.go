@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // MultiReaderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MultiReaderFixture struct {
 	key      string
 	keyOther string
@@ -839,19 +840,19 @@ func multiReaderModelRows(fx MultiReaderFixture) []suite.Check[MultiReader] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: GetWithMeta (multireader)
 
-// multiReaderModelKeys is the key pool every key slot draws from.
+// multiReaderModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
 func multiReaderModelKeys(fx MultiReaderFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -899,4 +900,4 @@ func multiReaderAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 7741d4d6a43a713fdd653ba25b6f8bb1e28fd6d637dcc85472989035e6957eb3
+// testkit:provenance e8559e469d166acf810841eea3afe770eeaa0aef61278662d7ce9f2c0235abcc

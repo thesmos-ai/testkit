@@ -63,9 +63,10 @@
 var _ = {{ renderExpr (external $.Vocab "CompatV2") }}
 
 // {{ $.Fixture.TypeName }} holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [{{ renderExpr (external $.Vocab "Row") }}]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [{{ renderExpr (external $.Vocab "Row") }}]'s Run field.
 type {{ $.Fixture.TypeName }}{{ renderTypeParams $.TypeParams }} struct {
 {{- range $f := $.Fixture.Fields }}
 	{{ camel $f.Name }} {{ renderType $f.Type }}

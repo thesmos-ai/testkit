@@ -79,9 +79,10 @@ import (
 var _ = suite.CompatV2
 
 // CloserFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type CloserFixture struct {
 }
 
@@ -1041,6 +1042,7 @@ func closerAssertRespectsContext(
 				Op: func(ctx context.Context, s idempotentclose.Closer) error {
 					return s.Close(ctx)
 				},
+				Name: "Close",
 			},
 		})
 }
@@ -1085,4 +1087,4 @@ func closerAssertIdempotentLifecycle(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 18358b3fabf2a019ca43a5682ec68b694e0ae4cc29b04ec119bcea513df411ae
+// testkit:provenance 6f826136f6a1d98c6715f18e1bb0159a02a8e16f68bf94fd31a20ce79d490a45

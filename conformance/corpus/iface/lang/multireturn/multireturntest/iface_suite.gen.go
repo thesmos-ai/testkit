@@ -72,9 +72,10 @@ import (
 var _ = suite.CompatV2
 
 // WideFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type WideFixture struct {
 	id      string
 	idOther string
@@ -836,4 +837,4 @@ func GreenWide(
 }
 
 // testkit: end of generated content.
-// testkit:provenance da5d4e887ae11d9c1fd6bcfe6a354793530575aab50a1fd7f8bae27a5a0699ae
+// testkit:provenance c67c40a0bf9b62ab33b86836bf8cd09b364b1226678f8f6d771e775b35e2ed90

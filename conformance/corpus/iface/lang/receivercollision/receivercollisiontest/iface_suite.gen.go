@@ -68,9 +68,10 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StoreFixture struct {
 	session      receivercollision.Session
 	sessionOther receivercollision.Session
@@ -459,7 +460,7 @@ func storeSignatureChecks(fx StoreFixture) []suite.Check[Store] {
 				storeAssertTouchSmoke(tb, s, fx)
 			}).At(suite.StrengthErrorOnly),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a s nothing has written",
+			"Get answers no value for a s nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertGetMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
@@ -598,13 +599,19 @@ func storeAssertTouchSmoke(
 	})
 }
 
-// storeAssertGetMiss asserts Get reports zero for a s nothing has written.
+// storeAssertGetMiss asserts Get answers no value for a s nothing has written.
 func storeAssertGetMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.Get(ctx, fx.SOther())
@@ -971,4 +978,4 @@ func GreenStore(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8082973b09ab051347d484302d8b96f61987258445e2961de05faa7a57a840c7
+// testkit:provenance 32fdb3835a318d2cd0af1e43d8a43f6898028db76ea8f8627b7318b2d4651da4

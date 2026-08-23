@@ -81,7 +81,10 @@ func TestEveryFieldSourceIsResolvable(t *testing.T) {
 				testkit.True(t, knownParam(f.From, params, mixinParams),
 					label+" reads `"+f.From+"`, a parameter some classification declares")
 
-			case tiers.KindRole:
+			case tiers.KindRole, tiers.KindMethodName:
+				// Both resolve a role: one to call it, the other to spell
+				// its name, and a name resolved any other way could differ
+				// from the method the closure beside it actually calls.
 				testkit.True(t, knownRole(f.From, roles, mixinParams),
 					label+" calls `"+f.From+"`, a role or partner some classification declares")
 

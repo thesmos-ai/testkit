@@ -70,9 +70,10 @@ import (
 var _ = suite.CompatV2
 
 // StreamFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StreamFixture struct {
 	key      string
 	keyOther string
@@ -782,4 +783,4 @@ func GreenStream(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 61c3d5af1ed9bb0d9fd049cfd1b284b6f7440a982e8f8f18960f39d242cf31c5
+// testkit:provenance 219a55e49f38a74904e94c0b7baf4a461f36079922b76be09bf5a6e01ed1af1e

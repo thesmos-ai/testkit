@@ -59,9 +59,10 @@ import (
 var _ = suite.CompatV2
 
 // CalculatorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type CalculatorFixture struct {
 	a      int
 	aOther int
@@ -677,4 +678,4 @@ func GreenCalculator(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 151702951940b68838ef8ea1e0c75e26b58614acc5e0989aa4dc537ed2d4a067
+// testkit:provenance 9ed83f64c70647c4af8082e292e9c4fb60013a640c28f9d88f927ade7e3d36da

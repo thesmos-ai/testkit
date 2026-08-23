@@ -164,13 +164,16 @@ const (
 )
 
 // builtinInts are the signed integer builtins a sum or an offset totals;
-// builtinOrdered is everything `<` orders.
+// builtinNumeric is everything a quantity can be counted in, and
+// builtinOrdered is everything `<` orders — which is the numbers and
+// strings both.
 //
 //nolint:gochecknoglobals // vocabulary tables, read-only after init.
 var (
 	builtinInts    = []string{builtinInt, "int8", "int16", "int32", builtin64}
-	builtinOrdered = append(append([]string{}, builtinInts...),
-		"uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64", builtinString)
+	builtinNumeric = append(append([]string{}, builtinInts...),
+		"uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64")
+	builtinOrdered = append(append([]string{}, builtinNumeric...), builtinString)
 )
 
 // The supplied-shape vocabulary — each names one closure type arm in the

@@ -8,7 +8,7 @@ Len/zero-on-error	signature/zero-on-error	Len returns zero alongside any error
 Lookup/cancel	signature/cancel	Lookup reports a cancelled context as cancelled	
 Lookup/deadline	signature/deadline	Lookup reports an expired deadline as exceeded	
 Lookup/hit	mixin/reader	Lookup returns the seeded value for every seeded key	
-Lookup/miss	mixin/reader	Lookup reports zero for a key nothing has seeded	
+Lookup/miss	mixin/reader	Lookup answers no value for a key nothing has seeded	
 Lookup/nilcontext	signature/nilcontext	Lookup returns an error rather than panicking on a nil context	
 Lookup/smoke	signature/smoke	Lookup survives a call with a seeded key	
 Lookup/zero-on-error	signature/zero-on-error	Lookup returns the zero Body alongside any error	

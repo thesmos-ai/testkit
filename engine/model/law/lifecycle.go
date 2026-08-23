@@ -154,6 +154,15 @@ func (l LeakFree[T]) Check(rt *rapid.T, sut, _ T) error {
 // implementation that ignores the context and returns success fails.
 type LifecycleRespectsContext[T any] struct {
 	Op func(ctx context.Context, sut T) error
+
+	// Name is the method Op calls, for the failure to say which.
+	//
+	// An interface with several lifecycle-shaped methods registers this
+	// law once per method, and they share a row — one law identifier, one
+	// claim. Without a name the report says the claim failed and leaves
+	// the reader to find out where: a transaction declaring begin, commit
+	// and rollback gave three identical probes and one message.
+	Name string
 }
 
 // ID returns the stable identifier for this law.
@@ -170,11 +179,20 @@ func (l LifecycleRespectsContext[T]) Check(rt *rapid.T, sut, _ T) error {
 	err := l.Op(ctx, sut)
 	if !errors.Is(err, context.Canceled) {
 		return fmt.Errorf(
-			"LifecycleRespectsContext: op with cancelled context returned %v (want context.Canceled)",
-			err,
+			"LifecycleRespectsContext: %s with a cancelled context returned %v (want context.Canceled)",
+			l.named(), err,
 		)
 	}
 	return nil
+}
+
+// named is the method for a message, falling back to a word rather than
+// to an empty gap where a binding filled nothing.
+func (l LifecycleRespectsContext[T]) named() string {
+	if l.Name == "" {
+		return "the op"
+	}
+	return l.Name
 }
 
 // PoisonNilOnFresh verifies a PoisonAccessor returns nil on a

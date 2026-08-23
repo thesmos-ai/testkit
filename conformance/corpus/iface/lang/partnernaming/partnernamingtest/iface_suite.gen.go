@@ -96,9 +96,10 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StoreFixture struct {
 	key         string
 	keyOther    string
@@ -802,17 +803,17 @@ func storeSignatureChecks(fx StoreFixture) []suite.Check[Store] {
 				storeAssertTouchSideeffect(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Seen.Miss(), suite.ClassReader,
-			"Seen reports zero for a k nothing has written",
+			"Seen answers no value for a k nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertSeenMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.At.Miss(), suite.ClassReader,
-			"At reports zero for a where nothing has written",
+			"At answers no value for a where nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertAtMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Count.Miss(), suite.ClassReader,
-			"Count reports zero for a bucket nothing has written",
+			"Count answers no value for a bucket nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertCountMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
@@ -1207,13 +1208,19 @@ func storeAssertTouchSideeffect(
 	}
 }
 
-// storeAssertSeenMiss asserts Seen reports zero for a k nothing has written.
+// storeAssertSeenMiss asserts Seen answers no value for a k nothing has written.
 func storeAssertSeenMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Seen answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.Seen(ctx, fx.KOther())
@@ -1225,13 +1232,19 @@ func storeAssertSeenMiss(
 	}
 }
 
-// storeAssertAtMiss asserts At reports zero for a where nothing has written.
+// storeAssertAtMiss asserts At answers no value for a where nothing has written.
 func storeAssertAtMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// At answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.At(ctx, fx.WhereOther())
@@ -1243,13 +1256,19 @@ func storeAssertAtMiss(
 	}
 }
 
-// storeAssertCountMiss asserts Count reports zero for a bucket nothing has written.
+// storeAssertCountMiss asserts Count answers no value for a bucket nothing has written.
 func storeAssertCountMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Count answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.Count(ctx, fx.BucketOther())
@@ -1811,4 +1830,4 @@ func GreenStore(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 1ce351e28adbc0d061d9d32840ba9f01a0b283f5806ac56a218d401c657b72b3
+// testkit:provenance 03b59b6148065e530444b1cad4683009e0a1d19845630900b1af488fae424989

@@ -68,9 +68,10 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StoreFixture struct {
 	key          roledtypes.Key
 	keyOther     roledtypes.Key
@@ -657,7 +658,7 @@ func storeSignatureChecks(fx StoreFixture) []suite.Check[Store] {
 				storeAssertGetZeroOnError(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a key nothing has written",
+			"Get answers no value for a key nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertGetMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
@@ -784,13 +785,19 @@ func storeAssertGetZeroOnError(
 	}
 }
 
-// storeAssertGetMiss asserts Get reports zero for a key nothing has written.
+// storeAssertGetMiss asserts Get answers no value for a key nothing has written.
 func storeAssertGetMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.Get(ctx, fx.KeyOther())
@@ -1150,4 +1157,4 @@ func GreenStore(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 98b18a915efcb676fb9149ba17208e32a563cf48050875f97cb7cd07ef1f7ed2
+// testkit:provenance 91498164fe5070e472443f371272a079f5c9a36b5c05a5a0a24255f2a3aecf72

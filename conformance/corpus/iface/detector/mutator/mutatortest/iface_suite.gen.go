@@ -61,9 +61,10 @@ import (
 var _ = suite.CompatV2
 
 // MutatorFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MutatorFixture struct {
 	key      string
 	keyOther string
@@ -675,6 +676,8 @@ func mutatorModelRows(fx MutatorFixture) []suite.Check[Mutator] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Touch (mutator)
 //	Values:    the fixture pair blended with arbitrary draws
+//	Not bound:
+//	           crash recovery — the crash schedule writes a record and reads it back after a rebuild, and this interface presents neither a keyed read nor a keyed write
 
 // mutatorModelValues is the value pool every value slot draws from.
 //
@@ -733,4 +736,4 @@ func mutatorAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 0d6b21c1a8f4ed8beb6dfeced84c2f565d919092de2d7a85f6eacf78fcde8928
+// testkit:provenance daa8edec476c7c32c7c78176700c025e9a69bcaf3d2b45bbb69bfd2953704155

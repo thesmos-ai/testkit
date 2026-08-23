@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // BatchReaderFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type BatchReaderFixture struct {
 	keys      string
 	keysOther string
@@ -836,19 +837,19 @@ func batchReaderModelRows(fx BatchReaderFixture) []suite.Check[BatchReader] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: GetAll (batchreader)
 
-// batchReaderModelKeys is the key pool every key slot draws from.
+// batchReaderModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
 func batchReaderModelKeys(fx BatchReaderFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Keys(), fx.KeysOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -896,4 +897,4 @@ func batchReaderAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 12c74f9053cf968fa84171dfea56277caeecec4ad7f4b5116657606409d31211
+// testkit:provenance b9ad4d7f42650a7eb4e7f0865a8caf69db052c04f048d0db18da5b982db39fdb

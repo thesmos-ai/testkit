@@ -67,9 +67,10 @@ import (
 var _ = suite.CompatV2
 
 // AnsweringWriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type AnsweringWriterFixture struct {
 	value      answeringwriter.Value
 	valueOther answeringwriter.Value
@@ -868,6 +869,8 @@ func answeringWriterModelRows(fx AnsweringWriterFixture) []suite.Check[Answering
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Put (answeringwriter)
 //	Values:    the fixture pair blended with arbitrary draws
+//	Not bound:
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // answeringWriterModelValues is the value pool every value slot draws from.
 //
@@ -926,4 +929,4 @@ func answeringWriterAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance f2eba1f435eeb147839ea643a766bee4b1cf7510c404832ac8e12772dadaba22
+// testkit:provenance 9c17af48b959cbdd28e18d6cb923a8f1b263b2f7abad57d8b721bf1f726cff9c

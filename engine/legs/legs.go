@@ -18,6 +18,7 @@
 package legs
 
 import (
+	"fmt"
 	"testing"
 
 	"go.thesmos.sh/testkit/engine/model"
@@ -235,6 +236,43 @@ func AsBuilt[T any](tb testing.TB, harness string, held any) T {
 	return own
 }
 
+// SpreadKey is the key projection for a write that takes its key beside
+// the value: it answers which of the pool's keys that value is written
+// under.
+//
+// It exists because the obvious projection — answer the fixture's one
+// key, whatever you are handed — cannot state the claim the law makes.
+// [law.WriteObservable] asks whether a value is readable UNDER THE KEY IT
+// WENT TO, and with every value on one key there is no other key for it
+// to have gone to: a subject that ignores its key argument and keeps a
+// single slot answers every read correctly. Spreading the values over
+// the pool is what puts two of them on two keys, which is what makes the
+// question answerable.
+//
+// Deterministic, and that matters more than the distribution: rapid
+// replays a shrunk counterexample, and a projection that answered
+// differently on the replay would report a failure nobody can reproduce.
+// The fold is over the value's printed form, so it is stable across
+// processes for anything whose printing is — which is every value a
+// fixture pool holds, and not a pointer, whose address is printed and
+// varies per run.
+func SpreadKey[V, K any](v V, keys []K) K {
+	if len(keys) == 0 {
+		var zero K
+		return zero
+	}
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	h := uint64(offset64)
+	for _, b := range []byte(fmt.Sprint(v)) {
+		h ^= uint64(b)
+		h *= prime64
+	}
+	return keys[h%uint64(len(keys))]
+}
+
 // Blend is the provenance-gated adversarial widening: a DERIVED pool
 // blends with the hostile half of the string space, and a pool the
 // consumer RESTRICTED reaches every tier verbatim — a restricted pool
@@ -246,4 +284,16 @@ func Blend[V any](derived bool, pool *model.Generator[V], hostile func(string) V
 		return pool
 	}
 	return model.OneOf(pool, model.Map(model.AdversarialStrings(), hostile))
+}
+
+// BlendStrings is [Blend] where the pool's member is a string under its
+// own name, so the conversion the general form takes is the identity.
+//
+// A function rather than a caller writing `func(s string) string { return
+// s }`, which is what the generated files carried at forty-eight sites.
+// An identity closure states nothing, and a reader who stops to work out
+// what it converts has been made to check something the type already
+// settled.
+func BlendStrings(derived bool, pool *model.Generator[string]) *model.Generator[string] {
+	return Blend(derived, pool, func(s string) string { return s })
 }

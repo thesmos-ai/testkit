@@ -379,9 +379,16 @@ var rules = []Rule{
 	},
 
 	{
-		Law:    lawid.LifecycleRespectsContext,
-		Needs:  []string{shapeLifecycle},
-		Fields: []Field{{Name: "Op", Kind: KindRole, From: roleSelf}},
+		Law:   lawid.LifecycleRespectsContext,
+		Needs: []string{shapeLifecycle},
+		Fields: []Field{
+			{Name: "Op", Kind: KindRole, From: roleSelf},
+			// An interface declaring begin, commit and rollback registers
+			// this law three times under one row, so a failure that did
+			// not carry the method named the claim and left the reader to
+			// find out where.
+			{Name: "Name", Kind: KindMethodName, From: roleSelf},
+		},
 	},
 
 	// Neither needs a reference: both compare the subject against itself,
@@ -771,6 +778,9 @@ var rules = []Rule{
 			{Name: "Deadline", Kind: KindConstant, From: paramTimeoutDuration},
 			{Name: fieldAdvance, Kind: KindHandle, From: handleClock},
 			{Name: "AwaitFor", Kind: KindDefault},
+			// One row per interface however many methods carry the stamp,
+			// so the method is what tells two probes apart in a failure.
+			{Name: "Name", Kind: KindMethodName, From: roleSelf},
 		},
 	},
 	{

@@ -68,9 +68,10 @@ import (
 var _ = suite.CompatV2
 
 // RankedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type RankedFixture[K genericbound.Ordered, V any] struct {
 	k      K
 	kOther K
@@ -663,4 +664,4 @@ func GreenRanked[K genericbound.Ordered, V any](
 }
 
 // testkit: end of generated content.
-// testkit:provenance e14c91a6be04952721e99a47675eeff25c678162794460396ecf58a8bcedeba1
+// testkit:provenance 3e682424a8cfe5d4e8949adcc91355049c7c7904b3de4c9a6df676f8fa086d23

@@ -28,6 +28,18 @@ func lawFieldOf(
 		// The law's Check defaults it; a generated value would be a second
 		// opinion about a number the law already owns.
 		return nil, ""
+	case tiers.KindMethodName:
+		// The method a sibling role field calls, as a literal. Resolved
+		// through [roleMethod] on the same From the sibling carries, so
+		// the two cannot end up naming different methods.
+		role, reason := roleMethod(b, harness, f.From, m, keyed)
+		if reason != "" {
+			return nil, f.Name + " " + reason
+		}
+		field.Method = role.Name
+		field.KindName = sdk.Kind(LawFieldKindPrefix + "MethodName")
+		return field, ""
+
 	case tiers.KindTrace:
 		// The runner binds the trace on any law implementing TraceBinder;
 		// a generated value would race the binding it already gets.

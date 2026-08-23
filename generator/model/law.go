@@ -113,6 +113,12 @@ type LawField struct {
 	// a keyed observation revisits.
 	KeyField string
 
+	// KeyOtherField and KeyPoolField are the rest of the key pool, for the
+	// projection that spreads a write's values across it rather than
+	// anchoring them all on KeyField. One or the other: a fixture states
+	// its keys as a pair of accessors or as a pool the consumer supplies.
+	KeyOtherField, KeyPoolField string
+
 	// MissSym and MissName are the identity a folded read reports for a key
 	// the subject answers `false` for — the declaration's own sentinel where
 	// one is stamped, the run's minted var otherwise.
@@ -145,6 +151,10 @@ type LawField struct {
 
 // Kind returns the field's template key.
 func (f *LawField) Kind() sdk.Kind { return f.KindName }
+
+// LegsPkg surfaces the leg bridge's import path to the field templates,
+// for the spreading key projection.
+func (*LawField) LegsPkg() string { return LegsPkg }
 
 // ModelPkg surfaces the runner's import path to the field templates, whose
 // closures take the runner's *T.

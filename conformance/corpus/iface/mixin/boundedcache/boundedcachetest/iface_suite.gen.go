@@ -68,7 +68,6 @@ import (
 //	Put/smoke
 //	model/mixed/AUTO-AGGREGATOR-BOUNDED
 //	model/mixed/AUTO-CACHEABLE
-//	model/mixed/AUTO-WRITE-OBSERVABLE
 //	model/mixed/differential
 //
 // Declared on this interface and checked by testkit's model tier rather
@@ -86,9 +85,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	key        boundedcache.Key
 	keyOther   boundedcache.Key
@@ -526,21 +526,20 @@ func (mixedVeneer) TrySuite(cfg MixedConfig) (suite.Suite[Mixed], error) {
 // write to drop it, so that a check which cannot run tells you what to
 // type rather than only what went wrong.
 var mixedIndexPath = map[suite.ID]string{
-	mixedCheckIndex.Put.Smoke():             "MixedSuite.Checks.Put.Smoke()",
-	mixedCheckIndex.Put.Cancels():           "MixedSuite.Checks.Put.Cancels()",
-	mixedCheckIndex.Put.NilContext():        "MixedSuite.Checks.Put.NilContext()",
-	mixedCheckIndex.Put.Deadline():          "MixedSuite.Checks.Put.Deadline()",
-	mixedCheckIndex.Get.Smoke():             "MixedSuite.Checks.Get.Smoke()",
-	mixedCheckIndex.Get.Miss():              "MixedSuite.Checks.Get.Miss()",
-	mixedCheckIndex.Len.Smoke():             "MixedSuite.Checks.Len.Smoke()",
-	mixedCheckIndex.Len.Cancels():           "MixedSuite.Checks.Len.Cancels()",
-	mixedCheckIndex.Len.NilContext():        "MixedSuite.Checks.Len.NilContext()",
-	mixedCheckIndex.Len.Deadline():          "MixedSuite.Checks.Len.Deadline()",
-	mixedCheckIndex.Len.ZeroOnError():       "MixedSuite.Checks.Len.ZeroOnError()",
-	mixedCheckIndex.Model.Agrees():          "MixedSuite.Checks.Model.Agrees()",
-	mixedCheckIndex.Model.WriteObservable(): "MixedSuite.Checks.Model.WriteObservable()",
-	mixedCheckIndex.Model.Cacheable():       "MixedSuite.Checks.Model.Cacheable()",
-	mixedCheckIndex.Model.Bounded():         "MixedSuite.Checks.Model.Bounded()",
+	mixedCheckIndex.Put.Smoke():       "MixedSuite.Checks.Put.Smoke()",
+	mixedCheckIndex.Put.Cancels():     "MixedSuite.Checks.Put.Cancels()",
+	mixedCheckIndex.Put.NilContext():  "MixedSuite.Checks.Put.NilContext()",
+	mixedCheckIndex.Put.Deadline():    "MixedSuite.Checks.Put.Deadline()",
+	mixedCheckIndex.Get.Smoke():       "MixedSuite.Checks.Get.Smoke()",
+	mixedCheckIndex.Get.Miss():        "MixedSuite.Checks.Get.Miss()",
+	mixedCheckIndex.Len.Smoke():       "MixedSuite.Checks.Len.Smoke()",
+	mixedCheckIndex.Len.Cancels():     "MixedSuite.Checks.Len.Cancels()",
+	mixedCheckIndex.Len.NilContext():  "MixedSuite.Checks.Len.NilContext()",
+	mixedCheckIndex.Len.Deadline():    "MixedSuite.Checks.Len.Deadline()",
+	mixedCheckIndex.Len.ZeroOnError(): "MixedSuite.Checks.Len.ZeroOnError()",
+	mixedCheckIndex.Model.Agrees():    "MixedSuite.Checks.Model.Agrees()",
+	mixedCheckIndex.Model.Cacheable(): "MixedSuite.Checks.Model.Cacheable()",
+	mixedCheckIndex.Model.Bounded():   "MixedSuite.Checks.Model.Bounded()",
 }
 
 var mixedDropHint = suite.DropHinter(
@@ -666,10 +665,6 @@ func (mixedModelChecks) Agrees() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, suite.SegDifferential)
 }
 
-func (mixedModelChecks) WriteObservable() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.WriteObservable)
-}
-
 func (mixedModelChecks) Cacheable() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, mixedQualifier, lawid.Cacheable)
 }
@@ -681,7 +676,6 @@ func (mixedModelChecks) Bounded() suite.ID {
 func (mixedModelChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedModelChecks{}.Agrees(),
-		mixedModelChecks{}.WriteObservable(),
 		mixedModelChecks{}.Cacheable(),
 		mixedModelChecks{}.Bounded(),
 	}
@@ -762,7 +756,7 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertLenZeroOnError(tb, m)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a key nothing has written",
+			"Get answers no value for a key nothing has written",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertGetMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
@@ -896,13 +890,19 @@ func mixedAssertLenZeroOnError(
 	}
 }
 
-// mixedAssertGetMiss asserts Get reports zero for a key nothing has written.
+// mixedAssertGetMiss asserts Get answers no value for a key nothing has written.
 func mixedAssertGetMiss(
 	tb testing.TB,
 	m Mixed,
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, got2 := m.Get(ctx, fx.KeyOther())
@@ -1219,16 +1219,6 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
-		ix.Model.WriteObservable(): prove.One("a Mixed whose Put reports success and keeps nothing",
-			func(tb testing.TB) Mixed {
-				return NewMixedStub(tb, WithMixedPut(
-					func(_ context.Context, _ boundedcache.Key, _ boundedcache.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
 	}
 }
 
@@ -1370,19 +1360,6 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 			},
 		},
 		{
-			ID:    mixedCheckIndex.Model.WriteObservable(),
-			Class: suite.ClassLaws,
-			Claim: "a written value is readable under the key it was written with",
-			Binds: []string{
-				lawid.WriteObservable,
-			},
-			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthDifferential,
-			RunWith: func(tb testing.TB, sub suite.Subject[Mixed]) {
-				mixedAssertWriteObservable(tb, sub, fx)
-			},
-		},
-		{
 			ID:    mixedCheckIndex.Model.Cacheable(),
 			Class: suite.ClassLaws,
 			Claim: "repeated reads of one key answer the same value",
@@ -1424,13 +1401,15 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Not driven:
 //	           Len — the reference is unbounded, so that the bounded read has something to disagree with — which leaves its count legally the larger, and the declared bound measures the count instead
 //	Not bound:
+//	           AUTO-WRITE-OBSERVABLE — KeyOf spreads the writes across the key pool so the key half of this claim is reachable, and Get may evict what an earlier write left — the read that then misses is the store's own rule, not a divergence
 //	           AUTO-COUNT-EQUALS-REFERENCE — the reference is unbounded so the bounded read has something to disagree with, which leaves its count legally the larger; the declared bound is what this count is held to
+//	           crash recovery — the crash schedule holds an acknowledged write to a later read, and this interface presents no keyed write to acknowledge one
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[boundedcache.Key] {
 	return legs.Blend(fx.KeyPoolDerived(),
 		model.SampledFrom(fx.KeyPool()),
@@ -1530,41 +1509,6 @@ func mixedAssertAgrees(
 		mixedModelActions(fx))
 }
 
-// mixedAssertWriteObservable binds AUTO-WRITE-OBSERVABLE over the shared sequences.
-//
-// One law, and the run's only oracle — see [legs.Law]
-// for why the differential is off on every law leg.
-func mixedAssertWriteObservable(
-	tb testing.TB,
-	sub suite.Subject[Mixed],
-	fx MixedFixture,
-) {
-	tb.Helper()
-	values := mixedModelValues(fx)
-
-	buildRef, tier := legs.Reference(tb, sub, NewMixedModelReference)
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Mixed { return sub.New(tb) }, buildRef,
-		mixedModelActions(fx),
-		[]law.Law[Mixed]{
-			law.WriteObservable[boundedcache.Mixed, boundedcache.Value, boundedcache.Key]{
-				Write: func(rt *model.T, s boundedcache.Mixed, v boundedcache.Value) error {
-					return s.Put(rt.Context(), fx.Key(), v)
-				},
-				Read: func(rt *model.T, s boundedcache.Mixed, k boundedcache.Key) (boundedcache.Value, error) {
-					held, ok := s.Get(rt.Context(), k)
-					if !ok {
-						return held, mixedModelMiss
-					}
-					return held, nil
-				},
-				Values: values,
-				KeyOf:  func(boundedcache.Value) boundedcache.Key { return fx.Key() },
-			},
-		})
-}
-
 // mixedAssertCacheable binds AUTO-CACHEABLE over the shared sequences.
 //
 // One law, and the run's only oracle — see [legs.Law]
@@ -1631,4 +1575,4 @@ func mixedAssertBounded(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 4f37fdf8aaebbb6d6c49087b1012fe6f9c7f31a868198db96c675295ab7f9362
+// testkit:provenance 0c14e0dba91f3ad5bad11d6b8d136f09b9f4d49e820ced6aa8a583c800671154

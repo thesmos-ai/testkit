@@ -130,6 +130,21 @@ func orderedScalar(m *subject.Method) bool {
 	return false
 }
 
+// numericScalar reports that the method answers a number — a quantity,
+// rather than a payload or a handle that happens to be comparable.
+func numericScalar(m *subject.Method) bool {
+	_, ret, why := resultType(m)
+	if why != "" || ret.Source == nil {
+		return false
+	}
+	for _, name := range builtinNumeric {
+		if golang.IsBuiltinNamed(ret.Source, name) {
+			return true
+		}
+	}
+	return false
+}
+
 // transitionPairs parses a workflow's `from>to[,from>to…]` stamp.
 func transitionPairs(value string) ([][2]string, string) {
 	var out [][2]string

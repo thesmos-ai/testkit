@@ -74,9 +74,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	key          string
 	keyOther     string
@@ -1097,4 +1098,4 @@ func contractAssertSingleflightCoalesces(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 3087c5b8aa46d38734fba0cca887780d5b12750c51fb901b4b4377fa1bfcef48
+// testkit:provenance 58f51342dfcd2fc0efc43bbaa378b325effb48e0f47f23d2f0e3b2a5f2f19c0f

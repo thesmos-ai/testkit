@@ -79,9 +79,10 @@ import (
 var _ = suite.CompatV2
 
 // RankedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type RankedFixture struct {
 	value      indexed.Value
 	valueOther indexed.Value
@@ -545,7 +546,7 @@ func rankedSignatureChecks(fx RankedFixture) []suite.Check[Ranked] {
 				rankedAssertAtBound(tb, r, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.At.Miss(), suite.ClassReader,
-			"At reports zero for a i nothing has written",
+			"At answers no value for a i nothing has written",
 			func(tb testing.TB, r Ranked) {
 				rankedAssertAtMiss(tb, r, fx)
 			}).At(suite.StrengthObserved),
@@ -746,6 +747,12 @@ func rankedAssertAtBound(
 	fx RankedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// At answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	bound, boundErr := r.Len(ctx)
@@ -762,13 +769,19 @@ func rankedAssertAtBound(
 	}
 }
 
-// rankedAssertAtMiss asserts At reports zero for a i nothing has written.
+// rankedAssertAtMiss asserts At answers no value for a i nothing has written.
 func rankedAssertAtMiss(
 	tb testing.TB,
 	r Ranked,
 	fx RankedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// At answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := r.At(ctx, fx.IOther())
@@ -1274,15 +1287,15 @@ func rankedModelRows(fx RankedFixture) []suite.Check[Ranked] {
 //	Sequences: Add (writer), Len (aggregator), At (reader)
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//	           AUTO-WRITE-OBSERVABLE — KeyOf would place the run's values across the key pool, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
 //	           ranked differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
 
-// rankedModelKeys is the key pool every key slot draws from.
+// rankedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func rankedModelKeys(fx RankedFixture) *model.Generator[int] {
 	return model.SampledFrom([]int{fx.I(), fx.IOther()})
 }
@@ -1361,4 +1374,4 @@ func rankedAssertCounts(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 42c76f93de19babee6d5cc4e6d5a1cbbd018f95db6140ba81c97171c04908299
+// testkit:provenance 5de37a1c96d4fa913169242e5f7bd0e924881c42d5ef2083ee138be67336fa0e

@@ -81,9 +81,10 @@ import (
 var _ = suite.CompatV2
 
 // ServiceFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ServiceFixture struct {
 	id      string
 	idOther string
@@ -1129,4 +1130,4 @@ func GreenService(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 9cd50384e1d5847e1dbe16dc53559aadef36d881d5b9d37ba05200deb4d699cb
+// testkit:provenance bfaf6359d3eeafbf2fcbe232ad1e48d4ca0bfe22197cd228412b351ed8ca9a67

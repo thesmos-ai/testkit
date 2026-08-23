@@ -72,9 +72,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	key      string
 	keyOther string
@@ -460,7 +461,7 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertTouchSideeffect(tb, m, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Observed.Miss(), suite.ClassReader,
-			"Observed reports zero for a key nothing has written",
+			"Observed answers no value for a key nothing has written",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertObservedMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
@@ -615,13 +616,19 @@ func mixedAssertTouchSideeffect(
 	}
 }
 
-// mixedAssertObservedMiss asserts Observed reports zero for a key nothing has written.
+// mixedAssertObservedMiss asserts Observed answers no value for a key nothing has written.
 func mixedAssertObservedMiss(
 	tb testing.TB,
 	m Mixed,
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Observed answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := m.Observed(ctx, fx.KeyOther())
@@ -1078,19 +1085,18 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           AUTO-WRITE-OBSERVABLE — Read closes over Observed, which reads (string → int) beside pools of (string, string)
 //	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1156,4 +1162,4 @@ func mixedAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 57857de19a0247df2074de4ed8b29c3d2b0a83e4b9fc6313c5d7a5f75c904d30
+// testkit:provenance e4586d29bd261c99e94e62b52f7458127b728198608ab9c6394928d32fa7ae6b

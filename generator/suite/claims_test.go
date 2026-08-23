@@ -110,7 +110,7 @@ func TestClaimWordingsMatchTheCorpus(t *testing.T) {
 			suite.MissClaim(get, "kv.ErrNotFound", "wrote"),
 			"Get reports ErrNotFound for a key nothing wrote",
 		},
-		{"zero miss", suite.MissClaim(total, "", "counted"), "Total reports zero for a key nothing has counted"},
+		{"zero miss", suite.MissClaim(total, "", "counted"), "Total answers no value for a key nothing has counted"},
 		{
 			"seeded miss",
 			suite.MissClaim(lookup, "ErrNotFound", "seeded"),

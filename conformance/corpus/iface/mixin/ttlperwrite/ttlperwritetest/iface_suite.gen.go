@@ -89,9 +89,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	entry      ttlperwrite.Entry
 	entryOther ttlperwrite.Entry
@@ -1222,19 +1223,18 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	Sequences: Put (writer), Read (reader)
 //	Values:    the fixture pair — time.Duration reaches a type this build cannot prove a wide draw serves
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1483,4 +1483,4 @@ func mixedAssertExpiry(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance eb3a745329783fc911359e80991105a9c28d7367493f4829a389476b3e2f933d
+// testkit:provenance a86859392d64d5c9877bcd6b65bd1acd57dab7950f951b48a136720fdf06a23d

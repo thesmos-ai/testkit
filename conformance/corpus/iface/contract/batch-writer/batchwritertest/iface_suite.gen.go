@@ -81,9 +81,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      batchwriter.Value
 	valueOther batchwriter.Value
@@ -752,7 +753,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertGetZeroOnError(tb, c, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a key nothing has written",
+			"Get answers no value for a key nothing has written",
 			func(tb testing.TB, c Contract) {
 				contractAssertGetMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
@@ -879,13 +880,19 @@ func contractAssertGetZeroOnError(
 	}
 }
 
-// contractAssertGetMiss asserts Get reports zero for a key nothing has written.
+// contractAssertGetMiss asserts Get answers no value for a key nothing has written.
 func contractAssertGetMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.Get(ctx, fx.KeyOther())
@@ -1401,15 +1408,14 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Values:    the fixture pair blended with arbitrary draws, each keyed
 //	           from the pool
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
-	return legs.Blend(fx.KeyPoolDerived(),
+	return legs.BlendStrings(fx.KeyPoolDerived(),
 		model.SampledFrom(fx.KeyPool()),
-		func(s string) string { return s },
 	)
 }
 
@@ -1651,4 +1657,4 @@ func contractAssertAtomicWrite(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 224c5904d146282bdcadc7957bf16afe2581dee7787190df86798274ece57327
+// testkit:provenance 09be83ee0cda328e7c5cd0d655de98b27a42cdd50a416a0db0d4e912c3d18dbc

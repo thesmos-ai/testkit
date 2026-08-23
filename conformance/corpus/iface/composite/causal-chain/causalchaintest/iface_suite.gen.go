@@ -83,9 +83,10 @@ import (
 var _ = suite.CompatV2
 
 // LogFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type LogFixture struct {
 	entry      causalchain.Entry
 	entryOther causalchain.Entry
@@ -1047,6 +1048,7 @@ func logModelRows(fx LogFixture) []suite.Check[Log] {
 //	           AUTO-HASH-CHAIN-INTEGRITY-VERIFY — Verify names chain.verify, which the selecting method does not stamp
 //	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           log differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 
 // logModelValues is the value pool every value slot draws from.
 //
@@ -1261,4 +1263,4 @@ func logAssertReplayCausalOrdering(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 354700cf91ea1f43fd141863615cf7517df34ceaf38979ba168e97d7d58a780f
+// testkit:provenance 043242d1225a552d12f396438ba98b904cfc15d2b5294108dc0313b25652bcc2

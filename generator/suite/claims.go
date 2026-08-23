@@ -524,7 +524,12 @@ func AccumulatesClaim(m subject.Method) string {
 func MissClaim(m subject.Method, sentinel, verb string) string {
 	noun := missNoun(m)
 	if sentinel == "" {
-		return m.Name + " reports zero for a " + noun + " nothing has " + verb
+		// "answers no value" rather than "reports zero", because the
+		// check holds the value slots to their zeros and leaves the error
+		// alone — see the answers-zero body, which argues why. "Reports"
+		// promises the call succeeded, and a reader that refuses without
+		// naming a sentinel has not broken this claim.
+		return m.Name + " answers no value for a " + noun + " nothing has " + verb
 	}
 	if i := strings.LastIndex(sentinel, "."); i >= 0 {
 		sentinel = sentinel[i+1:]

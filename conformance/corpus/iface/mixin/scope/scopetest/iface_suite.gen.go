@@ -67,9 +67,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	scope      string
 	scopeOther string
@@ -956,10 +957,11 @@ func GreenMixed(
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a value type no method here draws
 //   mixed differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule writes a record and reads it back after a rebuild, and this interface presents neither a keyed read nor a keyed write
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance fdc568671523de1f5f29c2f01fd14f7e90925a3bb15b9c3140f85a1e1a357e82
+// testkit:provenance afe7887a2c7d76008aaf31e558cf1194ff56a8320d3915e33739e069340ca16b

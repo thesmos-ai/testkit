@@ -1,0 +1,13 @@
+{{- /*
+The composite write whose key is picked from the pool by the value.
+
+The key is this run's choice either way — the value carries none — and
+the choice has to match the projection beside it, or the law reads a key
+nothing was written to. legs.SpreadKey is what both call, so the two
+cannot drift apart.
+*/ -}}
+{{- define "model.lawfield.WriteSpreadKey" -}}
+{{ .Name }}: func(rt *{{ renderExpr (external .ModelPkg "T") }}, s {{ renderType .Iface }}, v {{ renderType .In }}) error {
+			return s.{{ .Method }}({{ if .TakesCtx }}rt.Context(), {{ end }}{{ renderExpr (external .LegsPkg "SpreadKey") }}(v, {{ if .KeyPoolField }}fx.{{ .KeyPoolField }}(){{ else }}[]{{ renderType .Key }}{ fx.{{ .KeyField }}(), fx.{{ .KeyOtherField }}() }{{ end }}), v)
+		}
+{{- end -}}

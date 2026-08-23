@@ -42,6 +42,23 @@ type DeadlineRespecting[T any] struct {
 	// second; the law uses real-time sleep here so a misbehaving
 	// SUT can't hang the property suite indefinitely.
 	AwaitFor time.Duration
+
+	// Name is the method Op calls, for the failure to say which.
+	//
+	// An interface declaring several deadline-shaped methods registers
+	// this law once per method, and they share a row — one identifier,
+	// one claim. Without the name a report says the claim broke and
+	// leaves the reader to work out where.
+	Name string
+}
+
+// named is the method for a message, falling back to a word rather than
+// to an empty gap where a binding filled nothing.
+func (l DeadlineRespecting[T]) named() string {
+	if l.Name == "" {
+		return "Op"
+	}
+	return l.Name
 }
 
 // ID returns the stable identifier for this law.
@@ -113,17 +130,20 @@ func (l DeadlineRespecting[T]) Check(_ *rapid.T, sut, _ T) error {
 			return law.Vacuous
 		}
 		if err == nil {
-			return errors.New(
-				"timeaware: deadline-respecting law: Op returned nil after its deadline passed, so it never saw one",
+			return fmt.Errorf(
+				"timeaware: deadline-respecting law: %s returned nil after its deadline passed, "+
+					"so it never saw one", l.named(),
 			)
 		}
 		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			return fmt.Errorf(
-				"deadline-respecting law: Op returned %v after its deadline passed, not a context error", err,
+				"deadline-respecting law: %s returned %v after its deadline passed, not a context error",
+				l.named(), err,
 			)
 		}
 		return nil
 	case <-time.After(wait):
-		return fmt.Errorf("deadline-respecting law: Op did not return within %v of deadline advance", wait)
+		return fmt.Errorf("deadline-respecting law: %s did not return within %v of deadline advance",
+			l.named(), wait)
 	}
 }

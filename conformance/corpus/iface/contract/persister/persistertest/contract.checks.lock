@@ -1,7 +1,7 @@
 testkit-checks v2
 Get/cancel	signature/cancel	Get reports a cancelled context as cancelled	
 Get/deadline	signature/deadline	Get reports an expired deadline as exceeded	
-Get/miss	mixin/reader	Get reports zero for a key nothing has written	
+Get/miss	mixin/reader	Get answers no value for a key nothing has written	
 Get/nilcontext	signature/nilcontext	Get returns an error rather than panicking on a nil context	
 Get/smoke	signature/smoke	Get survives a call with a derived key	
 Get/zero-on-error	signature/zero-on-error	Get returns the zero Value alongside any error	

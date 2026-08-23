@@ -67,9 +67,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      outbox.Value
 	valueOther outbox.Value
@@ -915,12 +916,13 @@ func GreenContract(
 // no claim this tier knows how to state reached this interface,
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a key type no method here draws
-//   AUTO-COUNT-EQUALS-REFERENCE — Count observes Subscribe's result, a live handle only identity could compare
+//   AUTO-COUNT-EQUALS-REFERENCE — this counts, and Subscribe answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
 //   contract differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule reads back what a write acknowledged, and this interface presents no keyed read to collect the debt with
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 1beaf719418c0bf7c7dc23a208be29ad5060f199365b2791f2d1d1b1e496f54f
+// testkit:provenance 28ce2da34036e8a59fc1cb530f01f24ee5e4343a41024f0fb66470dac6e1fc45

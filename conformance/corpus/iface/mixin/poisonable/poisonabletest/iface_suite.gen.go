@@ -75,9 +75,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 }
 
@@ -949,4 +950,4 @@ func mixedAssertPoisonConsistent(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 8cce4c533e9de88d3d706e737738c98e6ea79171dd3d7f227b899a25588cd65e
+// testkit:provenance 1888a160445fba426d3b0ffdb838028e372ac7ab21b7c0b9d5e796f8457a7de7

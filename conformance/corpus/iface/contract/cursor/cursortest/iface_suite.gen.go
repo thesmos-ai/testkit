@@ -73,9 +73,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 }
 
@@ -962,7 +963,7 @@ func contractModelRows() []suite.Check[Contract] {
 //	           not a subject wrong the same way twice; ref= raises the floor
 //	Sequences: Next (multiaggregator), Close (lifecycle)
 //	Not bound:
-//	           AUTO-COUNT-EQUALS-REFERENCE — observes through Next, which answers several results no single-valued closure returns
+//	           AUTO-COUNT-EQUALS-REFERENCE — this counts, and Next answers something that is not a number; comparing what it hands back is a claim about the value rather than about how many, and the reference makes no such promise
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 //
 // contractModelActions is the operation vocabulary both legs drive.
@@ -1058,6 +1059,7 @@ func contractAssertRespectsContext(
 				Op: func(ctx context.Context, s cursor.Contract) error {
 					return s.Close(ctx)
 				},
+				Name: "Close",
 			},
 		})
 }
@@ -1071,4 +1073,4 @@ func contractAssertRespectsContext(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 60f9ef9625f5b78cc19f73f55305d29b5f58d49e69512ba076fc23205188d7f2
+// testkit:provenance 5d99cbc8ed014c53f61eda4a8a7c066230c6a59bf30d6a7154c7e772ecedf73c

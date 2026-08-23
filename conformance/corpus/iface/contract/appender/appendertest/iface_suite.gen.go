@@ -77,9 +77,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      appender.Value
 	valueOther appender.Value
@@ -868,11 +869,12 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Not bound:
 //	           contract differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more. Nothing here writes, so what a
+// second one buys is a call asking for what an earlier call already asked
+// for; a pool wide enough that every draw is a first would compare nothing
+// against anything.
 func contractModelKeys(fx ContractFixture) *model.Generator[appender.Value] {
 	return model.SampledFrom([]appender.Value{fx.Value(), fx.ValueOther()})
 }
@@ -963,4 +965,4 @@ func contractAssertMonotonicOffsets(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 61213e4a9df0b808a499cbf87b2621e9da4c3d364a174063616941ad9fefc772
+// testkit:provenance cb87d86aef801d1cbc0b3f4d547df65cf60031402b86962bb23da18ddecefda2

@@ -76,9 +76,10 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StoreFixture struct {
 	key       restrictedpool.Key
 	keyOther  restrictedpool.Key
@@ -691,7 +692,7 @@ func storeSignatureChecks(fx StoreFixture) []suite.Check[Store] {
 				storeAssertGetZeroOnError(tb, s, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a key nothing has written",
+			"Get answers no value for a key nothing has written",
 			func(tb testing.TB, s Store) {
 				storeAssertGetMiss(tb, s, fx)
 			}).At(suite.StrengthObserved),
@@ -818,13 +819,19 @@ func storeAssertGetZeroOnError(
 	}
 }
 
-// storeAssertGetMiss asserts Get reports zero for a key nothing has written.
+// storeAssertGetMiss asserts Get answers no value for a key nothing has written.
 func storeAssertGetMiss(
 	tb testing.TB,
 	s Store,
 	fx StoreFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := s.Get(ctx, fx.KeyOther())
@@ -1298,12 +1305,14 @@ func storeModelRows(fx StoreFixture) []suite.Check[Store] {
 //	           Body fixture pairs; NewStoreModelReference replaces it
 //	Sequences: Put (compositewriter), Get (reader)
 //	Values:    the fixture pair — go.thesmos.sh/testkit/conformance/corpus/iface/mixin/restrictedpool.Body reaches a type this build cannot prove a wide draw serves
+//	Not bound:
+//	           crash recovery — the crash schedule holds an acknowledged write to a later read, and this interface presents no keyed write to acknowledge one
 
-// storeModelKeys is the key pool every key slot draws from.
+// storeModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func storeModelKeys(fx StoreFixture) *model.Generator[restrictedpool.Key] {
 	return legs.Blend(fx.KeyPoolDerived(),
 		model.SampledFrom(fx.KeyPool()),
@@ -1417,13 +1426,15 @@ func storeAssertWriteObservable(
 		[]law.Law[Store]{
 			law.WriteObservable[restrictedpool.Store, restrictedpool.Body, restrictedpool.Key]{
 				Write: func(rt *model.T, s restrictedpool.Store, v restrictedpool.Body) error {
-					return s.Put(rt.Context(), fx.Key(), v)
+					return s.Put(rt.Context(), legs.SpreadKey(v, []restrictedpool.Key{fx.Key(), fx.KeyOther()}), v)
 				},
 				Read: func(rt *model.T, s restrictedpool.Store, k restrictedpool.Key) (restrictedpool.Body, error) {
 					return s.Get(rt.Context(), k)
 				},
 				Values: values,
-				KeyOf:  func(restrictedpool.Body) restrictedpool.Key { return fx.Key() },
+				KeyOf: func(v restrictedpool.Body) restrictedpool.Key {
+					return legs.SpreadKey(v, []restrictedpool.Key{fx.Key(), fx.KeyOther()})
+				},
 			},
 		})
 }
@@ -1437,4 +1448,4 @@ func storeAssertWriteObservable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance d921d857237692fa54e09dd02c4e20c7d94c44ae47b20e591f8a887ef85ddfce
+// testkit:provenance c138eb4926dfe91ba4ab31b2ba160c0b2b75b6db195d4371481a0b75032a0246

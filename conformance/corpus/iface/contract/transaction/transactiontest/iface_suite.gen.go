@@ -80,9 +80,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	body       func(context.Context) error
 	bodyOther  func(context.Context) error
@@ -554,7 +555,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertGetZeroOnError(tb, c, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Get.Miss(), suite.ClassReader,
-			"Get reports zero for a key nothing has written",
+			"Get answers no value for a key nothing has written",
 			func(tb testing.TB, c Contract) {
 				contractAssertGetMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
@@ -729,13 +730,19 @@ func contractAssertGetZeroOnError(
 	}
 }
 
-// contractAssertGetMiss asserts Get reports zero for a key nothing has written.
+// contractAssertGetMiss asserts Get answers no value for a key nothing has written.
 func contractAssertGetMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Get answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.Get(ctx, fx.KeyOther())
@@ -1261,20 +1268,21 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not driven:
 //	           Run — takes no stamped value type where the values pool draws go.thesmos.sh/testkit/conformance/corpus/iface/contract/transaction.Value
+//	Not bound:
+//	           crash recovery — the crash schedule reads back what a write acknowledged, and the pair this interface would use is not both driven by the sequences
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1423,13 +1431,15 @@ func contractAssertWriteObservable(
 		[]law.Law[Contract]{
 			law.WriteObservable[transaction.Contract, transaction.Value, string]{
 				Write: func(rt *model.T, s transaction.Contract, v transaction.Value) error {
-					return s.Put(rt.Context(), fx.Key(), v)
+					return s.Put(rt.Context(), legs.SpreadKey(v, []string{fx.Key(), fx.KeyOther()}), v)
 				},
 				Read: func(rt *model.T, s transaction.Contract, k string) (transaction.Value, error) {
 					return s.Get(rt.Context(), k)
 				},
 				Values: values,
-				KeyOf:  func(transaction.Value) string { return fx.Key() },
+				KeyOf: func(v transaction.Value) string {
+					return legs.SpreadKey(v, []string{fx.Key(), fx.KeyOther()})
+				},
 			},
 		})
 }
@@ -1443,4 +1453,4 @@ func contractAssertWriteObservable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 3cbdd36c4215d393da2b06282e86f837f0e5455be608e63efa3f9075e29f2811
+// testkit:provenance 114eea56b7891577c6684959ea620ddcf98782203403e4050cb0238e328fcc94

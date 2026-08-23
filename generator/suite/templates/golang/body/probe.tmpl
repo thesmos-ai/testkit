@@ -52,6 +52,12 @@ say. What it may not do is answer with a value, which is what the zero
 comparison holds it to.
 */ -}}
 {{- define "suite.body.answers-zero" -}}
+// The error is shown and not judged, and that is the claim rather than
+// an omission. A reader that refuses here, where the declaration says
+// {{ .Method }} answers nothing, is behaving — it has just not named
+// which refusal, and the declaration named no sentinel to hold it to.
+// Demanding success would fail every such reader for the one thing
+// nobody said. What it may not do is answer with a value.
 {{ if .NeedsCtx }}ctx := tb.Context()
 {{ end }}
 {{- with .Body.Bound.Method }}

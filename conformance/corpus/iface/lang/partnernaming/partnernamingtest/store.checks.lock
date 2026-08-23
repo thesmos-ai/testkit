@@ -1,13 +1,13 @@
 testkit-checks v2
 At/cancel	signature/cancel	At reports a cancelled context as cancelled	
 At/deadline	signature/deadline	At reports an expired deadline as exceeded	
-At/miss	mixin/reader	At reports zero for a where nothing has written	
+At/miss	mixin/reader	At answers no value for a where nothing has written	
 At/nilcontext	signature/nilcontext	At returns an error rather than panicking on a nil context	
 At/smoke	signature/smoke	At survives a call with a derived where	
 At/zero-on-error	signature/zero-on-error	At returns zero alongside any error	
 Count/cancel	signature/cancel	Count reports a cancelled context as cancelled	
 Count/deadline	signature/deadline	Count reports an expired deadline as exceeded	
-Count/miss	mixin/reader	Count reports zero for a bucket nothing has written	
+Count/miss	mixin/reader	Count answers no value for a bucket nothing has written	
 Count/nilcontext	signature/nilcontext	Count returns an error rather than panicking on a nil context	
 Count/smoke	signature/smoke	Count survives a call with a derived bucket	
 Count/zero-on-error	signature/zero-on-error	Count returns zero alongside any error	
@@ -21,7 +21,7 @@ Move/nilcontext	signature/nilcontext	Move returns an error rather than panicking
 Move/smoke	signature/smoke	Move survives a call with derived inputs	
 Seen/cancel	signature/cancel	Seen reports a cancelled context as cancelled	
 Seen/deadline	signature/deadline	Seen reports an expired deadline as exceeded	
-Seen/miss	mixin/reader	Seen reports zero for a k nothing has written	
+Seen/miss	mixin/reader	Seen answers no value for a k nothing has written	
 Seen/nilcontext	signature/nilcontext	Seen returns an error rather than panicking on a nil context	
 Seen/smoke	signature/smoke	Seen survives a call with a derived k	
 Seen/zero-on-error	signature/zero-on-error	Seen returns zero alongside any error	

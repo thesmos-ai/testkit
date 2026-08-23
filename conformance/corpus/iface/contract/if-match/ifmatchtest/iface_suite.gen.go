@@ -71,9 +71,10 @@ import (
 var _ = suite.CompatV2
 
 // ContractFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type ContractFixture struct {
 	value      ifmatch.Value
 	valueOther ifmatch.Value
@@ -456,7 +457,7 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 				contractAssertMatchZeroOnError(tb, c, fx)
 			}).At(suite.StrengthObserved),
 		argued(ix.Match.Miss(), suite.ClassReader,
-			"Match reports zero for a value nothing has written",
+			"Match answers no value for a value nothing has written",
 			"the answers-with-value defect has to answer a live value and no sample of this method's result could be derived, so this run plants no evidence for the claim",
 			func(tb testing.TB, c Contract) {
 				contractAssertMatchMiss(tb, c, fx)
@@ -589,13 +590,19 @@ func contractAssertMatchZeroOnError(
 	}
 }
 
-// contractAssertMatchMiss asserts Match reports zero for a value nothing has written.
+// contractAssertMatchMiss asserts Match answers no value for a value nothing has written.
 func contractAssertMatchMiss(
 	tb testing.TB,
 	c Contract,
 	fx ContractFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Match answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := c.Match(ctx, fx.ValueOther())
@@ -1056,11 +1063,11 @@ func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 //	           AUTO-WRITE-OBSERVABLE — Read closes over Match, which reads (go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value → bool) beside pools of (go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value, go.thesmos.sh/testkit/conformance/corpus/iface/contract/if-match.Value)
 //	           crash recovery — an acknowledged write here does not simply sit at its key until something overwrites it, and a schedule holding it to that would red correct code
 
-// contractModelKeys is the key pool every key slot draws from.
+// contractModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func contractModelKeys(fx ContractFixture) *model.Generator[ifmatch.Value] {
 	return model.SampledFrom([]ifmatch.Value{fx.Value(), fx.ValueOther()})
 }
@@ -1127,4 +1134,4 @@ func contractAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 4768e9fc0c0e43a631bfc8d3e571832eb6d7e84209e76412d9dc1a5b183829ac
+// testkit:provenance a05aeafef91625b90c52e7a85c70eb3aa28098c4c02dbdf6516fca16d7e8761d

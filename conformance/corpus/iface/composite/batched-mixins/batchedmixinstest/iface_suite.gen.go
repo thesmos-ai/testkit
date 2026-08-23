@@ -98,9 +98,10 @@ import (
 var _ = suite.CompatV2
 
 // BatchedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type BatchedFixture struct {
 	key        string
 	keyOther   string
@@ -603,7 +604,7 @@ func batchedSignatureChecks(fx BatchedFixture) []suite.Check[Batched] {
 				batchedAssertPutIdempotent(tb, b, fx)
 			}).At(suite.StrengthErrorOnly),
 		sig(ix.Read.Miss(), suite.ClassReader,
-			"Read reports zero for a key nothing has written",
+			"Read answers no value for a key nothing has written",
 			func(tb testing.TB, b Batched) {
 				batchedAssertReadMiss(tb, b, fx)
 			}).At(suite.StrengthObserved),
@@ -812,13 +813,19 @@ func batchedAssertPutIdempotent(
 	}
 }
 
-// batchedAssertReadMiss asserts Read reports zero for a key nothing has written.
+// batchedAssertReadMiss asserts Read answers no value for a key nothing has written.
 func batchedAssertReadMiss(
 	tb testing.TB,
 	b Batched,
 	fx BatchedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Read answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := b.Read(ctx, fx.KeyOther())
@@ -1367,25 +1374,25 @@ func batchedModelRows(fx BatchedFixture) []suite.Check[Batched] {
 //	Sequences: Put (compositewriter), Read (reader), List (collector)
 //	Values:    the fixture pair blended with arbitrary draws
 //	Not bound:
-//	           AUTO-WRITE-OBSERVABLE — KeyOf would project every value onto the fixture key, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
+//	           AUTO-WRITE-OBSERVABLE — KeyOf would place the run's values across the key pool, and the reference here is the subject's own factory — so a claim on this interface has already defeated the store model this law is
 //	           AUTO-COUNT-EQUALS-REFERENCE — the reference is the subject's own factory, so this compares a count against itself; the law legs' actions already do that, and alone it catches nondeterminism and nothing else
 //	           AUTO-PURE-DETERMINISTIC — Call closes over List, which is not a bare pure call
 //	           AUTO-CACHEABLE — Read closes over List, whose shape is collector rather than a keyed reader
 //	           batched differential — the reference is the subject's own factory, whose comparison already rides each law leg's actions; alone it catches nondeterminism and nothing a second instance shares
+//	           crash recovery — the crash schedule holds an acknowledged write to a later read, and this interface presents no keyed write to acknowledge one
 
-// batchedModelKeys is the key pool every key slot draws from.
+// batchedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func batchedModelKeys(fx BatchedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1526,4 +1533,4 @@ func batchedAssertBounded(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 91fb741a20a21984a7c5b86f7e4d83c4b9de55c2d9afd20d14dadaf6621e221f
+// testkit:provenance 0080ca90fda924ba7c0519048602f66093bd3742c6e1cd1bef7019561294b78b

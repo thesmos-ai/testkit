@@ -82,9 +82,10 @@ import (
 var _ = suite.CompatV2
 
 // MixedFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MixedFixture struct {
 	key        string
 	keyOther   string
@@ -483,7 +484,7 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 				mixedAssertWriteHonoursDeadline(tb, m, fx)
 			}).At(suite.StrengthErrorOnly),
 		sig(ix.Read.Miss(), suite.ClassReader,
-			"Read reports zero for a key nothing has written",
+			"Read answers no value for a key nothing has written",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertReadMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
@@ -610,13 +611,19 @@ func mixedAssertWriteHonoursDeadline(
 	})
 }
 
-// mixedAssertReadMiss asserts Read reports zero for a key nothing has written.
+// mixedAssertReadMiss asserts Read answers no value for a key nothing has written.
 func mixedAssertReadMiss(
 	tb testing.TB,
 	m Mixed,
 	fx MixedFixture,
 ) {
 	tb.Helper()
+	// The error is shown and not judged, and that is the claim rather than
+	// an omission. A reader that refuses here, where the declaration says
+	// Read answers nothing, is behaving — it has just not named
+	// which refusal, and the declaration named no sentinel to hold it to.
+	// Demanding success would fail every such reader for the one thing
+	// nobody said. What it may not do is answer with a value.
 	ctx := tb.Context()
 
 	got, err := m.Read(ctx, fx.KeyOther())
@@ -1103,20 +1110,21 @@ func mixedModelRows(fx MixedFixture) []suite.Check[Mixed] {
 //	           Value fixture pairs; NewMixedModelReference replaces it
 //	Sequences: Read (reader), Write (compositewriter)
 //	Values:    the fixture pair blended with arbitrary draws
+//	Not bound:
+//	           crash recovery — the crash schedule holds an acknowledged write to a later read, and this interface presents no keyed write to acknowledge one
 
-// mixedModelKeys is the key pool every key slot draws from.
+// mixedModelKeys is the pool every key slot draws from.
 //
-// Two keys, and deliberately not more: collision density is what makes a
-// read revisit a write and an overwrite land on held state. A wide key
-// pool would pass every comparison over a history that never collides.
+// Two members, and deliberately not more: collision density is what makes
+// a read revisit a write and an overwrite land on held state. A wide pool
+// would pass every comparison over a history that never collides.
 func mixedModelKeys(fx MixedFixture) *model.Generator[string] {
 	// Widened unconditionally: this run emits no config, so there is no
 	// pool a consumer could have narrowed and nothing to gate on. The
 	// provenance argument applies to a pool somebody passed, and nobody
 	// can pass one here.
-	return legs.Blend(true,
+	return legs.BlendStrings(true,
 		model.SampledFrom([]string{fx.Key(), fx.KeyOther()}),
-		func(s string) string { return s },
 	)
 }
 
@@ -1250,13 +1258,15 @@ func mixedAssertWriteObservable(
 		[]law.Law[Mixed]{
 			law.WriteObservable[readafterwrite.Mixed, string, string]{
 				Write: func(rt *model.T, s readafterwrite.Mixed, v string) error {
-					return s.Write(rt.Context(), fx.Key(), v)
+					return s.Write(rt.Context(), legs.SpreadKey(v, []string{fx.Key(), fx.KeyOther()}), v)
 				},
 				Read: func(rt *model.T, s readafterwrite.Mixed, k string) (string, error) {
 					return s.Read(rt.Context(), k)
 				},
 				Values: values,
-				KeyOf:  func(string) string { return fx.Key() },
+				KeyOf: func(v string) string {
+					return legs.SpreadKey(v, []string{fx.Key(), fx.KeyOther()})
+				},
 			},
 		})
 }
@@ -1270,4 +1280,4 @@ func mixedAssertWriteObservable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 3b0fb3ce73c1d6d0aa74c00593a753fe73a765cf37472300a3ef42be96d36e89
+// testkit:provenance 750c385d934de302c5f77f60e885fda3d1b021f2c5ba6d9da4a9a5abbf1b9895

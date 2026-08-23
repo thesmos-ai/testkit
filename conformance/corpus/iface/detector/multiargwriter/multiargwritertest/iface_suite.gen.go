@@ -60,9 +60,10 @@ import (
 var _ = suite.CompatV2
 
 // MultiArgWriterFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type MultiArgWriterFixture struct {
 	key       string
 	keyOther  string
@@ -714,10 +715,11 @@ func GreenMultiArgWriter(
 // so it contributes no checks. Each reason below is one it tried:
 //   AUTO-WRITE-OBSERVABLE — instantiates at a value type no method here draws
 //   multi-arg-writer differential — every driven method here answers an error and nothing else, so both sides return nil for every call a correct subject makes and the comparison has nothing to disagree about
+//   crash recovery — the crash schedule writes a record and reads it back after a rebuild, and this interface presents neither a keyed read nor a keyed write
 //
 // Nothing to do about it here. The claims that needed sequences are the
 // ones this package does not check, and this says so rather than letting
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 912d19bc44b2dcb8f1ae7f9580e4fe8699112d7d25f0ebebc885e30d25059a62
+// testkit:provenance 7fc5ae23948143667eb4872f1afe21dbdfdf9da15f99111bdab58f9c50828ebf

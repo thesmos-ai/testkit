@@ -61,9 +61,10 @@ import (
 var _ = suite.CompatV2
 
 // VoidLifecycleFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type VoidLifecycleFixture struct {
 }
 
@@ -689,4 +690,4 @@ func voidLifecycleAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 5b005d0ad2cad7de27fd578f4c949853bbadc595e956e078d2730558ddb1932e
+// testkit:provenance 546620e453a1480b208db6129ca9afa3aec24f7096e08c79b467a4414faaf6bd

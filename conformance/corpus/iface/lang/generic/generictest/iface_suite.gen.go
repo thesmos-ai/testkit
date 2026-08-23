@@ -68,9 +68,10 @@ import (
 var _ = suite.CompatV2
 
 // StoreFixture holds the sample inputs the checks call your
-// implementation with, worked out from each method's parameter types —
-// see [suite.Row]'s Run for how they are
-// derived and what a field it could not derive means.
+// implementation with, worked out from each method's parameter types.
+//
+// How a field is derived, and what one this run could not derive leaves
+// behind, is documented on [suite.Row]'s Run field.
 type StoreFixture[K comparable, V any] struct {
 	k      K
 	kOther K
@@ -654,4 +655,4 @@ func GreenStore[K comparable, V any](
 // the run surface read as complete.
 
 // testkit: end of generated content.
-// testkit:provenance 45b1cb5163b4ff5aef75d1283580876ec70b53e26f22d47b7f7af826518ae27a
+// testkit:provenance 9bb55bb7d507a949f369d8ea07f4b85d39a714f3b5283886655d46b3376c9955
