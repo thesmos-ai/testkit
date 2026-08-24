@@ -594,8 +594,8 @@ func mixedAssertListZeroOnError(
 		tb.Skip("List answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("List must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("List must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1125,4 +1125,4 @@ func mixedAssertBounded(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 1c82319f1f6e697ecad41f776e3c74c26c8b07db1b91b473be0cbbbee94f1b01
+// testkit:provenance d039c5e101ced9e4f2d25d677e436b683c4d933c34d2c9bcb735900d96f9e518

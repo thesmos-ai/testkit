@@ -58,7 +58,6 @@ import (
 //
 //	AgeOf/cancel
 //	AgeOf/deadline
-//	AgeOf/miss
 //	AgeOf/nilcontext
 //	AgeOf/smoke
 //	AgeOf/zero-on-error
@@ -73,6 +72,13 @@ import (
 // do — listed so that a directive you wrote is accounted for:
 //
 //	timeaware on AgeOf — stating it needs sequences of calls judged against a reference, which this file does not build.
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	AgeOf's miss check — nothing here writes what AgeOf answers, so its answer for an unsupplied input is not a miss — a watch hands back a live subscription for any key, a predicate answers false because the answer is no, and a machine reports the position it starts in. To close it: say what this reports when it finds nothing, with //testkit:mixin notfound sentinel=Err…, or write the check yourself.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -300,7 +306,6 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.AgeOf.NilContext():        "MixedSuite.Checks.AgeOf.NilContext()",
 	mixedCheckIndex.AgeOf.Deadline():          "MixedSuite.Checks.AgeOf.Deadline()",
 	mixedCheckIndex.AgeOf.ZeroOnError():       "MixedSuite.Checks.AgeOf.ZeroOnError()",
-	mixedCheckIndex.AgeOf.Miss():              "MixedSuite.Checks.AgeOf.Miss()",
 	mixedCheckIndex.Model.MovesWithTheClock(): "MixedSuite.Checks.Model.MovesWithTheClock()",
 }
 
@@ -390,10 +395,6 @@ func (mixedAgeOfChecks) ZeroOnError() suite.ID {
 	return suite.MethodID(mixedAgeOf, suite.SegZeroValue)
 }
 
-func (mixedAgeOfChecks) Miss() suite.ID {
-	return suite.MethodID(mixedAgeOf, suite.SegMiss)
-}
-
 func (mixedAgeOfChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedAgeOfChecks{}.Smoke(),
@@ -401,7 +402,6 @@ func (mixedAgeOfChecks) All() []suite.ID {
 		mixedAgeOfChecks{}.NilContext(),
 		mixedAgeOfChecks{}.Deadline(),
 		mixedAgeOfChecks{}.ZeroOnError(),
-		mixedAgeOfChecks{}.Miss(),
 	}
 }
 
@@ -485,11 +485,6 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 			"AgeOf returns zero alongside any error",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertAgeOfZeroOnError(tb, m, fx)
-			}).At(suite.StrengthObserved),
-		sig(ix.AgeOf.Miss(), suite.ClassReader,
-			"AgeOf answers no value for a key nothing has written",
-			func(tb testing.TB, m Mixed) {
-				mixedAssertAgeOfMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
 	}
 }
@@ -610,30 +605,6 @@ func mixedAssertAgeOfZeroOnError(
 	var zero int64
 	if got != zero {
 		tb.Errorf("AgeOf must return the zero value alongside an error: got %+v, want %+v (err %v)",
-			got, zero, err)
-	}
-}
-
-// mixedAssertAgeOfMiss asserts AgeOf answers no value for a key nothing has written.
-func mixedAssertAgeOfMiss(
-	tb testing.TB,
-	m Mixed,
-	fx MixedFixture,
-) {
-	tb.Helper()
-	// The error is shown and not judged, and that is the claim rather than
-	// an omission. A reader that refuses here, where the declaration says
-	// AgeOf answers nothing, is behaving — it has just not named
-	// which refusal, and the declaration named no sentinel to hold it to.
-	// Demanding success would fail every such reader for the one thing
-	// nobody said. What it may not do is answer with a value.
-	ctx := tb.Context()
-
-	got, err := m.AgeOf(ctx, fx.KeyOther())
-
-	var zero int64
-	if got != zero {
-		tb.Errorf("AgeOf must return the zero value for an input nothing supplied: got %+v, want %+v (err %v)",
 			got, zero, err)
 	}
 }
@@ -902,15 +873,6 @@ func mixedProofs() prove.Defects[Mixed] {
 						// violation rather than a subject that merely failed.
 						r0 = 2
 						err = errors.New("planted: AgeOf refused with a believable value")
-						return
-					}))
-			}),
-		ix.AgeOf.Miss(): prove.One("a Mixed whose AgeOf answers for an input nothing wrote",
-			func(tb testing.TB) Mixed {
-				return NewMixedStub(tb, WithMixedAgeOf(
-					func(_ context.Context, _ string) (r0 int64, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
 						return
 					}))
 			}),
@@ -1189,4 +1151,4 @@ func mixedAssertMovesWithTheClock(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 90fdd1ccc600a7dcc84c8e8e4ce15e96df45fe1e09edef1a586d0707bab1e1b9
+// testkit:provenance d643d1d8caa6a7697aa28f7422f0cb3c6ab27dfecee532d0c2d59b58ea8b4519

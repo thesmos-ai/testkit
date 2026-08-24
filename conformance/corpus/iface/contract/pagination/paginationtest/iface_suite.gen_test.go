@@ -39,8 +39,6 @@ import (
 //	Put.NilContext — a Contract whose Put forgives a nil context and answers
 //
 //	Put.Deadline — a Contract whose Put ignores the context it is handed
-//
-//	Page.Miss — a Contract whose Page answers for an input nothing wrote
 
 // TestContractInvariants holds this package to what it says about itself.
 //
@@ -70,4 +68,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a5d8595e594ccf9b7b5b2c0b1fd1b33f97c8e3678ab0d4059735004acf170a17
+// testkit:provenance 65db938b117cdbc6033f9a08d79b33e2c3be9f3cca580022671885728df7f92d

@@ -26,7 +26,7 @@ import (
 func TestContractContract(t *testing.T) {
 	t.Parallel()
 
-	watchertest.RunContract(t, inMemory("in-memory"), withoutTheMiss(), contractChecks)
+	watchertest.RunContract(t, inMemory("in-memory"), contractChecks)
 }
 
 // TestContractContractWithoutSmoke drops a check through the typed index rather
@@ -37,7 +37,6 @@ func TestContractContractWithoutSmoke(t *testing.T) {
 
 	watchertest.RunContract(t,
 		inMemory("in-memory"),
-		withoutTheMiss(),
 		watchertest.ContractSuite.Without(watchertest.ContractSuite.Checks.Watch.Smoke()),
 	)
 }
@@ -59,16 +58,6 @@ func inMemory(name string) watchertest.ContractHarness[*watchertest.InMemory] {
 	return watchertest.ContractHarness[*watchertest.InMemory]{
 		Name: name, New: watchertest.NewInMemory,
 	}
-}
-
-// withoutTheMiss drops the derived miss check.
-//
-// Watch is reader-shaped and Trigger writes, so the rules derive a miss — and a
-// watch has no miss. Attaching to a key nothing has written yet is the ordinary
-// case, not the failing one, so the subject answers a live subscription and the
-// derived claim is wrong for it rather than the other way round.
-func withoutTheMiss() watchertest.ContractRunOpt {
-	return watchertest.ContractSuite.Without(watchertest.ContractSuite.Checks.Watch.Miss())
 }
 
 // --- The checks: claims, bodies and defects, by name --------------------------

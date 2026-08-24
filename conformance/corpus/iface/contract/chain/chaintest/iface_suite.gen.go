@@ -646,8 +646,8 @@ func contractAssertReplayZeroOnError(
 		tb.Skip("Replay answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Replay must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Replay must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1538,4 +1538,4 @@ func contractAssertHashChainIntegrityVerify(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 75686d41f0fc9433b89c5122690a58a619cfc210769d5bf9d1dfd3e61212b0b3
+// testkit:provenance 096b56d00d492cee0169d6f5fc1319f2d64a3d44efdbfe812774d2a73d68d1b5

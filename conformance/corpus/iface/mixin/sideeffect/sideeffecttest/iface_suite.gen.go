@@ -53,7 +53,6 @@ import (
 //
 //	Observed/cancel
 //	Observed/deadline
-//	Observed/miss
 //	Observed/nilcontext
 //	Observed/smoke
 //	Observed/zero-on-error
@@ -63,6 +62,13 @@ import (
 //	Touch/sideeffect
 //	Touch/smoke
 //	model/mixed/differential
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	Observed's miss check — nothing here writes what Observed answers, so its answer for an unsupplied input is not a miss — a watch hands back a live subscription for any key, a predicate answers false because the answer is no, and a machine reports the position it starts in. To close it: say what this reports when it finds nothing, with //testkit:mixin notfound sentinel=Err…, or write the check yourself.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -264,7 +270,6 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.Observed.NilContext():  "MixedSuite.Checks.Observed.NilContext()",
 	mixedCheckIndex.Observed.Deadline():    "MixedSuite.Checks.Observed.Deadline()",
 	mixedCheckIndex.Observed.ZeroOnError(): "MixedSuite.Checks.Observed.ZeroOnError()",
-	mixedCheckIndex.Observed.Miss():        "MixedSuite.Checks.Observed.Miss()",
 	mixedCheckIndex.Model.Agrees():         "MixedSuite.Checks.Model.Agrees()",
 }
 
@@ -359,10 +364,6 @@ func (mixedObservedChecks) ZeroOnError() suite.ID {
 	return suite.MethodID(mixedObserved, suite.SegZeroValue)
 }
 
-func (mixedObservedChecks) Miss() suite.ID {
-	return suite.MethodID(mixedObserved, suite.SegMiss)
-}
-
 func (mixedObservedChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedObservedChecks{}.Smoke(),
@@ -370,7 +371,6 @@ func (mixedObservedChecks) All() []suite.ID {
 		mixedObservedChecks{}.NilContext(),
 		mixedObservedChecks{}.Deadline(),
 		mixedObservedChecks{}.ZeroOnError(),
-		mixedObservedChecks{}.Miss(),
 	}
 }
 
@@ -459,11 +459,6 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 			"Touch changes what Observed observes",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertTouchSideeffect(tb, m, fx)
-			}).At(suite.StrengthObserved),
-		sig(ix.Observed.Miss(), suite.ClassReader,
-			"Observed answers no value for a key nothing has written",
-			func(tb testing.TB, m Mixed) {
-				mixedAssertObservedMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
 	}
 }
@@ -613,30 +608,6 @@ func mixedAssertTouchSideeffect(
 
 	if after == before {
 		tb.Errorf("Touch must change what Observed observes: both read %+v", before)
-	}
-}
-
-// mixedAssertObservedMiss asserts Observed answers no value for a key nothing has written.
-func mixedAssertObservedMiss(
-	tb testing.TB,
-	m Mixed,
-	fx MixedFixture,
-) {
-	tb.Helper()
-	// The error is shown and not judged, and that is the claim rather than
-	// an omission. A reader that refuses here, where the declaration says
-	// Observed answers nothing, is behaving — it has just not named
-	// which refusal, and the declaration named no sentinel to hold it to.
-	// Demanding success would fail every such reader for the one thing
-	// nobody said. What it may not do is answer with a value.
-	ctx := tb.Context()
-
-	got, err := m.Observed(ctx, fx.KeyOther())
-
-	var zero int
-	if got != zero {
-		tb.Errorf("Observed must return the zero value for an input nothing supplied: got %+v, want %+v (err %v)",
-			got, zero, err)
 	}
 }
 
@@ -917,15 +888,6 @@ func mixedProofs() prove.Defects[Mixed] {
 						return
 					}))
 			}),
-		ix.Observed.Miss(): prove.One("a Mixed whose Observed answers for an input nothing wrote",
-			func(tb testing.TB) Mixed {
-				return NewMixedStub(tb, WithMixedObserved(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
-						return
-					}))
-			}),
 	}
 }
 
@@ -1162,4 +1124,4 @@ func mixedAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance e4586d29bd261c99e94e62b52f7458127b728198608ab9c6394928d32fa7ae6b
+// testkit:provenance 0aee141dc385c60a0fcad2d9e35c1a9bf49a8760cec637e9a0ded54663922fd0

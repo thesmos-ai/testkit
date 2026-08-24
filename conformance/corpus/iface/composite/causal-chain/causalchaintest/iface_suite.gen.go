@@ -583,8 +583,8 @@ func logAssertReplayZeroOnError(
 		tb.Skip("Replay answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Replay must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Replay must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1263,4 +1263,4 @@ func logAssertReplayCausalOrdering(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 043242d1225a552d12f396438ba98b904cfc15d2b5294108dc0313b25652bcc2
+// testkit:provenance 4fcac7edb67f076d88660ec8f8280472d9f5a8ca92718e3252215c83cba9014b

@@ -434,8 +434,8 @@ func replicaAssertItemsZeroOnError(
 		tb.Skip("Items answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Items must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Items must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1443,8 +1443,8 @@ func mixedAssertItemsZeroOnError(
 		tb.Skip("Items answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Items must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Items must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1949,4 +1949,4 @@ func mixedAssertCRDTMerge(
 }
 
 // testkit: end of generated content.
-// testkit:provenance fa35fb0795daf91d8cca91c2b1a5c47c51085071216af4b70c8b381c5f1f9927
+// testkit:provenance 90bea8a17b7569df0811f8e37bfa8b717c8d6ffd4d5fb3cb1e1855ae3809ad99

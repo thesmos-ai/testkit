@@ -42,8 +42,6 @@ import (
 //
 //	Model.Agrees — a Contract whose Publish reports success and keeps nothing
 //
-//	Model.Delivers — a Contract whose Publish reports success and keeps nothing
-//
 //	Model.AtLeastOnce — a Contract whose Publish reports success and keeps nothing
 
 // TestContractInvariants holds this package to what it says about itself.
@@ -74,4 +72,4 @@ func TestContractInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 62d5a72d46a29065340214f14bf9703fbe67aa5c7ad91ca7d6dc00bd2662dc50
+// testkit:provenance 84cecf861e6bd8e8718a3868dab12c917daf5021ed5d1046ff384f863f9c5923

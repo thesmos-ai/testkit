@@ -48,6 +48,20 @@ func missRule(f Iface, m subject.Method, call projection.CallPlan) ([]projection
 			},
 		}
 	}
+	if sentinel == "" && !readsBackAWrite(f, m) {
+		return nil, []Refusal{
+			{
+				Deriver: DeriverStamps,
+				What:    m.Name + "'s miss check",
+				Why: "nothing here writes what " + m.Name + " answers, so its answer for " +
+					"an unsupplied input is not a miss — a watch hands back a live " +
+					"subscription for any key, a predicate answers false because the " +
+					"answer is no, and a machine reports the position it starts in",
+				Remedy: "say what this reports when it finds nothing, with " +
+					"//testkit:mixin notfound sentinel=Err…, or write the check yourself",
+			},
+		}
+	}
 	plans := []projection.CheckPlan{{
 		ID:          projection.IDPlan{Method: m.Name, Seg: vocab.SegMiss},
 		Class:       vocab.ClassReader,
@@ -75,6 +89,45 @@ func missRule(f Iface, m subject.Method, call projection.CallPlan) ([]projection
 		})
 	}
 	return plans, nil
+}
+
+// readsBackAWrite reports that the method answers the kind of value some
+// method here stores, which is what makes its answer for an unsupplied
+// input a MISS rather than an ordinary answer.
+//
+// The zero form of this check asserts that an input nothing wrote comes
+// back empty. That is a claim about a store. It is false about a watch,
+// which hands back a live subscription for any key; about a predicate,
+// whose false means the answer is no; and about a state machine, which
+// reports the position it starts in. Each of those is reader-shaped, and
+// each was told it must answer nothing.
+//
+// Compared by type rather than by shape, because the shape is what led
+// here: all three classify as readers. What separates them is that the
+// value coming out is not the value that went in.
+func readsBackAWrite(f Iface, m subject.Method) bool {
+	if f.Corpus {
+		// A seeded run loads the subject through the corpus rather than
+		// through a method, so there is a write behind the read even where
+		// the interface declares no writer at all.
+		return true
+	}
+	values := m.ValueReturns()
+	if len(values) == 0 || values[0].Source == nil {
+		return false
+	}
+	out := values[0].Source
+	for _, w := range f.Methods {
+		if !writesSomething(w) {
+			continue
+		}
+		for _, arg := range w.CallArgs() {
+			if sameNamed(arg.Source, out) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // missBody picks the shape the declaration licenses: errors.Is where a

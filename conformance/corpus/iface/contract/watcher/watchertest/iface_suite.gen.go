@@ -59,11 +59,17 @@ import (
 //	Trigger/smoke
 //	Watch/cancel
 //	Watch/deadline
-//	Watch/miss
 //	Watch/nilcontext
 //	Watch/smoke
 //	Watch/zero-on-error
 //	model/contract/AUTO-WATCHER-RETURNS-ON-CHANGE
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	Watch's miss check — nothing here writes what Watch answers, so its answer for an unsupplied input is not a miss — a watch hands back a live subscription for any key, a predicate answers false because the answer is no, and a machine reports the position it starts in. To close it: say what this reports when it finds nothing, with //testkit:mixin notfound sentinel=Err…, or write the check yourself.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -272,7 +278,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Watch.NilContext():             "ContractSuite.Checks.Watch.NilContext()",
 	contractCheckIndex.Watch.Deadline():               "ContractSuite.Checks.Watch.Deadline()",
 	contractCheckIndex.Watch.ZeroOnError():            "ContractSuite.Checks.Watch.ZeroOnError()",
-	contractCheckIndex.Watch.Miss():                   "ContractSuite.Checks.Watch.Miss()",
 	contractCheckIndex.Trigger.Smoke():                "ContractSuite.Checks.Trigger.Smoke()",
 	contractCheckIndex.Trigger.Cancels():              "ContractSuite.Checks.Trigger.Cancels()",
 	contractCheckIndex.Trigger.NilContext():           "ContractSuite.Checks.Trigger.NilContext()",
@@ -339,10 +344,6 @@ func (contractWatchChecks) ZeroOnError() suite.ID {
 	return suite.MethodID(contractWatch, suite.SegZeroValue)
 }
 
-func (contractWatchChecks) Miss() suite.ID {
-	return suite.MethodID(contractWatch, suite.SegMiss)
-}
-
 func (contractWatchChecks) All() []suite.ID {
 	return []suite.ID{
 		contractWatchChecks{}.Smoke(),
@@ -350,7 +351,6 @@ func (contractWatchChecks) All() []suite.ID {
 		contractWatchChecks{}.NilContext(),
 		contractWatchChecks{}.Deadline(),
 		contractWatchChecks{}.ZeroOnError(),
-		contractWatchChecks{}.Miss(),
 	}
 }
 
@@ -464,12 +464,6 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 			func(tb testing.TB, c Contract) {
 				contractAssertTriggerHonoursDeadline(tb, c, fx)
 			}).At(suite.StrengthErrorOnly),
-		argued(ix.Watch.Miss(), suite.ClassReader,
-			"Watch answers no value for a key nothing has written",
-			"the answers-with-value defect has to answer a live value and no sample of this method's result could be derived, so this run plants no evidence for the claim",
-			func(tb testing.TB, c Contract) {
-				contractAssertWatchMiss(tb, c, fx)
-			}).At(suite.StrengthObserved),
 	}
 }
 
@@ -591,30 +585,6 @@ func contractAssertTriggerHonoursDeadline(
 	suite.ReportsDeadlineExceeded(tb, contractTrigger, func(ctx context.Context) error {
 		return c.Trigger(ctx, fx.Key(), fx.Value())
 	})
-}
-
-// contractAssertWatchMiss asserts Watch answers no value for a key nothing has written.
-func contractAssertWatchMiss(
-	tb testing.TB,
-	c Contract,
-	fx ContractFixture,
-) {
-	tb.Helper()
-	// The error is shown and not judged, and that is the claim rather than
-	// an omission. A reader that refuses here, where the declaration says
-	// Watch answers nothing, is behaving — it has just not named
-	// which refusal, and the declaration named no sentinel to hold it to.
-	// Demanding success would fail every such reader for the one thing
-	// nobody said. What it may not do is answer with a value.
-	ctx := tb.Context()
-
-	got, err := c.Watch(ctx, fx.KeyOther())
-
-	var zero watcher.Subscription
-	if got != zero {
-		tb.Errorf("Watch must return the zero value for an input nothing supplied: got %+v, want %+v (err %v)",
-			got, zero, err)
-	}
 }
 
 // ContractDefect is a deliberately broken implementation, used as
@@ -1126,4 +1096,4 @@ func contractAssertWatcherReturnsOnChange(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance cbc70e1d1eca8fa18a17e022c1a52540ac346ade6306422469f0e517285f4ec4
+// testkit:provenance 0699f649e6457b8f969371cdfab23788a26e015c6faa5c1f161d1da4f265ea95

@@ -669,8 +669,8 @@ func mixedAssertHistoryZeroOnError(
 		tb.Skip("History answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("History must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("History must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1436,4 +1436,4 @@ func mixedAssertSnapshotIsolationG1(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 57b0dd6088a98af8ab9c9560176d1ead66d3b4e4cc6904c4fe524321d1d2ef77
+// testkit:provenance ad6ec55a61db1b14ed4d1a92168ee9bca097044e57e0be9807bf2a3e233932a9

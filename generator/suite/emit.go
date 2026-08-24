@@ -462,10 +462,16 @@ func zeroSlotsOf(m subject.Method) []zeroSlot {
 	out := make([]zeroSlot, 0, len(values))
 	for i, ret := range values {
 		src := ret.Source
-		slot := zeroSlot{Bind: zeroBindIdent("got", i), Zero: zeroBindIdent("zero", i), Nil: zeroIsNil(src)}
+		slot := zeroSlot{
+			Bind: zeroBindIdent("got", i), Zero: zeroBindIdent("zero", i),
+			Nil: zeroIsNil(src), Empty: zeroIsEmpty(src),
+		}
 		switch {
-		case slot.Nil:
-			// nil needs no type spelled.
+		case slot.Nil, slot.Empty:
+			// Neither needs a type spelled: one compares against nil, the
+			// other takes a length. Ahead of the unnamed case below, because
+			// a slice's ref carries no Name and would be dropped there —
+			// which took the whole slot out of the body, binding included.
 		case src == nil || src.Name == "":
 			// Nothing to declare a zero of; the body cannot judge it.
 			continue
@@ -510,13 +516,30 @@ func zeroIsNil(src *node.TypeRef) bool {
 		return false
 	}
 	switch src.TypeKind {
-	case node.TypeRefSlice, node.TypeRefMap, node.TypeRefFunc, node.TypeRefPointer:
+	case node.TypeRefFunc, node.TypeRefPointer:
 		return true
 	default:
 		// A channel arrives as a named ref with the frontend's own stamp
 		// on it, never as a kind of its own.
 		return golang.IsChannel(src)
 	}
+}
+
+// zeroIsEmpty reports a slot whose emptiness is a length rather than a
+// nil.
+//
+// A returned `[]T{}` holds nothing and is not nil, which is ordinary Go
+// and the shape the chain contract's own reference answers — so a check
+// spelling "returns nothing" as `!= nil` failed the oracle it was
+// generated beside. Length says what the claim means for both spellings.
+//
+// Slices and maps only. A nil func, pointer or channel is not an empty
+// one: there is no length to take and nothing to call or read.
+func zeroIsEmpty(src *node.TypeRef) bool {
+	if src == nil {
+		return false
+	}
+	return src.TypeKind == node.TypeRefSlice || src.TypeKind == node.TypeRefMap
 }
 
 // zeroBindOf binds every value slot, and the error beside them when the

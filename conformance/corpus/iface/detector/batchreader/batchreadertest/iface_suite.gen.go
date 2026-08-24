@@ -461,8 +461,8 @@ func batchReaderAssertGetAllZeroOnError(
 		tb.Skip("GetAll answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("GetAll must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("GetAll must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -897,4 +897,4 @@ func batchReaderAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance b9ad4d7f42650a7eb4e7f0865a8caf69db052c04f048d0db18da5b982db39fdb
+// testkit:provenance 05a7f9354df15830bf977c0e00083ec27a03550b3647963f5e715ec38163b3f8

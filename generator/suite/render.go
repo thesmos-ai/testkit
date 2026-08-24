@@ -207,6 +207,11 @@ type zeroSlot struct {
 	// zero, which is comparability rather than spelling.
 	Nil bool
 
+	// Empty says the slot holds nothing when its length is zero — a
+	// slice or a map, where `[]T{}` is as empty as nil and a nil test
+	// would fail a correct answer.
+	Empty bool
+
 	// Type is the reference a declared zero is declared of, Word the
 	// bare word for a predeclared one. At most one is set.
 	Type *sdk.Expr

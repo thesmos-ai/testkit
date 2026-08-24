@@ -55,7 +55,6 @@ import (
 //
 //	Page/cancel
 //	Page/deadline
-//	Page/miss
 //	Page/nilcontext
 //	Page/smoke
 //	Page/zero-on-error
@@ -65,6 +64,13 @@ import (
 //	Put/smoke
 //	model/contract/AUTO-PAGINATOR-NO-DUPLICATES
 //	model/contract/AUTO-PAGINATOR-RESUMABLE
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	Page's miss check — nothing here writes what Page answers, so its answer for an unsupplied input is not a miss — a watch hands back a live subscription for any key, a predicate answers false because the answer is no, and a machine reports the position it starts in. To close it: say what this reports when it finds nothing, with //testkit:mixin notfound sentinel=Err…, or write the check yourself.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -273,7 +279,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Page.NilContext():             "ContractSuite.Checks.Page.NilContext()",
 	contractCheckIndex.Page.Deadline():               "ContractSuite.Checks.Page.Deadline()",
 	contractCheckIndex.Page.ZeroOnError():            "ContractSuite.Checks.Page.ZeroOnError()",
-	contractCheckIndex.Page.Miss():                   "ContractSuite.Checks.Page.Miss()",
 	contractCheckIndex.Put.Smoke():                   "ContractSuite.Checks.Put.Smoke()",
 	contractCheckIndex.Put.Cancels():                 "ContractSuite.Checks.Put.Cancels()",
 	contractCheckIndex.Put.NilContext():              "ContractSuite.Checks.Put.NilContext()",
@@ -341,10 +346,6 @@ func (contractPageChecks) ZeroOnError() suite.ID {
 	return suite.MethodID(contractPage, suite.SegZeroValue)
 }
 
-func (contractPageChecks) Miss() suite.ID {
-	return suite.MethodID(contractPage, suite.SegMiss)
-}
-
 func (contractPageChecks) All() []suite.ID {
 	return []suite.ID{
 		contractPageChecks{}.Smoke(),
@@ -352,7 +353,6 @@ func (contractPageChecks) All() []suite.ID {
 		contractPageChecks{}.NilContext(),
 		contractPageChecks{}.Deadline(),
 		contractPageChecks{}.ZeroOnError(),
-		contractPageChecks{}.Miss(),
 	}
 }
 
@@ -469,11 +469,6 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 			func(tb testing.TB, c Contract) {
 				contractAssertPutHonoursDeadline(tb, c, fx)
 			}).At(suite.StrengthErrorOnly),
-		sig(ix.Page.Miss(), suite.ClassReader,
-			"Page answers no value for a cursor nothing has written",
-			func(tb testing.TB, c Contract) {
-				contractAssertPageMiss(tb, c, fx)
-			}).At(suite.StrengthObserved),
 	}
 }
 
@@ -542,8 +537,8 @@ func contractAssertPageZeroOnError(
 		tb.Skip("Page answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Page must return nothing for its result 1 alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Page must return nothing for its result 1 alongside an error: got %d (err %v)", len(got), err)
 	}
 	var zero2 pagination.Cursor
 	if got2 != zero2 {
@@ -603,38 +598,6 @@ func contractAssertPutHonoursDeadline(
 	suite.ReportsDeadlineExceeded(tb, contractPut, func(ctx context.Context) error {
 		return c.Put(ctx, fx.Value())
 	})
-}
-
-// contractAssertPageMiss asserts Page answers no value for a cursor nothing has written.
-func contractAssertPageMiss(
-	tb testing.TB,
-	c Contract,
-	fx ContractFixture,
-) {
-	tb.Helper()
-	// The error is shown and not judged, and that is the claim rather than
-	// an omission. A reader that refuses here, where the declaration says
-	// Page answers nothing, is behaving — it has just not named
-	// which refusal, and the declaration named no sentinel to hold it to.
-	// Demanding success would fail every such reader for the one thing
-	// nobody said. What it may not do is answer with a value.
-	ctx := tb.Context()
-
-	got, got2, got3, err := c.Page(ctx, fx.CursorOther())
-
-	if got != nil {
-		tb.Errorf("Page must return nothing for its result 1 for an input nothing supplied (err %v)", err)
-	}
-	var zero2 pagination.Cursor
-	if got2 != zero2 {
-		tb.Errorf("Page must return the zero Cursor for an input nothing supplied: got %+v, want %+v (err %v)",
-			got2, zero2, err)
-	}
-	var zero3 bool
-	if got3 != zero3 {
-		tb.Errorf("Page must return the zero bool for an input nothing supplied: got %+v, want %+v (err %v)",
-			got3, zero3, err)
-	}
 }
 
 // ContractDefect is a deliberately broken implementation, used as
@@ -890,19 +853,6 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}).Reasoned(suite.RedDeadline),
-		ix.Page.Miss(): prove.One("a Contract whose Page answers for an input nothing wrote",
-			func(tb testing.TB) Contract {
-				return NewContractStub(tb, WithContractPage(
-					func(_ context.Context, _ pagination.Cursor) (items []pagination.Value, next pagination.Cursor, more bool, err error) {
-						// A value for a call a correct subject answers nothing for.
-						items = []pagination.Value{{Key: "other-"}}
-						// And the flag that makes it an answer. A caller of this read
-						// consults the flag and ignores what came beside it, so a value
-						// under a false flag is the miss it was meant to contradict.
-						more = true
-						return
-					}))
-			}),
 	}
 }
 
@@ -1180,4 +1130,4 @@ func contractAssertPaginatorResumable(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 9f2090f1841a4cb9604d8b5458f56296b373ba2e285ea2307c93e576a8e67531
+// testkit:provenance 5f8c1deb2fb9a389d77b28baf57e4e64529a4cae5e7dd674f580ff56160b0ff4

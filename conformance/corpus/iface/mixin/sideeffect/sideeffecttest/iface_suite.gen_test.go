@@ -41,8 +41,6 @@ import (
 //	Observed.ZeroOnError — a Mixed whose Observed answers a believable value beside its error
 //
 //	Touch.Sideeffect — a Mixed whose Touch reports success and keeps nothing
-//
-//	Observed.Miss — a Mixed whose Observed answers for an input nothing wrote
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -72,4 +70,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance a1136511b482dfb3fc2b90503667bf176f45f9477170fcc0e68ef0da3129cbf7
+// testkit:provenance 4a10c05e16b9c13915338a511ad179b6716de030408079a7cbd71d1da78ab196

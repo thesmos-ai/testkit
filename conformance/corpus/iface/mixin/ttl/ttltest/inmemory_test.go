@@ -9,8 +9,10 @@ package ttltest_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"go.thesmos.sh/testkit"
+	"go.thesmos.sh/testkit/clock"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/ttl"
 	"go.thesmos.sh/testkit/conformance/corpus/iface/mixin/ttl/ttltest"
 )
@@ -116,4 +118,56 @@ func (n *neverExpires) Read(_ context.Context, key string) (ttl.Value, error) {
 		return ttl.Value{}, ttl.ErrExpired
 	}
 	return v, nil
+}
+
+// --- The Start-shaped clock door ------------------------------------------------
+
+// TestMixedOnAStartedClock runs the same checks against a store built
+// through the harness's Start-shaped clock door.
+//
+// The same implementation, reached the other way. OnClock is for a
+// clocked constructor that cannot fail; StartOnClock is for one needing
+// the test's lifetime — a background sweeper to stop, a file to remove —
+// and it is handed the testing.TB to register that on. Both doors ship
+// and only one was ever opened.
+func TestMixedOnAStartedClock(t *testing.T) {
+	t.Parallel()
+
+	ttltest.RunMixed(t, ttltest.MixedHarness[*ttltest.InMemory]{
+		Name: "in-memory on a started clock",
+		// Start beside it, because one of the two base doors is always
+		// required: the clock door refines how a clocked check builds the
+		// subject, it does not replace the constructor.
+		Start: func(tb testing.TB) *ttltest.InMemory {
+			tb.Helper()
+			return startOnClock(tb, clock.NewTestClock(epoch()))
+		},
+		StartOnClock: startOnClock,
+		// The Start-shaped sibling of Recover, for a reopen that also
+		// needs the test's lifetime. Its plain form is exercised by the
+		// harness above; this is the other door onto the same seam.
+		StartRecover: startRecover,
+	}, mixedChecks)
+}
+
+// startRecover rebuilds over the medium the prior instance left behind
+// and registers the new one's teardown.
+func startRecover(tb testing.TB, prior *ttltest.InMemory) *ttltest.InMemory {
+	tb.Helper()
+	s := ttltest.Reopen(prior)
+	tb.Cleanup(func() { _ = s })
+	return s
+}
+
+// epoch is the instant a subject built outside a clocked check starts
+// at. The clocked checks hand their own clock over instead.
+func epoch() time.Time { return time.Unix(0, 0).UTC() }
+
+// startOnClock builds the store on the run's clock and registers its
+// teardown, which is the whole difference from OnClock.
+func startOnClock(tb testing.TB, clk *clock.TestClock) *ttltest.InMemory {
+	tb.Helper()
+	s := ttltest.NewInMemoryOn(clk)
+	tb.Cleanup(func() { _ = s })
+	return s
 }

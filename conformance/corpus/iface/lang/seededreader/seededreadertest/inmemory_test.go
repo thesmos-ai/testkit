@@ -40,3 +40,33 @@ func TestCatalogChecksCanFail(t *testing.T) {
 		},
 	)
 }
+
+// TestCatalogFromAStartedSeed builds the seeded subject through the
+// harness's Start-shaped seed door.
+//
+// The same corpus, reached the other way. Seed is for a seeded
+// constructor that cannot fail; StartSeed is for one needing the test's
+// lifetime — an index to close, a directory to clear — and it is handed
+// the testing.TB to register that on. Both doors ship and only one was
+// ever opened.
+func TestCatalogFromAStartedSeed(t *testing.T) {
+	t.Parallel()
+
+	seededreadertest.RunCatalog(t,
+		seededreadertest.CatalogHarness[*seededreadertest.InMemory]{
+			Name:      "in-memory from a started seed",
+			StartSeed: startSeeded,
+		},
+	)
+}
+
+// startSeeded builds the catalogue over the run's corpus and registers
+// its teardown, which is the whole difference from Seed.
+func startSeeded(
+	tb testing.TB, docs seededreadertest.CatalogCorpus,
+) *seededreadertest.InMemory {
+	tb.Helper()
+	s := seededreadertest.NewInMemory(docs)
+	tb.Cleanup(func() { _ = s })
+	return s
+}

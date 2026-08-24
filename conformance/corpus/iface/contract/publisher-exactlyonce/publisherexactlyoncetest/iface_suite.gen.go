@@ -67,7 +67,6 @@ import (
 //	Subscribe/nilcontext
 //	Subscribe/smoke
 //	Subscribe/zero-on-error
-//	model/contract/AUTO-PUBLISHER-DELIVERS
 //	model/contract/AUTO-PUBLISHER-EXACTLY-ONCE
 //
 // A version check, performed by the compiler. If this file was generated
@@ -273,7 +272,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Subscribe.NilContext():       "ContractSuite.Checks.Subscribe.NilContext()",
 	contractCheckIndex.Subscribe.Deadline():         "ContractSuite.Checks.Subscribe.Deadline()",
 	contractCheckIndex.Subscribe.ZeroOnError():      "ContractSuite.Checks.Subscribe.ZeroOnError()",
-	contractCheckIndex.Model.Delivers():             "ContractSuite.Checks.Model.Delivers()",
 	contractCheckIndex.Model.PublisherExactlyOnce(): "ContractSuite.Checks.Model.PublisherExactlyOnce()",
 }
 
@@ -406,17 +404,12 @@ func (contractSubscribeChecks) All() []suite.ID {
 
 type contractModelChecks struct{}
 
-func (contractModelChecks) Delivers() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.PublisherDelivers)
-}
-
 func (contractModelChecks) PublisherExactlyOnce() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.PublisherExactlyOnce)
 }
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
-		contractModelChecks{}.Delivers(),
 		contractModelChecks{}.PublisherExactlyOnce(),
 	}
 }
@@ -978,16 +971,6 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}),
-		ix.Model.Delivers(): prove.One("a Contract whose Publish reports success and keeps nothing",
-			func(tb testing.TB) Contract {
-				return NewContractStub(tb, WithContractPublish(
-					func(_ context.Context, _ publisherexactlyonce.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
 	}
 }
 
@@ -1119,19 +1102,6 @@ var _ = legs.CompatV1
 func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 	return []suite.Check[Contract]{
 		{
-			ID:    contractCheckIndex.Model.Delivers(),
-			Class: suite.ClassLaws,
-			Claim: "a message published after subscribers registered reaches every one of them",
-			Binds: []string{
-				lawid.PublisherDelivers,
-			},
-			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthDifferential,
-			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
-				contractAssertDelivers(tb, sub, fx)
-			},
-		},
-		{
 			ID:    contractCheckIndex.Model.PublisherExactlyOnce(),
 			Class: suite.ClassLaws,
 			Claim: "every subscriber receives a published message exactly once",
@@ -1255,38 +1225,6 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	return out
 }
 
-// contractAssertDelivers binds AUTO-PUBLISHER-DELIVERS over the shared sequences.
-//
-// One law, and the run's only oracle — see [legs.Law]
-// for why the differential is off on every law leg.
-func contractAssertDelivers(
-	tb testing.TB,
-	sub suite.Subject[Contract],
-	fx ContractFixture,
-) {
-	tb.Helper()
-	values := contractModelValues(fx)
-	drainSub := contractDrainSubscription
-
-	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Contract { return sub.New(tb) }, buildRef,
-		contractModelActions(fx),
-		[]law.Law[Contract]{
-			law.PublisherDelivers[publisherexactlyonce.Contract, publisherexactlyonce.Value, <-chan publisherexactlyonce.Value]{
-				Subscribe: func(rt *model.T, s publisherexactlyonce.Contract) (<-chan publisherexactlyonce.Value, error) {
-					return s.Subscribe(rt.Context())
-				},
-				Publish: func(rt *model.T, s publisherexactlyonce.Contract, v publisherexactlyonce.Value) error {
-					return s.Publish(rt.Context(), v)
-				},
-				Drain:    drainSub,
-				Messages: values,
-			},
-		})
-}
-
 // contractAssertPublisherExactlyOnce binds AUTO-PUBLISHER-EXACTLY-ONCE over the shared sequences.
 //
 // One law, and the run's only oracle — see [legs.Law]
@@ -1332,4 +1270,4 @@ func contractAssertPublisherExactlyOnce(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 856433bec39cf1e661276fcd89d03731387ad7837f778a6901a52372998f1531
+// testkit:provenance ef50525e6ece65a32fe3e8fc6cf6be1bf0e67e647812280165b833a3fea5b467

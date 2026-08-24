@@ -51,7 +51,15 @@ identically to one judging both.
 {{- define "suite.frag.zero-judge" -}}
 {{- $j := . }}
 {{- range $slot := .Slots }}
-{{- if $slot.Nil }}
+{{- if $slot.Empty }}
+if len({{ $slot.Bind }}) != 0 {
+{{- if $j.ShowErr }}
+	tb.Errorf("{{ $j.Method }} must return nothing{{ with $slot.Label }} for its {{ . }}{{ end }} {{ $j.Because }}: got %d (err %v)", len({{ $slot.Bind }}), err)
+{{- else }}
+	tb.Errorf("{{ $j.Method }} must return nothing{{ with $slot.Label }} for its {{ . }}{{ end }} {{ $j.Because }}: got %d", len({{ $slot.Bind }}))
+{{- end }}
+}
+{{- else if $slot.Nil }}
 if {{ $slot.Bind }} != nil {
 {{- if $j.ShowErr }}
 	tb.Errorf("{{ $j.Method }} must return nothing{{ with $slot.Label }} for its {{ . }}{{ end }} {{ $j.Because }} (err %v)", err)

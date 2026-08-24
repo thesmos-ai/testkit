@@ -46,6 +46,12 @@ func TestContractChecksCanFail(t *testing.T) {
 func inMemory(name string) persistertest.ContractHarness[*persistertest.InMemory] {
 	return persistertest.ContractHarness[*persistertest.InMemory]{
 		Name: name, New: persistertest.NewInMemory,
+		// The one to compare the others against, which only means
+		// anything in a run carrying more than one. At most one subject
+		// may claim it, and without it the model checks fall back to a
+		// reference derived from the shape — which catches a
+		// deterministic bug and knows nothing of this store's intent.
+		Oracle: true,
 		// The crash seam. The map outlives the instance holding it, which
 		// is what makes a rebuild over it mean anything: an acknowledged
 		// write is still there when the process that took it is not.

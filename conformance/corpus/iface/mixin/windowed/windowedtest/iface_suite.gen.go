@@ -57,7 +57,6 @@ import (
 //
 //	CountIn/cancel
 //	CountIn/deadline
-//	CountIn/miss
 //	CountIn/nilcontext
 //	CountIn/smoke
 //	CountIn/zero-on-error
@@ -72,6 +71,13 @@ import (
 // do — listed so that a directive you wrote is accounted for:
 //
 //	windowed on Record — stating it needs sequences of calls judged against a reference, which this file does not build.
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	CountIn's miss check — nothing here writes what CountIn answers, so its answer for an unsupplied input is not a miss — a watch hands back a live subscription for any key, a predicate answers false because the answer is no, and a machine reports the position it starts in. To close it: say what this reports when it finds nothing, with //testkit:mixin notfound sentinel=Err…, or write the check yourself.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -299,7 +305,6 @@ var mixedIndexPath = map[suite.ID]string{
 	mixedCheckIndex.CountIn.NilContext():  "MixedSuite.Checks.CountIn.NilContext()",
 	mixedCheckIndex.CountIn.Deadline():    "MixedSuite.Checks.CountIn.Deadline()",
 	mixedCheckIndex.CountIn.ZeroOnError(): "MixedSuite.Checks.CountIn.ZeroOnError()",
-	mixedCheckIndex.CountIn.Miss():        "MixedSuite.Checks.CountIn.Miss()",
 	mixedCheckIndex.Model.Windowed():      "MixedSuite.Checks.Model.Windowed()",
 }
 
@@ -389,10 +394,6 @@ func (mixedCountInChecks) ZeroOnError() suite.ID {
 	return suite.MethodID(mixedCountIn, suite.SegZeroValue)
 }
 
-func (mixedCountInChecks) Miss() suite.ID {
-	return suite.MethodID(mixedCountIn, suite.SegMiss)
-}
-
 func (mixedCountInChecks) All() []suite.ID {
 	return []suite.ID{
 		mixedCountInChecks{}.Smoke(),
@@ -400,7 +401,6 @@ func (mixedCountInChecks) All() []suite.ID {
 		mixedCountInChecks{}.NilContext(),
 		mixedCountInChecks{}.Deadline(),
 		mixedCountInChecks{}.ZeroOnError(),
-		mixedCountInChecks{}.Miss(),
 	}
 }
 
@@ -484,11 +484,6 @@ func mixedSignatureChecks(fx MixedFixture) []suite.Check[Mixed] {
 			"CountIn returns zero alongside any error",
 			func(tb testing.TB, m Mixed) {
 				mixedAssertCountInZeroOnError(tb, m, fx)
-			}).At(suite.StrengthObserved),
-		sig(ix.CountIn.Miss(), suite.ClassReader,
-			"CountIn answers no value for a key nothing has written",
-			func(tb testing.TB, m Mixed) {
-				mixedAssertCountInMiss(tb, m, fx)
 			}).At(suite.StrengthObserved),
 	}
 }
@@ -609,30 +604,6 @@ func mixedAssertCountInZeroOnError(
 	var zero int
 	if got != zero {
 		tb.Errorf("CountIn must return the zero value alongside an error: got %+v, want %+v (err %v)",
-			got, zero, err)
-	}
-}
-
-// mixedAssertCountInMiss asserts CountIn answers no value for a key nothing has written.
-func mixedAssertCountInMiss(
-	tb testing.TB,
-	m Mixed,
-	fx MixedFixture,
-) {
-	tb.Helper()
-	// The error is shown and not judged, and that is the claim rather than
-	// an omission. A reader that refuses here, where the declaration says
-	// CountIn answers nothing, is behaving — it has just not named
-	// which refusal, and the declaration named no sentinel to hold it to.
-	// Demanding success would fail every such reader for the one thing
-	// nobody said. What it may not do is answer with a value.
-	ctx := tb.Context()
-
-	got, err := m.CountIn(ctx, fx.KeyOther())
-
-	var zero int
-	if got != zero {
-		tb.Errorf("CountIn must return the zero value for an input nothing supplied: got %+v, want %+v (err %v)",
 			got, zero, err)
 	}
 }
@@ -901,15 +872,6 @@ func mixedProofs() prove.Defects[Mixed] {
 						// violation rather than a subject that merely failed.
 						r0 = 2
 						err = errors.New("planted: CountIn refused with a believable value")
-						return
-					}))
-			}),
-		ix.CountIn.Miss(): prove.One("a Mixed whose CountIn answers for an input nothing wrote",
-			func(tb testing.TB) Mixed {
-				return NewMixedStub(tb, WithMixedCountIn(
-					func(_ context.Context, _ string) (r0 int, err error) {
-						// A value for a call a correct subject answers nothing for.
-						r0 = 2
 						return
 					}))
 			}),
@@ -1183,4 +1145,4 @@ func mixedAssertWindowed(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 8fc8b07c95019fdabaed8d7b8efe6e44b1be26869ffeb7c0ed1349e8d047127f
+// testkit:provenance a13618793af33ca2fd129b0ec9019d82a25ee495927eac7bb68d2124432754c3

@@ -457,8 +457,8 @@ func paginatedReaderAssertPageZeroOnError(
 		tb.Skip("Page answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Page must return nothing for its result 1 alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Page must return nothing for its result 1 alongside an error: got %d (err %v)", len(got), err)
 	}
 	var zero2 int
 	if got2 != zero2 {
@@ -895,4 +895,4 @@ func paginatedReaderAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 8303c528e5d5c2370177848f1535388494024f7af121789336f3b6b5cb823880
+// testkit:provenance 6b551c8965f27271a4a6b386bdca65da3485bcdb42f8fef7368315ee09b5f6b4

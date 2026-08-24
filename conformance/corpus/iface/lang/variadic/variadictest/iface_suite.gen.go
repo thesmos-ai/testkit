@@ -520,8 +520,8 @@ func finderAssertFindZeroOnError(
 		tb.Skip("Find answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Find must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Find must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -590,8 +590,8 @@ func finderAssertFindWithLimitZeroOnError(
 		tb.Skip("FindWithLimit answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("FindWithLimit must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("FindWithLimit must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -947,4 +947,4 @@ func GreenFinder(
 }
 
 // testkit: end of generated content.
-// testkit:provenance 2ff11900d355ffc01b488cbed0f4deddb59f9e0e952c61f94975091fdd252377
+// testkit:provenance f58ce9be6a254b498b7b33b1d183db981d8bde785d2581541b637b09b59561b9

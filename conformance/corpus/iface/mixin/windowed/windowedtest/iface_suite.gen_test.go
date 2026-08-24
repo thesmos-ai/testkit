@@ -39,8 +39,6 @@ import (
 //	CountIn.Deadline — a Mixed whose CountIn ignores the context it is handed
 //
 //	CountIn.ZeroOnError — a Mixed whose CountIn answers a believable value beside its error
-//
-//	CountIn.Miss — a Mixed whose CountIn answers for an input nothing wrote
 
 // TestMixedInvariants holds this package to what it says about itself.
 //
@@ -70,4 +68,4 @@ func TestMixedInvariants(t *testing.T) {
 }
 
 // testkit: end of generated content.
-// testkit:provenance 8df569061b728b0dd7c9f5dd65c6b450a86744988ecf362d6f418343f051767c
+// testkit:provenance 7c3b78e2f7603cea9e49a52ac132d4af7d8ed5a90fa83981ba2789c4fa21c89b

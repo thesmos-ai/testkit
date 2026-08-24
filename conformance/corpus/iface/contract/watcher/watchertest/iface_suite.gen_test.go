@@ -69,8 +69,6 @@ func TestContractInvariants(t *testing.T) {
 
 // Argued rather than proven, for want of a defect template here:
 //
-//	Watch/miss
-//
 //	Watch/zero-on-error
 //
 // Each is a claim a derivation rule reached and this generator cannot yet
@@ -79,4 +77,4 @@ func TestContractInvariants(t *testing.T) {
 // one nobody has written the falsification for.
 
 // testkit: end of generated content.
-// testkit:provenance 054a60c5604e09c2e835f2e061e7d17c516ec61bcf5d95d04330593dc416da58
+// testkit:provenance fe8a74e8a8181cea0260861c187993d4fe82de4027d8ae876304c8fa95a454d5

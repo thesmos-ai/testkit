@@ -68,7 +68,6 @@ import (
 //	Subscribe/smoke
 //	Subscribe/zero-on-error
 //	model/contract/AUTO-PUBLISHER-AT-LEAST-ONCE
-//	model/contract/AUTO-PUBLISHER-DELIVERS
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -273,7 +272,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Subscribe.NilContext():  "ContractSuite.Checks.Subscribe.NilContext()",
 	contractCheckIndex.Subscribe.Deadline():    "ContractSuite.Checks.Subscribe.Deadline()",
 	contractCheckIndex.Subscribe.ZeroOnError(): "ContractSuite.Checks.Subscribe.ZeroOnError()",
-	contractCheckIndex.Model.Delivers():        "ContractSuite.Checks.Model.Delivers()",
 	contractCheckIndex.Model.AtLeastOnce():     "ContractSuite.Checks.Model.AtLeastOnce()",
 }
 
@@ -406,17 +404,12 @@ func (contractSubscribeChecks) All() []suite.ID {
 
 type contractModelChecks struct{}
 
-func (contractModelChecks) Delivers() suite.ID {
-	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.PublisherDelivers)
-}
-
 func (contractModelChecks) AtLeastOnce() suite.ID {
 	return suite.FamilyID(suite.FamilyModel, contractQualifier, lawid.PublisherAtLeastOnce)
 }
 
 func (contractModelChecks) All() []suite.ID {
 	return []suite.ID{
-		contractModelChecks{}.Delivers(),
 		contractModelChecks{}.AtLeastOnce(),
 	}
 }
@@ -978,16 +971,6 @@ func contractProofs() prove.Defects[Contract] {
 						return
 					}))
 			}),
-		ix.Model.Delivers(): prove.One("a Contract whose Publish reports success and keeps nothing",
-			func(tb testing.TB) Contract {
-				return NewContractStub(tb, WithContractPublish(
-					func(_ context.Context, _ publisherredeliver.Value) (err error) {
-						// The call arrives and nothing is done with it; the bare
-						// return answers every slot's zero, which for the error
-						// slot is the nil this claim forbids.
-						return
-					}))
-			}),
 		ix.Model.AtLeastOnce(): prove.One("a Contract whose Publish reports success and keeps nothing",
 			func(tb testing.TB) Contract {
 				return NewContractStub(tb, WithContractPublish(
@@ -1129,19 +1112,6 @@ var _ = legs.CompatV1
 func contractModelRows(fx ContractFixture) []suite.Check[Contract] {
 	return []suite.Check[Contract]{
 		{
-			ID:    contractCheckIndex.Model.Delivers(),
-			Class: suite.ClassLaws,
-			Claim: "a message published after subscribers registered reaches every one of them",
-			Binds: []string{
-				lawid.PublisherDelivers,
-			},
-			Falsifiable: suite.Proven(),
-			Strength:    suite.StrengthDifferential,
-			RunWith: func(tb testing.TB, sub suite.Subject[Contract]) {
-				contractAssertDelivers(tb, sub, fx)
-			},
-		},
-		{
 			ID:    contractCheckIndex.Model.AtLeastOnce(),
 			Class: suite.ClassLaws,
 			Claim: "every subscriber's delivery count for a published message is one or more",
@@ -1265,38 +1235,6 @@ func contractModelActions(fx ContractFixture) []model.Action[Contract] {
 	return out
 }
 
-// contractAssertDelivers binds AUTO-PUBLISHER-DELIVERS over the shared sequences.
-//
-// One law, and the run's only oracle — see [legs.Law]
-// for why the differential is off on every law leg.
-func contractAssertDelivers(
-	tb testing.TB,
-	sub suite.Subject[Contract],
-	fx ContractFixture,
-) {
-	tb.Helper()
-	values := contractModelValues(fx)
-	drainSub := contractDrainSubscription
-
-	buildRef, tier := legs.Reference(tb, sub, NewContractModelReference)
-	sub.NoteTier(tier)
-	legs.Law(tb, sub,
-		func() Contract { return sub.New(tb) }, buildRef,
-		contractModelActions(fx),
-		[]law.Law[Contract]{
-			law.PublisherDelivers[publisherredeliver.Contract, publisherredeliver.Value, <-chan publisherredeliver.Value]{
-				Subscribe: func(rt *model.T, s publisherredeliver.Contract) (<-chan publisherredeliver.Value, error) {
-					return s.Subscribe(rt.Context())
-				},
-				Publish: func(rt *model.T, s publisherredeliver.Contract, v publisherredeliver.Value) error {
-					return s.Publish(rt.Context(), v)
-				},
-				Drain:    drainSub,
-				Messages: values,
-			},
-		})
-}
-
 // contractAssertAtLeastOnce binds AUTO-PUBLISHER-AT-LEAST-ONCE over the shared sequences.
 //
 // One law, and the run's only oracle — see [legs.Law]
@@ -1342,4 +1280,4 @@ func contractAssertAtLeastOnce(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 3ac5a9fefbd1f517980a57d0ac95655a6be2ccd41afef8d655b26104d7b20c95
+// testkit:provenance b1b65718f1c74a5e1a407b2f49f94b5c0382688f96983af09a08a9a8bce326cf

@@ -59,7 +59,7 @@ func bareMethod(name, detected string, mixins ...string) subject.Method {
 // sentinelReader is the kv Get shape: a reader declaring its OWN miss
 // sentinel, read through the real param key.
 func sentinelReader() subject.Method {
-	m := stampMethod("Get", reader.Name, MixinNotFound)
+	m := stampReader("Get", MixinNotFound)
 	// Stamped on the DECLARATION, which is where the annotator writes
 	// it, and the projected map derived from that — the order the
 	// pipeline runs in. Setting a detached bag and assigning the map
@@ -69,6 +69,31 @@ func sentinelReader() subject.Method {
 	shape.MixinParamKey(MixinNotFound, MixinNotFoundSentinel).
 		Set(m.Source.EnsureMeta(), "kv.ErrNotFound", "test")
 	m.MixinParams = mixinParamsOf(m.Source.Meta(), m.Mixins)
+	return m
+}
+
+// stampReader is stampMethod for a reader: the Value it answers beside
+// the error.
+//
+// Its own helper rather than a return on every stamped method, because
+// the mixin rules read the same builder — and an error channel they were
+// asserting the absence of changes which gap they report.
+func stampReader(name string, mixins ...string) subject.Method {
+	m := stampMethod(name, reader.Name, mixins...)
+	m.Returns = []golang.Return{{Source: storefixture.Named("Value")}, {Error: true}}
+	return m
+}
+
+// stampWriter is stampMethod for a writer: the key beside the value it
+// stores.
+//
+// A writer taking only a key stores nothing, which is not a writer — and
+// the miss rule reads exactly that, asking whether some method here
+// writes the kind of value the reader answers.
+func stampWriter(name string) subject.Method {
+	m := stampMethod(name, writer.Name)
+	m.Params = append(m.Params, golang.Param{Name: "value", Source: storefixture.Named("Value")})
+	m.ArgFields = append(m.ArgFields, "Value")
 	return m
 }
 
@@ -83,6 +108,22 @@ func stampIface(methods ...subject.Method) Iface {
 			Other:  golang.Sample{Text: `"o"`},
 		}}},
 	}
+}
+
+// writerIface is [stampIface] with the value a writer stores, for the
+// cases that pair a reader with one.
+//
+// Its own helper rather than a field on the shared fixture: the mixin
+// rules read the same fixture, and a Value field they did not ask for
+// changes which gap they report first.
+func writerIface(methods ...subject.Method) Iface {
+	f := stampIface(methods...)
+	f.Fixture.Fields = append(f.Fixture.Fields, subject.FixtureField{
+		Name:   "Value",
+		Sample: golang.Sample{Text: `"v"`},
+		Other:  golang.Sample{Text: `"w"`},
+	})
+	return f
 }
 
 // seededIface is [stampIface] for a run that zips a corpus from its
@@ -122,19 +163,19 @@ func TestStampsDeriveTheStampFamilies(t *testing.T) {
 		},
 		{
 			"a stamped sentinel reader derives its miss",
-			stampIface(sentinelReader(), stampMethod("Put", writer.Name)),
+			writerIface(sentinelReader(), stampWriter("Put")),
 			[]vocab.ID{"Get/miss"},
 			0,
 		},
 		{
 			"a reader beside a writer derives its miss",
-			stampIface(stampMethod("Lookup", reader.Name), stampMethod("Put", writer.Name)),
+			writerIface(stampReader("Lookup"), stampWriter("Put")),
 			[]vocab.ID{"Lookup/miss"},
 			0,
 		},
 		{
 			"a seeded reader derives miss and hit",
-			seededIface(stampMethod("Lookup", reader.Name)),
+			seededIface(stampReader("Lookup")),
 			[]vocab.ID{"Lookup/miss", "Lookup/hit"},
 			0,
 		},
@@ -146,7 +187,7 @@ func TestStampsDeriveTheStampFamilies(t *testing.T) {
 		},
 		{
 			"an aggregator beside a writer licenses nothing",
-			stampIface(bareMethod("Len", aggregator.Name), stampMethod("Put", writer.Name)),
+			writerIface(bareMethod("Len", aggregator.Name), stampWriter("Put")),
 			nil,
 			0,
 		},
@@ -154,7 +195,7 @@ func TestStampsDeriveTheStampFamilies(t *testing.T) {
 			// A transform: reader-shaped, but nothing writes and no
 			// corpus seeds, so no draw is one nothing supplied.
 			"a reader shape with nothing to supply it refuses",
-			stampIface(stampMethod("Encode", reader.Name)),
+			stampIface(stampReader("Encode")),
 			nil,
 			1,
 		},
@@ -228,7 +269,7 @@ func TestStampsHoldTheCensusPosture(t *testing.T) {
 
 	t.Run("the corpus claims come out verbatim", func(t *testing.T) {
 		t.Parallel()
-		plans, _ := Stamps{}.Derive(stampIface(sentinelReader(), stampMethod("Put", writer.Name)))
+		plans, _ := Stamps{}.Derive(writerIface(sentinelReader(), stampWriter("Put")))
 		testkit.Len(t, plans, 1, "one miss check")
 		testkit.Equal(t, plans[0].Claim, "Get reports ErrNotFound for a key nothing wrote",
 			"the manifest spelling: bare sentinel, writer-fed verb")

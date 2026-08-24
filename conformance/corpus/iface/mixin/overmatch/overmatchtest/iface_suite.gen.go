@@ -576,8 +576,8 @@ func mixedAssertItemsZeroOnError(
 		tb.Skip("Items answered for a cancelled context, so this check has no error to inspect")
 	}
 
-	if got != nil {
-		tb.Errorf("Items must return nothing alongside an error (err %v)", err)
+	if len(got) != 0 {
+		tb.Errorf("Items must return nothing alongside an error: got %d (err %v)", len(got), err)
 	}
 }
 
@@ -1197,4 +1197,4 @@ func mixedAssertStreamOverMatch(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance 08cd2d0cbd4031ef2750d8371b3e62453f6e939d3709358733f0d0f5b4640fb8
+// testkit:provenance a45d74b068ffda90d66f52f0565bf8a89a52c272603559e2bee766ccbbb3d04c

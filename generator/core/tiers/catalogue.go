@@ -1095,9 +1095,16 @@ var rules = []Rule{
 	// A bare publisher claims delivery; `mode` refines it into a bound on how
 	// many copies each subscriber sees. Absent means unstated, not a default,
 	// so the refined law does not bind without it.
+	//
+	// And this one does not bind WITH it. The check requires every
+	// subscriber to have received the message, which is what at-most-once
+	// declares it may not do: bound beside that mode it demanded delivery a
+	// correct publisher is licensed to drop, and stamped the row Proven
+	// while doing it.
 	{
 		Law:   lawid.PublisherDelivers,
 		Needs: []string{contractPublisher},
+		When:  []Condition{{Param: ParamPublisherMode, Absent: true}},
 		Fields: []Field{
 			{Name: "Subscribe", Kind: KindRole, From: "publisher.subscribe"},
 			{Name: "Publish", Kind: KindRole, From: "publisher.publish"},

@@ -52,7 +52,6 @@ import (
 //
 //	Match/cancel
 //	Match/deadline
-//	Match/miss
 //	Match/nilcontext
 //	Match/smoke
 //	Match/zero-on-error
@@ -62,6 +61,13 @@ import (
 //	Put/nilcontext
 //	Put/smoke
 //	model/contract/differential
+//
+// Claims this file does NOT make. Each was worked out from your
+// declaration and then declined, because something needed to state it
+// is missing. The reason and the fix are given for each: the list above
+// tells you what you have, and this tells you what you do not.
+//
+//	Match's miss check — nothing here writes what Match answers, so its answer for an unsupplied input is not a miss — a watch hands back a live subscription for any key, a predicate answers false because the answer is no, and a machine reports the position it starts in. To close it: say what this reports when it finds nothing, with //testkit:mixin notfound sentinel=Err…, or write the check yourself.
 //
 // A version check, performed by the compiler. If this file was generated
 // against a testkit whose check format differs from the one you are
@@ -263,7 +269,6 @@ var contractIndexPath = map[suite.ID]string{
 	contractCheckIndex.Match.NilContext():  "ContractSuite.Checks.Match.NilContext()",
 	contractCheckIndex.Match.Deadline():    "ContractSuite.Checks.Match.Deadline()",
 	contractCheckIndex.Match.ZeroOnError(): "ContractSuite.Checks.Match.ZeroOnError()",
-	contractCheckIndex.Match.Miss():        "ContractSuite.Checks.Match.Miss()",
 	contractCheckIndex.Model.Agrees():      "ContractSuite.Checks.Model.Agrees()",
 }
 
@@ -358,10 +363,6 @@ func (contractMatchChecks) ZeroOnError() suite.ID {
 	return suite.MethodID(contractMatch, suite.SegZeroValue)
 }
 
-func (contractMatchChecks) Miss() suite.ID {
-	return suite.MethodID(contractMatch, suite.SegMiss)
-}
-
 func (contractMatchChecks) All() []suite.ID {
 	return []suite.ID{
 		contractMatchChecks{}.Smoke(),
@@ -369,7 +370,6 @@ func (contractMatchChecks) All() []suite.ID {
 		contractMatchChecks{}.NilContext(),
 		contractMatchChecks{}.Deadline(),
 		contractMatchChecks{}.ZeroOnError(),
-		contractMatchChecks{}.Miss(),
 	}
 }
 
@@ -455,12 +455,6 @@ func contractSignatureChecks(fx ContractFixture) []suite.Check[Contract] {
 			"the echo-beside-error defect has to answer a live value and no sample of this method's result could be derived, so this run plants no evidence for the claim",
 			func(tb testing.TB, c Contract) {
 				contractAssertMatchZeroOnError(tb, c, fx)
-			}).At(suite.StrengthObserved),
-		argued(ix.Match.Miss(), suite.ClassReader,
-			"Match answers no value for a value nothing has written",
-			"the answers-with-value defect has to answer a live value and no sample of this method's result could be derived, so this run plants no evidence for the claim",
-			func(tb testing.TB, c Contract) {
-				contractAssertMatchMiss(tb, c, fx)
 			}).At(suite.StrengthObserved),
 		sig(ix.Put.Match(), suite.ClassMatch,
 			"Put agrees with Match about the values this run draws",
@@ -586,30 +580,6 @@ func contractAssertMatchZeroOnError(
 	var zero bool
 	if got != zero {
 		tb.Errorf("Match must return the zero value alongside an error: got %+v, want %+v (err %v)",
-			got, zero, err)
-	}
-}
-
-// contractAssertMatchMiss asserts Match answers no value for a value nothing has written.
-func contractAssertMatchMiss(
-	tb testing.TB,
-	c Contract,
-	fx ContractFixture,
-) {
-	tb.Helper()
-	// The error is shown and not judged, and that is the claim rather than
-	// an omission. A reader that refuses here, where the declaration says
-	// Match answers nothing, is behaving — it has just not named
-	// which refusal, and the declaration named no sentinel to hold it to.
-	// Demanding success would fail every such reader for the one thing
-	// nobody said. What it may not do is answer with a value.
-	ctx := tb.Context()
-
-	got, err := c.Match(ctx, fx.ValueOther())
-
-	var zero bool
-	if got != zero {
-		tb.Errorf("Match must return the zero value for an input nothing supplied: got %+v, want %+v (err %v)",
 			got, zero, err)
 	}
 }
@@ -1134,4 +1104,4 @@ func contractAssertAgrees(
 type PropT = model.T
 
 // testkit: end of generated content.
-// testkit:provenance a05aeafef91625b90c52e7a85c70eb3aa28098c4c02dbdf6516fca16d7e8761d
+// testkit:provenance a3aeca8aa710b961227a87135ccd53002a12123cca130f694eea1c3ba40a778f
